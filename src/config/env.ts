@@ -1,0 +1,7 @@
+export const ENV = {
+    API_URL: process.env.EXPO_PUBLIC_API_URL || 'http://127.0.0.1:8000/api',
+    APP_NAME: process.env.EXPO_PUBLIC_APP_NAME || 'HRMS Mobile App',
+    DEFAULT_LATITUDE: Number(process.env.EXPO_PUBLIC_DEFAULT_LATITUDE) || 11.5564,
+    DEFAULT_LONGITUDE: Number(process.env.EXPO_PUBLIC_DEFAULT_LONGITUDE) || 104.9282,
+    GEOFENCE_RADIUS_METERS: Number(process.env.EXPO_PUBLIC_GEOFENCE_RADIUS_METERS) || 100,
+};

@@ -1,0 +1,12 @@
+declare module 'lucide-react-native';
+declare module 'react-native';
+declare module '@react-navigation/native';
+declare module '@react-navigation/native-stack';
+declare module '@react-navigation/bottom-tabs';
+declare module 'expo-camera';
+declare module 'expo-location';
+declare module 'expo-secure-store';
+declare module 'expo-local-authentication';
+declare module 'expo-haptics';
+declare module 'expo-document-picker';
+declare module 'expo-image-picker';
