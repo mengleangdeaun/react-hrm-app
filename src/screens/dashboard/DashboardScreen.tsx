@@ -95,7 +95,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     };
 
     return (
-        <SafeAreaView className="flex-1 bg-slate-50 dark:bg-slate-950">
+        <SafeAreaView className="flex-1 bg-gray-100 dark:bg-slate-950">
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
             <ScrollView
                 className="flex-1 px-5 py-4"
@@ -108,12 +108,12 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 <View className="flex-row justify-between items-center mb-6">
                     <View className="flex-row items-center space-x-3">
                         <View className="w-12 h-12 rounded-2xl bg-blue-600 justify-center items-center shadow-md shadow-blue-500/30">
-                            <Text className="text-white text-xl font-extrabold">
+                            <Text className="text-xl font-extrabold">
                                 {user?.name ? user.name.charAt(0).toUpperCase() : 'E'}
                             </Text>
                         </View>
                         <View className="ml-3">
-                            <Text className="text-xs text-slate-500 dark:text-slate-400">Welcome back,</Text>
+                            <Text className="text-xs">Welcome back,</Text>
                             <Text className="text-lg font-bold text-slate-900 dark:text-slate-100">{user?.name || 'Employee'}</Text>
                             <Text className="text-xs text-slate-500 dark:text-slate-400">{user?.position || 'Staff'} • {shiftName}</Text>
                         </View>
@@ -140,7 +140,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 </View>
 
                 {/* Digital Clock & Real Attendance Status Card */}
-                <View className="bg-white dark:bg-slate-900 rounded-3xl p-6 mb-6 border border-slate-200 dark:border-slate-800 shadow-xl">
+                <View className="bg-white dark:bg-slate-900 rounded-3xl p-6 mb-6 border">
                     <View className="flex-row justify-between items-center mb-3">
                         <View className="flex-row items-center">
                             <Clock color="#2563EB" size={16} />

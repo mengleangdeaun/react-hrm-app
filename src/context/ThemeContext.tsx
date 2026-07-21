@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { useColorScheme as useNWColorScheme } from 'nativewind';
+import { UnistylesRuntime } from 'react-native-unistyles';
 import { storage } from '../utils/storage';
 
 const THEME_KEY = 'hrms_app_theme_mode';
@@ -14,8 +14,9 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const { colorScheme, setColorScheme } = useNWColorScheme();
-    const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(colorScheme === 'dark' ? 'dark' : 'dark');
+    const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(
+        (UnistylesRuntime.themeName as 'light' | 'dark') || 'dark'
+    );
 
     useEffect(() => {
         loadSavedTheme();
@@ -23,18 +24,14 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const loadSavedTheme = async () => {
         const saved = await storage.getItem(THEME_KEY);
-        if (saved === 'light' || saved === 'dark') {
-            setCurrentTheme(saved);
-            setColorScheme(saved);
-        } else {
-            setCurrentTheme('dark');
-            setColorScheme('dark');
-        }
+        const activeTheme: 'light' | 'dark' = (saved === 'light' || saved === 'dark') ? saved : 'dark';
+        setCurrentTheme(activeTheme);
+        UnistylesRuntime.setTheme(activeTheme);
     };
 
     const setThemeMode = async (mode: 'light' | 'dark') => {
         setCurrentTheme(mode);
-        setColorScheme(mode);
+        UnistylesRuntime.setTheme(mode);
         await storage.setItem(THEME_KEY, mode);
     };
 
@@ -54,6 +51,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         >
             {children}
         </ThemeContext.Provider>
+        
     );
 };
 

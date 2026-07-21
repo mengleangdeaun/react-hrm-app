@@ -10,6 +10,7 @@ import {
     Platform,
     ScrollView,
 } from 'react-native';
+import { createStyleSheet, useStyles } from 'react-native-unistyles';
 import { useAuth } from '../../context/AuthContext';
 import { useAppTheme } from '../../context/ThemeContext';
 import { Lock, Mail, QrCode, Fingerprint, LogIn, Moon, Sun } from 'lucide-react-native';
@@ -17,6 +18,8 @@ import { Lock, Mail, QrCode, Fingerprint, LogIn, Moon, Sun } from 'lucide-react-
 export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { login, loginWithBiometrics, isBiometricAvailable, isLoading } = useAuth();
     const { isDark, toggleTheme } = useAppTheme();
+    const { styles, theme } = useStyles(stylesheet);
+
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loginMode, setLoginMode] = useState<'password' | 'pin'>('password');
@@ -50,80 +53,65 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         }
     };
 
-    const iconColor = isDark ? '#94A3B8' : '#64748B';
-    const placeholderColor = isDark ? '#64748B' : '#94A3B8';
-
     return (
         <KeyboardAvoidingView
-            className="flex-1 bg-slate-50 dark:bg-slate-950"
+            style={styles.keyboardContainer}
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-            <ScrollView contentContainerStyle={{ flexGrow: 1 }} className="px-6 py-10 justify-center">
-                {/* Theme Switcher Header Button */}
-                <View className="flex-row justify-end mb-4">
+            <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+                {/* Header Actions */}
+                <View style={styles.headerRow}>
                     <TouchableOpacity
                         onPress={toggleTheme}
-                        className="p-3 bg-slate-200 dark:bg-slate-800 rounded-full border border-slate-300 dark:border-slate-700 active:opacity-70"
+                        style={styles.themeIconButton}
+                        activeOpacity={0.7}
                     >
                         {isDark ? <Sun color="#F59E0B" size={20} /> : <Moon color="#2563EB" size={20} />}
                     </TouchableOpacity>
                 </View>
 
-                {/* Branding Header */}
-                <View className="items-center mb-8">
-                    <View className="w-20 h-20 bg-blue-600 rounded-3xl justify-center items-center mb-4 shadow-lg shadow-blue-500/40">
-                        <Text className="text-white font-black text-2xl tracking-widest">HRMS</Text>
+                {/* Hero / Branding Section */}
+                <View style={styles.brandContainer}>
+                    <View style={styles.logoBadge}>
+                        <Text style={styles.logoText}>HRMS</Text>
                     </View>
-                    <Text className="text-3xl font-extrabold text-slate-900 dark:text-slate-100 mb-2 text-center">
-                        Welcome Back
-                    </Text>
-                    <Text className="text-base text-slate-500 dark:text-slate-400 text-center">
-                        Employee Self-Service Portal
-                    </Text>
+                    <Text style={styles.welcomeTitle}>Welcome Back</Text>
+                    <Text style={styles.welcomeSubtitle}>Employee Self-Service Portal</Text>
                 </View>
 
-                {/* Login Mode Segmented Toggle */}
-                <View className="flex-row bg-slate-200/80 dark:bg-slate-900 p-1.5 rounded-2xl mb-6 border border-slate-300/80 dark:border-slate-800">
+                {/* Login Mode Segmented Control */}
+                <View style={styles.segmentedContainer}>
                     <TouchableOpacity
-                        className={`flex-1 py-3 items-center rounded-xl transition-all ${
-                            loginMode === 'password' ? 'bg-blue-600 shadow-md' : 'bg-transparent'
-                        }`}
+                        style={[styles.segmentButton, loginMode === 'password' && styles.segmentButtonActive]}
                         onPress={() => setLoginMode('password')}
+                        activeOpacity={0.8}
                     >
-                        <Text
-                            className={`font-semibold text-sm ${
-                                loginMode === 'password' ? 'text-white' : 'text-slate-600 dark:text-slate-400'
-                            }`}
-                        >
+                        <Text style={[styles.segmentText, loginMode === 'password' && styles.segmentTextActive]}>
                             Password
                         </Text>
                     </TouchableOpacity>
+
                     <TouchableOpacity
-                        className={`flex-1 py-3 items-center rounded-xl transition-all ${
-                            loginMode === 'pin' ? 'bg-blue-600 shadow-md' : 'bg-transparent'
-                        }`}
+                        style={[styles.segmentButton, loginMode === 'pin' && styles.segmentButtonActive]}
                         onPress={() => setLoginMode('pin')}
+                        activeOpacity={0.8}
                     >
-                        <Text
-                            className={`font-semibold text-sm ${
-                                loginMode === 'pin' ? 'text-white' : 'text-slate-600 dark:text-slate-400'
-                            }`}
-                        >
+                        <Text style={[styles.segmentText, loginMode === 'pin' && styles.segmentTextActive]}>
                             4-Digit PIN
                         </Text>
                     </TouchableOpacity>
                 </View>
 
-                {/* Form Fields Card */}
-                <View className="bg-white dark:bg-slate-900/90 rounded-3xl p-6 border border-slate-200 dark:border-slate-800 shadow-xl dark:shadow-2xl">
+                {/* Login Form Card */}
+                <View style={styles.card}>
                     {loginMode === 'password' ? (
                         <>
-                            <View className="flex-row items-center bg-slate-100/80 dark:bg-slate-950 rounded-xl px-4 mb-4 border border-slate-200 dark:border-slate-800 h-14">
-                                <Mail color={iconColor} size={20} className="mr-3" />
+                            <View style={styles.inputWrapper}>
+                                <Mail color={theme.colors.textMuted} size={20} style={styles.inputIcon} />
                                 <TextInput
-                                    className="flex-1 text-slate-900 dark:text-slate-100 text-base"
+                                    style={styles.input}
                                     placeholder="Employee Email"
-                                    placeholderTextColor={placeholderColor}
+                                    placeholderTextColor={theme.colors.textMuted}
                                     value={email}
                                     onChangeText={setEmail}
                                     keyboardType="email-address"
@@ -131,12 +119,12 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                                 />
                             </View>
 
-                            <View className="flex-row items-center bg-slate-100/80 dark:bg-slate-950 rounded-xl px-4 mb-4 border border-slate-200 dark:border-slate-800 h-14">
-                                <Lock color={iconColor} size={20} className="mr-3" />
+                            <View style={styles.inputWrapper}>
+                                <Lock color={theme.colors.textMuted} size={20} style={styles.inputIcon} />
                                 <TextInput
-                                    className="flex-1 text-slate-900 dark:text-slate-100 text-base"
+                                    style={styles.input}
                                     placeholder="Password"
-                                    placeholderTextColor={placeholderColor}
+                                    placeholderTextColor={theme.colors.textMuted}
                                     value={password}
                                     onChangeText={setPassword}
                                     secureTextEntry
@@ -144,12 +132,12 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                             </View>
                         </>
                     ) : (
-                        <View className="flex-row items-center bg-slate-100/80 dark:bg-slate-950 rounded-xl px-4 mb-4 border border-slate-200 dark:border-slate-800 h-14">
-                            <Lock color={iconColor} size={20} className="mr-3" />
+                        <View style={styles.inputWrapper}>
+                            <Lock color={theme.colors.textMuted} size={20} style={styles.inputIcon} />
                             <TextInput
-                                className="flex-1 text-slate-900 dark:text-slate-100 text-base"
+                                style={styles.input}
                                 placeholder="Enter 4-Digit Security PIN"
-                                placeholderTextColor={placeholderColor}
+                                placeholderTextColor={theme.colors.textMuted}
                                 value={pin}
                                 onChangeText={setPin}
                                 keyboardType="number-pad"
@@ -159,39 +147,44 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                         </View>
                     )}
 
-                    {/* Primary Login Button */}
+                    {/* Submit Button */}
                     <TouchableOpacity
-                        className="bg-blue-600 hover:bg-blue-700 h-14 rounded-xl justify-center items-center mt-2 shadow-lg shadow-blue-500/30 active:opacity-90"
+                        style={styles.submitButton}
                         onPress={handleLogin}
                         disabled={isLoading}
+                        activeOpacity={0.85}
                     >
                         {isLoading ? (
                             <ActivityIndicator color="#FFFFFF" />
                         ) : (
-                            <View className="flex-row items-center space-x-2">
+                            <View style={styles.submitContent}>
                                 <LogIn color="#FFFFFF" size={20} />
-                                <Text className="text-white text-base font-bold ml-2">Sign In</Text>
+                                <Text style={styles.submitText}>Sign In</Text>
                             </View>
                         )}
                     </TouchableOpacity>
 
-                    {/* Quick Access Actions Footer */}
-                    <View className="flex-row justify-around mt-6 pt-5 border-t border-slate-200 dark:border-slate-800">
+                    {/* Quick Login Options */}
+                    <View style={styles.quickAccessRow}>
                         <TouchableOpacity
-                            className="flex-row items-center space-x-2 p-2 active:opacity-70"
+                            style={styles.quickActionButton}
                             onPress={() => navigation.navigate('QrLogin')}
+                            activeOpacity={0.7}
                         >
-                            <QrCode color={isDark ? '#38BDF8' : '#2563EB'} size={22} />
-                            <Text className="text-blue-600 dark:text-sky-400 font-semibold text-xs ml-1.5">QR Login</Text>
+                            <QrCode color={theme.colors.primary} size={20} />
+                            <Text style={styles.quickActionText}>QR Code Login</Text>
                         </TouchableOpacity>
 
                         {isBiometricAvailable && (
                             <TouchableOpacity
-                                className="flex-row items-center space-x-2 p-2 active:opacity-70"
+                                style={styles.quickActionButton}
                                 onPress={handleBiometricAuth}
+                                activeOpacity={0.7}
                             >
-                                <Fingerprint color="#10B981" size={22} />
-                                <Text className="text-emerald-600 dark:text-emerald-400 font-semibold text-xs ml-1.5">Biometric Auth</Text>
+                                <Fingerprint color={theme.colors.success} size={20} />
+                                <Text style={[styles.quickActionText, { color: theme.colors.success }]}>
+                                    Biometrics
+                                </Text>
                             </TouchableOpacity>
                         )}
                     </View>
@@ -200,3 +193,152 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         </KeyboardAvoidingView>
     );
 };
+
+const stylesheet = createStyleSheet((theme) => ({
+    keyboardContainer: {
+        flex: 1,
+        backgroundColor: theme.colors.background,
+    },
+    scrollContent: {
+        flexGrow: 1,
+        paddingHorizontal: theme.spacing.lg,
+        paddingVertical: theme.spacing.xl,
+        justifyContent: 'center',
+    },
+    headerRow: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        marginBottom: theme.spacing.md,
+    },
+    themeIconButton: {
+        padding: theme.spacing.sm + 4,
+        backgroundColor: theme.colors.surfaceSecondary,
+        borderRadius: theme.borderRadius.full,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+    },
+    brandContainer: {
+        alignItems: 'center',
+        marginBottom: theme.spacing.lg,
+    },
+    logoBadge: {
+        width: 76,
+        height: 76,
+        backgroundColor: theme.colors.primary,
+        borderRadius: theme.borderRadius.lg + 4,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: theme.spacing.md,
+        ...theme.shadows.md,
+    },
+    logoText: {
+        color: '#FFFFFF',
+        fontWeight: '900',
+        fontSize: 22,
+        letterSpacing: 2,
+    },
+    welcomeTitle: {
+        fontSize: 28,
+        fontWeight: '800',
+        color: theme.colors.textPrimary,
+        marginBottom: theme.spacing.xs,
+        textAlign: 'center',
+    },
+    welcomeSubtitle: {
+        fontSize: 14,
+        color: theme.colors.textSecondary,
+        textAlign: 'center',
+    },
+    segmentedContainer: {
+        flexDirection: 'row',
+        backgroundColor: theme.colors.surfaceSecondary,
+        padding: theme.spacing.xs,
+        borderRadius: theme.borderRadius.lg,
+        marginBottom: theme.spacing.lg,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+    },
+    segmentButton: {
+        flex: 1,
+        paddingVertical: theme.spacing.sm + 2,
+        alignItems: 'center',
+        borderRadius: theme.borderRadius.md,
+    },
+    segmentButtonActive: {
+        backgroundColor: theme.colors.primary,
+        ...theme.shadows.sm,
+    },
+    segmentText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: theme.colors.textSecondary,
+    },
+    segmentTextActive: {
+        color: '#FFFFFF',
+    },
+    card: {
+        backgroundColor: theme.colors.surface,
+        borderRadius: theme.borderRadius.lg + 4,
+        padding: theme.spacing.lg,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        ...theme.shadows.md,
+    },
+    inputWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: theme.colors.background,
+        borderRadius: theme.borderRadius.md,
+        paddingHorizontal: theme.spacing.md,
+        height: 52,
+        marginBottom: theme.spacing.md,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+    },
+    inputIcon: {
+        marginRight: theme.spacing.sm + 2,
+    },
+    input: {
+        flex: 1,
+        color: theme.colors.textPrimary,
+        fontSize: 15,
+    },
+    submitButton: {
+        backgroundColor: theme.colors.primary,
+        height: 52,
+        borderRadius: theme.borderRadius.md,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: theme.spacing.xs,
+        ...theme.shadows.sm,
+    },
+    submitContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    submitText: {
+        color: '#FFFFFF',
+        fontSize: 16,
+        fontWeight: '700',
+        marginLeft: theme.spacing.sm,
+    },
+    quickAccessRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-around',
+        marginTop: theme.spacing.lg,
+        paddingTop: theme.spacing.md,
+        borderTopWidth: 1,
+        borderTopColor: theme.colors.border,
+    },
+    quickActionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: theme.spacing.xs,
+    },
+    quickActionText: {
+        color: theme.colors.primary,
+        fontSize: 13,
+        fontWeight: '600',
+        marginLeft: theme.spacing.xs + 2,
+    },
+}));
