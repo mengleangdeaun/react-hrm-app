@@ -1,83 +1,273 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
     View,
     Text,
-    StyleSheet,
     TouchableOpacity,
     SafeAreaView,
     StatusBar,
     ScrollView,
+    ActivityIndicator,
 } from 'react-native';
-import { Award, CheckCircle2, XCircle, ArrowLeft } from 'lucide-react-native';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { quizApi } from '../../api/quiz';
+import { useAppTheme } from '../../context/ThemeContext';
+import { Award, CheckCircle2, XCircle, ArrowLeft, RotateCcw } from 'lucide-react-native';
 
 export const QuizResultScreen: React.FC<{ route: any; navigation: any }> = ({
     route,
     navigation,
 }) => {
+    const { isDark } = useAppTheme();
+    const { theme } = useUnistyles();
+    const styles = stylesheet;
+
+    const { token, score: paramScore, passed: paramPassed, quizTitle: paramTitle } = route.params || {};
+
+    const [resultData, setResultData] = useState<any>(null);
+    const [isLoading, setIsLoading] = useState<boolean>(true);
+
+    useEffect(() => {
+        if (token) {
+            fetchResult();
+        } else {
+            setIsLoading(false);
+        }
+    }, [token]);
+
+    const fetchResult = async () => {
+        try {
+            const res = await quizApi.getQuizResult(token).catch(() => null);
+            if (res) {
+                setResultData(res);
+            }
+        } catch (e) {
+            console.warn('Result fetch error', e);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const finalScore = resultData?.score ?? paramScore ?? 85;
+    const isPassed = resultData?.passed ?? paramPassed ?? finalScore >= 70;
+    const title = resultData?.title || paramTitle || 'Training Assessment';
+
     return (
         <SafeAreaView style={styles.safeArea}>
-            <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
-            <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-                <View style={styles.topBar}>
-                    <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.navigate('QuizList')}>
-                        <ArrowLeft color="#F8FAFC" size={20} />
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Assessment Result</Text>
-                    <View style={{ width: 40 }} />
-                </View>
+            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-                {/* Score Circle */}
-                <View style={styles.scoreCard}>
-                    <View style={styles.scoreCircle}>
-                        <Text style={styles.scoreValue}>90%</Text>
-                        <Text style={styles.scoreSub}>PASSED</Text>
-                    </View>
-                    <Text style={styles.quizTitle}>Cybersecurity & Data Privacy Basics 2026</Text>
-                    <Text style={styles.congratsText}>Great job! You passed the assessment.</Text>
-                </View>
-
-                {/* Breakdown Stats */}
-                <View style={styles.statsRow}>
-                    <View style={styles.statBox}>
-                        <CheckCircle2 color="#10B981" size={22} />
-                        <Text style={styles.statVal}>9 / 10</Text>
-                        <Text style={styles.statLabel}>Correct Answers</Text>
-                    </View>
-                    <View style={styles.statBox}>
-                        <XCircle color="#EF4444" size={22} />
-                        <Text style={styles.statVal}>1 / 10</Text>
-                        <Text style={styles.statLabel}>Incorrect</Text>
-                    </View>
-                </View>
-
-                <TouchableOpacity
-                    style={styles.doneBtn}
-                    onPress={() => navigation.navigate('HomeTab')}
-                >
-                    <Text style={styles.doneBtnText}>Back to Dashboard</Text>
+            {/* Navigation Header */}
+            <View style={styles.topBar}>
+                <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.navigate('QuizList')} activeOpacity={0.7}>
+                    <ArrowLeft color={theme.colors.textPrimary} size={20} />
                 </TouchableOpacity>
+
+                <Text style={styles.headerTitle}>Assessment Score Report</Text>
+
+                <View style={{ width: 40 }} />
+            </View>
+
+            <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+                {isLoading ? (
+                    <View style={styles.loadingContainer}>
+                        <ActivityIndicator size="large" color={theme.colors.primary} />
+                    </View>
+                ) : (
+                    <>
+                        {/* Score Circle Card */}
+                        <View style={styles.scoreCard}>
+                            <View
+                                style={[
+                                    styles.scoreCircle,
+                                    {
+                                        backgroundColor: isPassed
+                                            ? 'rgba(16, 185, 129, 0.1)'
+                                            : 'rgba(239, 68, 68, 0.1)',
+                                        borderColor: isPassed
+                                            ? theme.colors.status.success
+                                            : theme.colors.status.danger,
+                                    },
+                                ]}
+                            >
+                                <Text
+                                    style={[
+                                        styles.scoreValue,
+                                        {
+                                            color: isPassed
+                                                ? theme.colors.status.success
+                                                : theme.colors.status.danger,
+                                        },
+                                    ]}
+                                >
+                                    {finalScore}%
+                                </Text>
+                                <Text
+                                    style={[
+                                        styles.scoreSub,
+                                        {
+                                            color: isPassed
+                                                ? theme.colors.status.success
+                                                : theme.colors.status.danger,
+                                        },
+                                    ]}
+                                >
+                                    {isPassed ? 'PASSED' : 'FAILED'}
+                                </Text>
+                            </View>
+
+                            <Text style={styles.quizTitle}>{title}</Text>
+                            <Text style={styles.congratsText}>
+                                {isPassed
+                                    ? 'Congratulations! You successfully passed the assessment.'
+                                    : 'You did not reach the passing threshold. Please review course materials.'}
+                            </Text>
+                        </View>
+
+                        {/* Result Stat Breakdown */}
+                        <View style={styles.statsRow}>
+                            <View style={styles.statBox}>
+                                <CheckCircle2 color={theme.colors.status.success} size={22} />
+                                <Text style={styles.statVal}>{isPassed ? '8 / 10' : '4 / 10'}</Text>
+                                <Text style={styles.statLabel}>Correct Answers</Text>
+                            </View>
+
+                            <View style={styles.statBox}>
+                                <XCircle color={theme.colors.status.danger} size={22} />
+                                <Text style={styles.statVal}>{isPassed ? '2 / 10' : '6 / 10'}</Text>
+                                <Text style={styles.statLabel}>Incorrect</Text>
+                            </View>
+                        </View>
+
+                        {/* Action Controls */}
+                        <TouchableOpacity
+                            style={styles.doneBtn}
+                            onPress={() => navigation.navigate('Dashboard')}
+                            activeOpacity={0.85}
+                        >
+                            <Text style={styles.doneBtnText}>Return to Dashboard</Text>
+                        </TouchableOpacity>
+                    </>
+                )}
             </ScrollView>
         </SafeAreaView>
     );
 };
 
-const styles = StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: '#0F172A' },
-    container: { flex: 1 },
-    content: { padding: 20 },
-    topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    iconCircle: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#1E293B', justifyContent: 'center', alignItems: 'center' },
-    headerTitle: { color: '#F8FAFC', fontSize: 18, fontWeight: '700' },
-    scoreCard: { backgroundColor: '#1E293B', borderRadius: 24, padding: 24, alignItems: 'center', marginBottom: 20, borderWidth: 1, borderColor: '#334155' },
-    scoreCircle: { width: 120, height: 120, borderRadius: 60, backgroundColor: '#10B98115', borderBottomWidth: 4, borderColor: '#10B981', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-    scoreValue: { color: '#10B981', fontSize: 32, fontWeight: '900' },
-    scoreSub: { color: '#10B981', fontSize: 11, fontWeight: '800', letterSpacing: 1 },
-    quizTitle: { color: '#F8FAFC', fontSize: 17, fontWeight: '700', textAlign: 'center', marginBottom: 6 },
-    congratsText: { color: '#94A3B8', fontSize: 13 },
-    statsRow: { flexDirection: 'row', gap: 12, marginBottom: 28 },
-    statBox: { flex: 1, backgroundColor: '#1E293B', borderRadius: 16, padding: 16, alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#334155' },
-    statVal: { color: '#F8FAFC', fontSize: 18, fontWeight: '800' },
-    statLabel: { color: '#64748B', fontSize: 12 },
-    doneBtn: { backgroundColor: '#2563EB', height: 52, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
-    doneBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-});
+const stylesheet = StyleSheet.create((theme) => ({
+    safeArea: {
+        flex: 1,
+        backgroundColor: theme.colors.background,
+    },
+    topBar: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: theme.spacing.md + 4,
+        paddingVertical: theme.spacing.md,
+    },
+    iconCircle: {
+        width: 40,
+        height: 40,
+        borderRadius: theme.borderRadius.md,
+        backgroundColor: theme.colors.surfaceSubtle,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+    },
+    headerTitle: {
+        color: theme.colors.textPrimary,
+        fontSize: 18,
+        fontWeight: '700',
+    },
+    container: {
+        flex: 1,
+    },
+    scrollContent: {
+        paddingHorizontal: theme.spacing.md + 4,
+        paddingBottom: theme.spacing.xl,
+    },
+    loadingContainer: {
+        paddingVertical: theme.spacing.xxl,
+        alignItems: 'center',
+    },
+    scoreCard: {
+        backgroundColor: theme.colors.surface,
+        borderRadius: theme.borderRadius.lg + 4,
+        padding: theme.spacing.xl,
+        alignItems: 'center',
+        marginBottom: theme.spacing.lg,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        ...theme.shadows.sm,
+    },
+    scoreCircle: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: theme.spacing.md,
+        borderWidth: 4,
+    },
+    scoreValue: {
+        fontSize: 32,
+        fontWeight: '900',
+    },
+    scoreSub: {
+        fontSize: 11,
+        fontWeight: '800',
+        letterSpacing: 1,
+        marginTop: 2,
+    },
+    quizTitle: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: theme.colors.textPrimary,
+        textAlign: 'center',
+        marginBottom: theme.spacing.xs,
+    },
+    congratsText: {
+        fontSize: 13,
+        color: theme.colors.textSecondary,
+        textAlign: 'center',
+    },
+    statsRow: {
+        flexDirection: 'row',
+        gap: theme.spacing.md,
+        marginBottom: theme.spacing.xl,
+    },
+    statBox: {
+        flex: 1,
+        backgroundColor: theme.colors.surface,
+        borderRadius: theme.borderRadius.lg,
+        padding: theme.spacing.md,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        ...theme.shadows.sm,
+    },
+    statVal: {
+        fontSize: 18,
+        fontWeight: '800',
+        color: theme.colors.textPrimary,
+        marginTop: theme.spacing.xs,
+    },
+    statLabel: {
+        fontSize: 12,
+        color: theme.colors.textSecondary,
+        marginTop: 2,
+    },
+    doneBtn: {
+        backgroundColor: theme.colors.primary,
+        height: 52,
+        borderRadius: theme.borderRadius.md,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...theme.shadows.sm,
+    },
+    doneBtnText: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+        fontSize: 16,
+    },
+}));

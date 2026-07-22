@@ -3,14 +3,21 @@ import * as LocalAuthentication from 'expo-local-authentication';
 import { User } from '../types';
 import { AUTH_TOKEN_KEY, USER_DATA_KEY, apiClient } from '../api/client';
 import { storage } from '../utils/storage';
+import { getDeviceId } from '../utils/device';
+
+export interface AuthApiError extends Error {
+    code?: 'DEVICE_MISMATCH' | 'DEVICE_TAKEN' | string;
+    instruction?: string;
+}
 
 interface AuthContextType {
     user: User | null;
     token: string | null;
     isLoading: boolean;
     isBiometricAvailable: boolean;
-    login: (credentials: { email?: string; password?: string; pin?: string }) => Promise<void>;
-    loginWithQr: (qrPayload: string) => Promise<void>;
+    login: (credentials: { email?: string; password?: string; pin?: string }, force?: boolean) => Promise<void>;
+    loginWithQr: (qrPayload: string, force?: boolean) => Promise<void>;
+    loginWithTelegram: (telegramData: any, force?: boolean) => Promise<void>;
     loginWithBiometrics: () => Promise<boolean>;
     logout: () => Promise<void>;
 }
@@ -62,7 +69,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const parseUserResponse = (rawData: any, fallbackEmail?: string): { newToken: string; newUser: User } => {
-        const newToken = rawData.auth_token || rawData.token || ('demo_token_' + Date.now());
+        const newToken = rawData.auth_token || rawData.token;
         const rawEmp = rawData.employee || rawData.user || {};
 
         const newUser: User = {
@@ -70,7 +77,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             name: rawEmp.name || rawEmp.full_name || 'Employee',
             email: rawEmp.email || fallbackEmail || 'employee@scool.com',
             employee_code: rawEmp.code || rawEmp.employee_code || 'EMP-001',
-            department: rawEmp.department || 'Software Engineering',
+            department: rawEmp.department || 'Employee',
             position: rawEmp.position || 'Employee',
             avatar: rawEmp.profile_image || rawEmp.avatar || null,
         };
@@ -78,27 +85,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return { newToken, newUser };
     };
 
-    const login = async (credentials: { email?: string; password?: string; pin?: string }) => {
+    const handleApiError = (err: any) => {
+        const resData = err.response?.data;
+        if (resData && resData.message) {
+            const authErr = new Error(resData.message) as AuthApiError;
+            authErr.code = resData.code;
+            authErr.instruction = resData.instruction;
+            throw authErr;
+        }
+        throw new Error(err?.message || 'Login failed. Please check your connection and try again.');
+    };
+
+    const login = async (credentials: { email?: string; password?: string; pin?: string }, force: boolean = false) => {
         setIsLoading(true);
         try {
+            const deviceId = await getDeviceId();
             let responseData: any;
             try {
-                const response = await apiClient.post('/attendance/login-credentials', credentials);
+                const response = await apiClient.post('/attendance/login-credentials', {
+                    ...credentials,
+                    device_id: deviceId,
+                    force,
+                });
                 responseData = response.data;
             } catch (err: any) {
-                // If API fails or backend offline, check error message or use fallback for demo
-                const serverMsg = err.response?.data?.message;
-                if (err.response?.status === 401 && serverMsg) {
-                    throw new Error(serverMsg);
+                // If real backend responds with error or 403 device mismatch/taken, re-throw properly
+                if (err.response) {
+                    handleApiError(err);
                 }
-                console.warn('API login error, using fallback:', err.message);
+                console.warn('Backend unavailable, using demo credentials:', err.message);
                 responseData = {
-                    token: 'demo_token_' + Date.now(),
-                    user: {
+                    auth_token: 'demo_token_' + Date.now(),
+                    employee: {
                         id: 1,
                         name: 'John Doe',
                         email: credentials.email || 'employee@scool.com',
-                        employee_code: 'EMP-001',
+                        code: 'EMP-001',
                         department: 'Software Engineering',
                         position: 'Senior Mobile Engineer',
                     }
@@ -112,30 +134,61 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
-    const loginWithQr = async (qrPayload: string) => {
+    const loginWithQr = async (qrPayload: string, force: boolean = false) => {
         setIsLoading(true);
         try {
+            const deviceId = await getDeviceId();
             let responseData: any;
             try {
-                const response = await apiClient.post('/attendance/employee-login', { payload: qrPayload });
+                const response = await apiClient.post('/attendance/employee-login', {
+                    payload: qrPayload,
+                    device_id: deviceId,
+                    force,
+                });
                 responseData = response.data;
             } catch (err: any) {
-                const serverMsg = err.response?.data?.message;
-                if (err.response?.status === 401 && serverMsg) {
-                    throw new Error(serverMsg);
+                if (err.response) {
+                    handleApiError(err);
                 }
-                console.warn('QR API login error, using fallback:', err.message);
+                console.warn('QR API login unavailable, using demo credentials:', err.message);
                 responseData = {
-                    token: 'demo_qr_token_' + Date.now(),
-                    user: {
+                    auth_token: 'demo_qr_token_' + Date.now(),
+                    employee: {
                         id: 1,
                         name: 'John Doe',
                         email: 'employee@scool.com',
-                        employee_code: 'EMP-001',
+                        code: 'EMP-001',
                         department: 'Software Engineering',
                         position: 'Senior Mobile Engineer',
                     }
                 };
+            }
+
+            const { newToken, newUser } = parseUserResponse(responseData);
+            await saveAuthData(newToken, newUser);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const loginWithTelegram = async (telegramData: any, force: boolean = false) => {
+        setIsLoading(true);
+        try {
+            const deviceId = await getDeviceId();
+            let responseData: any;
+            try {
+                const response = await apiClient.post('/attendance/employee-login-telegram', {
+                    ...telegramData,
+                    device_id: deviceId,
+                    force,
+                });
+                responseData = response.data;
+            } catch (err: any) {
+                if (err.response) {
+                    handleApiError(err);
+                }
+                console.warn('Telegram login error:', err.message);
+                throw err;
             }
 
             const { newToken, newUser } = parseUserResponse(responseData);
@@ -186,6 +239,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 isBiometricAvailable,
                 login,
                 loginWithQr,
+                loginWithTelegram,
                 loginWithBiometrics,
                 logout,
             }}

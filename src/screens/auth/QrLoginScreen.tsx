@@ -38,16 +38,35 @@ export const QrLoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         );
     }
 
-    const handleBarcodeScanned = async ({ data }: { data: string }) => {
-        if (scanned || isLoading) return;
+    const handleBarcodeScanned = async ({ data }: { data: string }, force: boolean = false) => {
+        if ((scanned && !force) || isLoading) return;
         setScanned(true);
 
         try {
-            await loginWithQr(data);
+            await loginWithQr(data, force);
         } catch (error: any) {
-            Alert.alert('Scan Failed', error?.message || 'Invalid Employee QR code.', [
-                { text: 'Try Again', onPress: () => setScanned(false) }
-            ]);
+            if (error?.code === 'DEVICE_MISMATCH') {
+                Alert.alert(
+                    'Device Transfer Required',
+                    error.message || 'This account is registered to another device. Would you like to transfer your account to this device?',
+                    [
+                        { text: 'Cancel', style: 'cancel', onPress: () => setScanned(false) },
+                        {
+                            text: 'Transfer Account',
+                            style: 'destructive',
+                            onPress: () => handleBarcodeScanned({ data }, true),
+                        },
+                    ]
+                );
+            } else if (error?.code === 'DEVICE_TAKEN') {
+                Alert.alert('Security Error', error.message || 'This device is registered to another employee.', [
+                    { text: 'Try Again', onPress: () => setScanned(false) }
+                ]);
+            } else {
+                Alert.alert('Scan Failed', error?.message || 'Invalid Employee QR code.', [
+                    { text: 'Try Again', onPress: () => setScanned(false) }
+                ]);
+            }
         }
     };
 

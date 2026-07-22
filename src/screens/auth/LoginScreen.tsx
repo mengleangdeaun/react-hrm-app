@@ -10,7 +10,7 @@ import {
     Platform,
     ScrollView,
 } from 'react-native';
-import { createStyleSheet, useStyles } from 'react-native-unistyles';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useAuth } from '../../context/AuthContext';
 import { useAppTheme } from '../../context/ThemeContext';
 import { Lock, Mail, QrCode, Fingerprint, LogIn, Moon, Sun } from 'lucide-react-native';
@@ -18,14 +18,15 @@ import { Lock, Mail, QrCode, Fingerprint, LogIn, Moon, Sun } from 'lucide-react-
 export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { login, loginWithBiometrics, isBiometricAvailable, isLoading } = useAuth();
     const { isDark, toggleTheme } = useAppTheme();
-    const { styles, theme } = useStyles(stylesheet);
+    const { theme } = useUnistyles();
+    const styles = stylesheet;
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loginMode, setLoginMode] = useState<'password' | 'pin'>('password');
     const [pin, setPin] = useState('');
 
-    const handleLogin = async () => {
+    const handleLogin = async (force: boolean = false) => {
         if (loginMode === 'password' && (!email || !password)) {
             Alert.alert('Required', 'Please enter both email and password');
             return;
@@ -37,12 +38,29 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
         try {
             if (loginMode === 'password') {
-                await login({ email, password });
+                await login({ email, password }, force);
             } else {
-                await login({ pin });
+                await login({ pin }, force);
             }
         } catch (error: any) {
-            Alert.alert('Login Failed', error?.message || 'Invalid credentials. Please try again.');
+            if (error?.code === 'DEVICE_MISMATCH') {
+                Alert.alert(
+                    'Device Transfer Required',
+                    error.message || 'This account is registered to another device. Would you like to transfer your account to this device?',
+                    [
+                        { text: 'Cancel', style: 'cancel' },
+                        {
+                            text: 'Transfer Account',
+                            style: 'destructive',
+                            onPress: () => handleLogin(true),
+                        },
+                    ]
+                );
+            } else if (error?.code === 'DEVICE_TAKEN') {
+                Alert.alert('Security Error', error.message || 'This device is registered to another employee. Device sharing for attendance is prohibited.');
+            } else {
+                Alert.alert('Login Failed', error?.message || 'Invalid credentials. Please try again.');
+            }
         }
     };
 
@@ -107,11 +125,11 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                     {loginMode === 'password' ? (
                         <>
                             <View style={styles.inputWrapper}>
-                                <Mail color={theme.colors.textMuted} size={20} style={styles.inputIcon} />
+                                <Mail color={theme.colors.textSecondary} size={20} style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
                                     placeholder="Employee Email"
-                                    placeholderTextColor={theme.colors.textMuted}
+                                    placeholderTextColor={theme.colors.textSecondary}
                                     value={email}
                                     onChangeText={setEmail}
                                     keyboardType="email-address"
@@ -120,11 +138,11 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                             </View>
 
                             <View style={styles.inputWrapper}>
-                                <Lock color={theme.colors.textMuted} size={20} style={styles.inputIcon} />
+                                <Lock color={theme.colors.textSecondary} size={20} style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
                                     placeholder="Password"
-                                    placeholderTextColor={theme.colors.textMuted}
+                                    placeholderTextColor={theme.colors.textSecondary}
                                     value={password}
                                     onChangeText={setPassword}
                                     secureTextEntry
@@ -133,11 +151,11 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                         </>
                     ) : (
                         <View style={styles.inputWrapper}>
-                            <Lock color={theme.colors.textMuted} size={20} style={styles.inputIcon} />
+                            <Lock color={theme.colors.textSecondary} size={20} style={styles.inputIcon} />
                             <TextInput
                                 style={styles.input}
                                 placeholder="Enter 4-Digit Security PIN"
-                                placeholderTextColor={theme.colors.textMuted}
+                                placeholderTextColor={theme.colors.textSecondary}
                                 value={pin}
                                 onChangeText={setPin}
                                 keyboardType="number-pad"
@@ -181,8 +199,8 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                                 onPress={handleBiometricAuth}
                                 activeOpacity={0.7}
                             >
-                                <Fingerprint color={theme.colors.success} size={20} />
-                                <Text style={[styles.quickActionText, { color: theme.colors.success }]}>
+                                <Fingerprint color={theme.colors.status.success} size={20} />
+                                <Text style={[styles.quickActionText, { color: theme.colors.status.success }]}>
                                     Biometrics
                                 </Text>
                             </TouchableOpacity>
@@ -194,7 +212,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     );
 };
 
-const stylesheet = createStyleSheet((theme) => ({
+const stylesheet = StyleSheet.create((theme) => ({
     keyboardContainer: {
         flex: 1,
         backgroundColor: theme.colors.background,
@@ -212,7 +230,7 @@ const stylesheet = createStyleSheet((theme) => ({
     },
     themeIconButton: {
         padding: theme.spacing.sm + 4,
-        backgroundColor: theme.colors.surfaceSecondary,
+        backgroundColor: theme.colors.surfaceSubtle,
         borderRadius: theme.borderRadius.full,
         borderWidth: 1,
         borderColor: theme.colors.border,
@@ -251,7 +269,7 @@ const stylesheet = createStyleSheet((theme) => ({
     },
     segmentedContainer: {
         flexDirection: 'row',
-        backgroundColor: theme.colors.surfaceSecondary,
+        backgroundColor: theme.colors.surfaceSubtle,
         padding: theme.spacing.xs,
         borderRadius: theme.borderRadius.lg,
         marginBottom: theme.spacing.lg,
