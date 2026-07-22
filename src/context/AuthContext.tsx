@@ -98,6 +98,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const login = async (credentials: { email?: string; password?: string; pin?: string }, force: boolean = false) => {
         setIsLoading(true);
+        const isForce = force === true;
         try {
             const deviceId = await getDeviceId();
             let responseData: any;
@@ -105,7 +106,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const response = await apiClient.post('/attendance/login-credentials', {
                     ...credentials,
                     device_id: deviceId,
-                    force,
+                    force: isForce,
                 });
                 responseData = response.data;
             } catch (err: any) {
@@ -113,18 +114,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 if (err.response) {
                     handleApiError(err);
                 }
-                console.warn('Backend unavailable, using demo credentials:', err.message);
-                responseData = {
-                    auth_token: 'demo_token_' + Date.now(),
-                    employee: {
-                        id: 1,
-                        name: 'John Doe',
-                        email: credentials.email || 'employee@scool.com',
-                        code: 'EMP-001',
-                        department: 'Software Engineering',
-                        position: 'Senior Mobile Engineer',
-                    }
-                };
+                // Handle network / CORS errors clearly instead of failing silently with invalid demo tokens
+                console.error('Backend connection error during login:', err.message);
+                throw new Error(err?.message || 'Could not connect to the backend server. Please verify Laravel backend is running and CORS/API URL settings are correct.');
             }
 
             const { newToken, newUser } = parseUserResponse(responseData, credentials.email);
@@ -136,6 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const loginWithQr = async (qrPayload: string, force: boolean = false) => {
         setIsLoading(true);
+        const isForce = force === true;
         try {
             const deviceId = await getDeviceId();
             let responseData: any;
@@ -143,7 +136,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const response = await apiClient.post('/attendance/employee-login', {
                     payload: qrPayload,
                     device_id: deviceId,
-                    force,
+                    force: isForce,
                 });
                 responseData = response.data;
             } catch (err: any) {
@@ -173,6 +166,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const loginWithTelegram = async (telegramData: any, force: boolean = false) => {
         setIsLoading(true);
+        const isForce = force === true;
         try {
             const deviceId = await getDeviceId();
             let responseData: any;
@@ -180,7 +174,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 const response = await apiClient.post('/attendance/employee-login-telegram', {
                     ...telegramData,
                     device_id: deviceId,
-                    force,
+                    force: isForce,
                 });
                 responseData = response.data;
             } catch (err: any) {

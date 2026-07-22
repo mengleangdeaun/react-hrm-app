@@ -334,7 +334,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginBottom: theme.spacing.lg,
         borderWidth: 1,
         borderColor: theme.colors.border,
-        ...theme.shadows.sm,
     },
     avatarContainer: {
         position: 'relative',

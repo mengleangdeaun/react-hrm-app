@@ -187,13 +187,10 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                         )}
                         <View style={styles.greetingTextContainer}>
                             <Text style={styles.greetingSubtitle}>
-                                {getGreeting()} 👋
+                                {getGreeting()}
                             </Text>
                             <Text style={styles.greetingTitle} numberOfLines={1}>
                                 {displayName}
-                            </Text>
-                            <Text style={styles.greetingRoleText}>
-                                {displayRole} • {shiftName} ({shiftSchedule})
                             </Text>
                         </View>
                     </View>

@@ -34,11 +34,11 @@ export const lightTheme = {
   },
   shadows: {
     sm: {
-      shadowColor: '#000000',
+      shadowColor: '#c4c4c4ff',
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.05,
-      shadowRadius: 2,
-      elevation: 2,
+      shadowRadius: 0,
+      elevation: 0,
     },
     md: {
       shadowColor: '#000000',

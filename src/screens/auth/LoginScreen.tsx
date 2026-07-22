@@ -26,7 +26,8 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const [loginMode, setLoginMode] = useState<'password' | 'pin'>('password');
     const [pin, setPin] = useState('');
 
-    const handleLogin = async (force: boolean = false) => {
+    const handleLogin = async (forceOption: any = false) => {
+        const force = typeof forceOption === 'boolean' ? forceOption : false;
         if (loginMode === 'password' && (!email || !password)) {
             Alert.alert('Required', 'Please enter both email and password');
             return;
@@ -43,23 +44,39 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 await login({ pin }, force);
             }
         } catch (error: any) {
+            const errorMsg = error?.message || 'An error occurred during login.';
             if (error?.code === 'DEVICE_MISMATCH') {
-                Alert.alert(
-                    'Device Transfer Required',
-                    error.message || 'This account is registered to another device. Would you like to transfer your account to this device?',
-                    [
-                        { text: 'Cancel', style: 'cancel' },
-                        {
-                            text: 'Transfer Account',
-                            style: 'destructive',
-                            onPress: () => handleLogin(true),
-                        },
-                    ]
-                );
+                const promptText = errorMsg + '\n\nWould you like to transfer your account to this device?';
+                if (Platform.OS === 'web') {
+                    if (window.confirm('Device Transfer Required\n\n' + promptText)) {
+                        handleLogin(true);
+                    }
+                } else {
+                    Alert.alert(
+                        'Device Transfer Required',
+                        promptText,
+                        [
+                            { text: 'Cancel', style: 'cancel' },
+                            {
+                                text: 'Transfer Account',
+                                style: 'destructive',
+                                onPress: () => handleLogin(true),
+                            },
+                        ]
+                    );
+                }
             } else if (error?.code === 'DEVICE_TAKEN') {
-                Alert.alert('Security Error', error.message || 'This device is registered to another employee. Device sharing for attendance is prohibited.');
+                if (Platform.OS === 'web') {
+                    window.alert('Security Error:\n' + errorMsg);
+                } else {
+                    Alert.alert('Security Error', errorMsg);
+                }
             } else {
-                Alert.alert('Login Failed', error?.message || 'Invalid credentials. Please try again.');
+                if (Platform.OS === 'web') {
+                    window.alert('Login Failed:\n' + errorMsg);
+                } else {
+                    Alert.alert('Login Failed', errorMsg);
+                }
             }
         }
     };
@@ -168,7 +185,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                     {/* Submit Button */}
                     <TouchableOpacity
                         style={styles.submitButton}
-                        onPress={handleLogin}
+                        onPress={() => handleLogin(false)}
                         disabled={isLoading}
                         activeOpacity={0.85}
                     >
@@ -247,7 +264,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: theme.spacing.md,
-        ...theme.shadows.md,
     },
     logoText: {
         color: '#FFFFFF',
@@ -300,7 +316,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         padding: theme.spacing.lg,
         borderWidth: 1,
         borderColor: theme.colors.border,
-        ...theme.shadows.md,
+        ...theme.shadows.sm,
     },
     inputWrapper: {
         flexDirection: 'row',
