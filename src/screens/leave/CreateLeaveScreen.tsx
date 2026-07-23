@@ -5,11 +5,11 @@ import {
     TextInput,
     TouchableOpacity,
     ScrollView,
-    SafeAreaView,
     StatusBar,
     Alert,
     ActivityIndicator,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import * as DocumentPicker from 'expo-document-picker';
 import { leaveApi, LeaveBalance } from '../../api/leave';
@@ -105,7 +105,7 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
     };
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <SafeAreaView {...({ style: styles.safeArea } as any)}>
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
             {/* Navigation Header */}

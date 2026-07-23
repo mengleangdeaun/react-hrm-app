@@ -1,10 +1,12 @@
 import React from 'react';
-import { View, StyleSheet } from 'react-native';
-import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { createBottomTabNavigator, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { LayoutDashboard, QrCode, Calendar, Bell, User as UserIcon } from 'lucide-react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useAppTheme } from '../context/ThemeContext';
+import { lightTheme, darkTheme } from '../styles/theme';
 
 // Screens
 import { DashboardScreen } from '../screens/dashboard/DashboardScreen';
@@ -72,194 +74,162 @@ function ProfileStack() {
     );
 }
 
-interface TabIconProps {
-    Icon: any;
-    focused: boolean;
-    color: string;
-    size: number;
-    topBarColor: string;
-    scanBgInactive: string;
-    isScan?: boolean;
-}
+const TAB_CONFIGS: Record<string, { label: string; icon: keyof typeof Ionicons.glyphMap; focusedIcon: keyof typeof Ionicons.glyphMap }> = {
+    HomeTab: { label: 'Home', icon: 'home-outline', focusedIcon: 'home' },
+    CalendarTab: { label: 'Calendar', icon: 'calendar-outline', focusedIcon: 'calendar' },
+    ScanTab: { label: 'Scan', icon: 'qr-code-outline', focusedIcon: 'qr-code' },
+    NotiTab: { label: 'Noti', icon: 'notifications-outline', focusedIcon: 'notifications' },
+    ProfileTab: { label: 'Profile', icon: 'person-outline', focusedIcon: 'person' },
+};
 
-function TabIconWithTopBar({
-    Icon,
-    focused,
-    color,
-    size,
-    topBarColor,
-    scanBgInactive,
-    isScan = false,
-}: TabIconProps) {
+function CustomTabBar({ state, descriptors, navigation }: any) {
+    const insets = useSafeAreaInsets();
+    const { isDark } = useAppTheme();
+    const theme = isDark ? darkTheme : lightTheme;
+
+    const backgroundColor = theme.colors.surface;
+    const borderTopColor = theme.colors.border;
+    const activeColor = theme.colors.primary;
+    const inactiveColor = theme.colors.textSecondary;
+
+    const bottomPadding = insets.bottom > 0 ? insets.bottom : 6;
+    const containerHeight = 54 + bottomPadding;
+
+    const activeRoute = state.routes[state.index];
+    const activeSubRouteName = getFocusedRouteNameFromRoute(activeRoute);
+
+    const mainTabScreens = [
+        'DashboardMain',
+        'ScheduleCalendarScreen',
+        'ScanAttendanceScreen',
+        'NotificationList',
+        'ProfileMain',
+    ];
+    const isSubScreenActive = activeSubRouteName ? !mainTabScreens.includes(activeSubRouteName) : false;
+
     return (
-        <View style={styles.iconWrapper}>
-            {focused && <View style={[styles.activeTopIndicator, { backgroundColor: topBarColor }]} />}
-            {isScan ? (
-                <View
-                    style={[
-                        styles.scanIconContainer,
-                        { backgroundColor: focused ? topBarColor : scanBgInactive },
-                    ]}
-                >
-                    <Icon color={focused ? '#FFFFFF' : color} size={size} />
-                </View>
-            ) : (
-                <Icon color={color} size={size} />
-            )}
+        <View
+            style={[
+                styles.tabBarContainer,
+                {
+                    backgroundColor,
+                    borderTopColor,
+                    height: containerHeight,
+                    paddingBottom: bottomPadding,
+                },
+            ]}
+        >
+            {state.routes.map((route: any, index: number) => {
+                const isFocused = state.index === index && !isSubScreenActive;
+                const config = TAB_CONFIGS[route.name] || {
+                    label: route.name,
+                    icon: 'square-outline',
+                    focusedIcon: 'square',
+                };
+
+                const onPress = () => {
+                    const event = navigation.emit({
+                        type: 'tabPress',
+                        target: route.key,
+                        canPreventDefault: true,
+                    });
+
+                    if (!event.defaultPrevented) {
+                        navigation.navigate(route.name);
+                    }
+                };
+
+                const onLongPress = () => {
+                    navigation.emit({
+                        type: 'tabLongPress',
+                        target: route.key,
+                    });
+                };
+
+                return (
+                    <TouchableOpacity
+                        key={route.key}
+                        accessibilityRole="button"
+                        accessibilityState={isFocused ? { selected: true } : {}}
+                        onPress={onPress}
+                        onLongPress={onLongPress}
+                        style={styles.tabButton}
+                        activeOpacity={0.7}
+                    >
+                        {/* Red Active Indicator Bar Flush at Top (y = 0) */}
+                        {isFocused && (
+                            <View style={[styles.activeIndicator, { backgroundColor: activeColor }]} />
+                        )}
+
+                        <View style={styles.tabContent}>
+                            <Ionicons
+                                name={isFocused ? config.focusedIcon : config.icon}
+                                size={22}
+                                color={isFocused ? activeColor : inactiveColor}
+                            />
+                            <Text
+                                style={[
+                                    styles.tabLabel,
+                                    { color: isFocused ? activeColor : inactiveColor },
+                                ]}
+                                numberOfLines={1}
+                            >
+                                {config.label}
+                            </Text>
+                        </View>
+                    </TouchableOpacity>
+                );
+            })}
         </View>
     );
 }
 
 export function MainTabNavigator() {
-    const insets = useSafeAreaInsets();
-    const { isDark } = useAppTheme();
-
-    const backgroundColor = isDark ? '#0F172A' : '#FFFFFF';
-    const borderTopColor = isDark ? '#1E293B' : '#E2E8F0';
-    const activeTintColor = isDark ? '#3B82F6' : '#2563EB';
-    const inactiveTintColor = isDark ? '#94A3B8' : '#64748B';
-    const scanBgInactive = isDark ? '#1E293B' : '#F1F5F9';
-
-    const tabHeight = 58 + (insets.bottom > 0 ? insets.bottom : 8);
-
     return (
         <Tab.Navigator
+            tabBar={(props: any) => <CustomTabBar {...props} />}
             screenOptions={{
                 headerShown: false,
-                tabBarActiveTintColor: activeTintColor,
-                tabBarInactiveTintColor: inactiveTintColor,
-                tabBarStyle: {
-                    backgroundColor,
-                    borderTopColor,
-                    borderTopWidth: 1,
-                    height: tabHeight,
-                    paddingTop: 4,
-                    paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
-                    elevation: 0,
-                    shadowColor: '#000000',
-                    shadowOffset: { width: 0, height: -1 },
-                    shadowOpacity: isDark ? 0.08 : 0.03,
-                    shadowRadius: 2,
-                },
-                tabBarItemStyle: {
-                    paddingTop: 4,
-                    paddingBottom: 2,
-                },
-                tabBarLabelStyle: {
-                    fontSize: 11,
-                    fontWeight: '600',
-                    marginTop: 3,
-                    marginBottom: 2,
-                },
             }}
         >
-            <Tab.Screen
-                name="HomeTab"
-                component={DashboardStack}
-                options={{
-                    tabBarLabel: 'Home',
-                    tabBarIcon: ({ color, focused, size }) => (
-                        <TabIconWithTopBar
-                            Icon={LayoutDashboard}
-                            focused={focused}
-                            color={color}
-                            size={size}
-                            topBarColor={activeTintColor}
-                            scanBgInactive={scanBgInactive}
-                        />
-                    ),
-                }}
-            />
-            <Tab.Screen
-                name="CalendarTab"
-                component={ScheduleCalendarScreen}
-                options={{
-                    tabBarLabel: 'Calendar',
-                    tabBarIcon: ({ color, focused, size }) => (
-                        <TabIconWithTopBar
-                            Icon={Calendar}
-                            focused={focused}
-                            color={color}
-                            size={size}
-                            topBarColor={activeTintColor}
-                            scanBgInactive={scanBgInactive}
-                        />
-                    ),
-                }}
-            />
-            <Tab.Screen
-                name="ScanTab"
-                component={ScanAttendanceScreen}
-                options={{
-                    tabBarLabel: 'Scan',
-                    tabBarIcon: ({ color, focused, size }) => (
-                        <TabIconWithTopBar
-                            Icon={QrCode}
-                            focused={focused}
-                            color={color}
-                            size={size}
-                            topBarColor={activeTintColor}
-                            scanBgInactive={scanBgInactive}
-                            isScan
-                        />
-                    ),
-                }}
-            />
-            <Tab.Screen
-                name="NotiTab"
-                component={NotificationStack}
-                options={{
-                    tabBarLabel: 'Noti',
-                    tabBarIcon: ({ color, focused, size }) => (
-                        <TabIconWithTopBar
-                            Icon={Bell}
-                            focused={focused}
-                            color={color}
-                            size={size}
-                            topBarColor={activeTintColor}
-                            scanBgInactive={scanBgInactive}
-                        />
-                    ),
-                }}
-            />
-            <Tab.Screen
-                name="ProfileTab"
-                component={ProfileStack}
-                options={{
-                    tabBarLabel: 'Profile',
-                    tabBarIcon: ({ color, focused, size }) => (
-                        <TabIconWithTopBar
-                            Icon={UserIcon}
-                            focused={focused}
-                            color={color}
-                            size={size}
-                            topBarColor={activeTintColor}
-                            scanBgInactive={scanBgInactive}
-                        />
-                    ),
-                }}
-            />
+            <Tab.Screen name="HomeTab" component={DashboardStack} />
+            <Tab.Screen name="CalendarTab" component={ScheduleCalendarScreen} />
+            <Tab.Screen name="ScanTab" component={ScanAttendanceScreen} />
+            <Tab.Screen name="NotiTab" component={NotificationStack} />
+            <Tab.Screen name="ProfileTab" component={ProfileStack} />
         </Tab.Navigator>
     );
 }
 
 const styles = StyleSheet.create({
-    iconWrapper: {
+    tabBarContainer: {
+        flexDirection: 'row',
+        borderTopWidth: 1,
+        elevation: 0,
+    },
+    tabButton: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'flex-start',
+        position: 'relative',
+        height: '100%',
+    },
+    activeIndicator: {
+        position: 'absolute',
+        top: 0,
+        width: 32,
+        height: 3,
+        borderRadius: 0,
+        zIndex: 10,
+    },
+    tabContent: {
         alignItems: 'center',
         justifyContent: 'center',
-        position: 'relative',
+        paddingTop: 8,
     },
-    activeTopIndicator: {
-        position: 'absolute',
-        top: -8,
-        width: 30,
-        height: 3,
-        borderBottomLeftRadius: 3,
-        borderBottomRightRadius: 3,
-    },
-    scanIconContainer: {
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 10,
+    tabLabel: {
+        fontSize: 11,
+        fontWeight: '600',
+        marginTop: 4,
     },
 });

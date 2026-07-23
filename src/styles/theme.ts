@@ -36,9 +36,9 @@ export const lightTheme = {
     sm: {
       shadowColor: '#000000',
       shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.04,
-      shadowRadius: 2,
-      elevation: 1,
+      shadowOpacity: 0.01,
+      shadowRadius: 1,
+      elevation: 0.5,
     },
     md: {
       shadowColor: '#000000',
@@ -76,9 +76,9 @@ export const darkTheme = {
     sm: {
       shadowColor: '#000000',
       shadowOffset: { width: 0, height: 1 },
-      shadowOpacity: 0.12,
-      shadowRadius: 2,
-      elevation: 1,
+      shadowOpacity: 0.01,
+      shadowRadius: 1,
+      elevation: 0.5,
     },
     md: {
       shadowColor: '#000000',

@@ -11,6 +11,8 @@ import {
     Modal,
 } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { AppShell } from '../../components/common/AppShell';
+import { ListSkeleton } from '../../components/common/Skeletons';
 import { attendanceApi, HistoryRecord } from '../../api/attendance';
 import { useAppTheme } from '../../context/ThemeContext';
 import {
@@ -290,33 +292,23 @@ export const HistoryScreen: React.FC = () => {
         );
     };
 
+    const headerRight = (
+        <TouchableOpacity
+            onPress={() => setFilterModalVisible(true)}
+            style={styles.iconButton}
+            activeOpacity={0.7}
+        >
+            <Filter color={selectedMonth ? theme.colors.primary : theme.colors.textPrimary} size={18} />
+        </TouchableOpacity>
+    );
+
     return (
-        <SafeAreaView style={styles.safeArea}>
-            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+        <AppShell
+            title="Attendance History"
+            headerRight={headerRight}
+            scrollable={false}
+        >
             <View style={styles.container}>
-                {/* Header */}
-                <View style={styles.headerRow}>
-                    <Text style={styles.headerTitle}>Attendance History</Text>
-
-                    <View style={styles.headerActions}>
-                        <TouchableOpacity
-                            onPress={() => setFilterModalVisible(true)}
-                            style={styles.iconButton}
-                            activeOpacity={0.7}
-                        >
-                            <Filter color={selectedMonth ? theme.colors.primary : theme.colors.textPrimary} size={18} />
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            onPress={toggleTheme}
-                            style={styles.iconButton}
-                            activeOpacity={0.7}
-                        >
-                            {isDark ? <Sun color="#F59E0B" size={18} /> : <Moon color="#2563EB" size={18} />}
-                        </TouchableOpacity>
-                    </View>
-                </View>
-
                 {/* Filter Chips */}
                 <View style={styles.filterChipsRow}>
                     <TouchableOpacity
@@ -389,9 +381,7 @@ export const HistoryScreen: React.FC = () => {
                 </View>
 
                 {isLoading ? (
-                    <View style={styles.centerContainer}>
-                        <ActivityIndicator size="large" color={theme.colors.primary} />
-                    </View>
+                    <ListSkeleton count={4} />
                 ) : historyLogs.length === 0 ? (
                     <View style={styles.centerContainer}>
                         <Clock color={theme.colors.textSecondary} size={44} />
@@ -455,7 +445,7 @@ export const HistoryScreen: React.FC = () => {
                     </View>
                 </TouchableOpacity>
             </Modal>
-        </SafeAreaView>
+        </AppShell>
     );
 };
 

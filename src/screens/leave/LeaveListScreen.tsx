@@ -4,7 +4,6 @@ import {
     Text,
     ScrollView,
     TouchableOpacity,
-    SafeAreaView,
     StatusBar,
     ActivityIndicator,
     RefreshControl,
@@ -12,7 +11,11 @@ import {
     Modal,
     TextInput,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { format, parseISO } from 'date-fns';
+import { AppShell } from '../../components/common/AppShell';
+import { LeaveListSkeleton } from '../../components/common/Skeletons';
 import { leaveApi, LeaveBalance, LeaveRequest } from '../../api/leave';
 import { useAppTheme } from '../../context/ThemeContext';
 import {
@@ -21,8 +24,6 @@ import {
     Clock,
     CheckCircle2,
     XCircle,
-    Sun,
-    Moon,
     FileText,
     AlertCircle,
     Ban,
@@ -30,6 +31,37 @@ import {
     X,
     User,
 } from 'lucide-react-native';
+
+const formatDateRange = (startStr?: string, endStr?: string) => {
+    if (!startStr) return '';
+    try {
+        const start = parseISO(startStr);
+        if (!endStr || startStr === endStr) {
+            return format(start, 'dd MMM yyyy');
+        }
+        const end = parseISO(endStr);
+        if (start.getFullYear() === end.getFullYear()) {
+            if (start.getMonth() === end.getMonth()) {
+                return `${format(start, 'dd')} – ${format(end, 'dd MMM yyyy')}`;
+            }
+            return `${format(start, 'dd MMM')} – ${format(end, 'dd MMM yyyy')}`;
+        }
+        return `${format(start, 'dd MMM yyyy')} – ${format(end, 'dd MMM yyyy')}`;
+    } catch (e) {
+        if (!endStr || startStr === endStr) return startStr;
+        return `${startStr} – ${endStr}`;
+    }
+};
+
+const formatDateDisplay = (dateStr?: string) => {
+    if (!dateStr) return 'Recent';
+    try {
+        const isoStr = dateStr.includes('T') ? dateStr : `${dateStr}T00:00:00`;
+        return format(parseISO(isoStr), 'dd MMM yyyy');
+    } catch (e) {
+        return dateStr.substring(0, 10);
+    }
+};
 
 export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark, toggleTheme } = useAppTheme();
@@ -155,35 +187,25 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         return 'Leave';
     };
 
+    const headerRight = (
+        <TouchableOpacity
+            style={styles.applyBtn}
+            onPress={() => navigation.navigate('CreateLeave')}
+            activeOpacity={0.85}
+        >
+            <Plus color="#FFFFFF" size={18} />
+            <Text style={styles.applyBtnText}>Apply Leave</Text>
+        </TouchableOpacity>
+    );
+
     return (
-        <SafeAreaView style={styles.safeArea}>
-            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-
-            {/* Navigation Header */}
-            <View style={styles.headerRow}>
-                <Text style={styles.headerTitle}>Leave Management</Text>
-                <View style={styles.headerActions}>
-                    <TouchableOpacity onPress={toggleTheme} style={styles.iconButton} activeOpacity={0.7}>
-                        {isDark ? <Sun color="#F59E0B" size={18} /> : <Moon color="#2563EB" size={18} />}
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.applyBtn}
-                        onPress={() => navigation.navigate('CreateLeave')}
-                        activeOpacity={0.85}
-                    >
-                        <Plus color="#FFFFFF" size={18} />
-                        <Text style={styles.applyBtnText}>Apply Leave</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-
-            <ScrollView
-                style={styles.container}
-                contentContainerStyle={styles.scrollContent}
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
-                }
-            >
+        <AppShell
+            title="Leave Management"
+            onBack={() => navigation.goBack()}
+            headerRight={headerRight}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+        >
                 {/* Leave Balances Carousel */}
                 {leaveBalances.length > 0 && (
                     <View style={styles.balanceSection}>
@@ -224,9 +246,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
                 {/* Tab Content */}
                 {isLoading ? (
-                    <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color={theme.colors.primary} />
-                    </View>
+                    <LeaveListSkeleton />
                 ) : activeTab === 'my_requests' ? (
                     myRequests.length === 0 ? (
                         <View style={styles.emptyCard}>
@@ -256,19 +276,12 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                                                 styles.statusBadge,
                                                 {
                                                     backgroundColor: isApproved
-                                                        ? 'rgba(16, 185, 129, 0.1)'
+                                                        ? 'rgba(16, 185, 129, 0.12)'
                                                         : isPending
-                                                        ? 'rgba(245, 158, 11, 0.1)'
+                                                        ? 'rgba(245, 158, 11, 0.12)'
                                                         : isRejected
-                                                        ? 'rgba(239, 68, 68, 0.1)'
-                                                        : 'rgba(100, 116, 139, 0.1)',
-                                                    borderColor: isApproved
-                                                        ? 'rgba(16, 185, 129, 0.2)'
-                                                        : isPending
-                                                        ? 'rgba(245, 158, 11, 0.2)'
-                                                        : isRejected
-                                                        ? 'rgba(239, 68, 68, 0.2)'
-                                                        : 'rgba(100, 116, 139, 0.2)',
+                                                        ? 'rgba(239, 68, 68, 0.12)'
+                                                        : 'rgba(100, 116, 139, 0.12)',
                                                 },
                                             ]}
                                         >
@@ -291,10 +304,16 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                                         </View>
                                     </View>
 
-                                    <Text style={styles.dateRangeText}>
-                                        {req.start_date} → {req.end_date} ({req.total_days || req.days_count || 1} Day
-                                        {(req.total_days || req.days_count || 1) > 1 ? 's' : ''})
-                                    </Text>
+                                    <View style={styles.dateRow}>
+                                        <Text style={styles.dateRangeText}>
+                                            {formatDateRange(req.start_date, req.end_date)}
+                                        </Text>
+                                        <View style={styles.durationPill}>
+                                            <Text style={styles.durationPillText}>
+                                                {req.total_days || req.days_count || 1} {(req.total_days || req.days_count || 1) > 1 ? 'Days' : 'Day'}
+                                            </Text>
+                                        </View>
+                                    </View>
                                     <Text style={styles.reasonText} numberOfLines={2}>
                                         {req.reason}
                                     </Text>
@@ -302,15 +321,17 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                                     {/* Action Footer */}
                                     <View style={styles.cardFooter}>
                                         <Text style={styles.appliedDateText}>
-                                            Applied {req.created_at ? req.created_at.substring(0, 10) : 'Recent'}
+                                            Applied {formatDateDisplay(req.created_at)}
                                         </Text>
 
                                         {isPending && (
                                             <TouchableOpacity
                                                 style={styles.cancelBtn}
                                                 onPress={() => handleCancelRequest(req.id)}
+                                                activeOpacity={0.7}
+                                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                             >
-                                                <Ban color={theme.colors.status.danger} size={13} />
+                                                <Ban color={theme.colors.status.danger} size={15} />
                                                 <Text style={styles.cancelBtnText}>Cancel</Text>
                                             </TouchableOpacity>
                                         )}
@@ -339,9 +360,16 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                                 </View>
                             </View>
 
-                            <Text style={styles.dateRangeText}>
-                                {getLeaveTypeName(item.leave_type)}: {item.start_date} → {item.end_date}
-                            </Text>
+                            <View style={styles.dateRow}>
+                                <Text style={styles.dateRangeText}>
+                                    {getLeaveTypeName(item.leave_type)} • {formatDateRange(item.start_date, item.end_date)}
+                                </Text>
+                                <View style={styles.durationPill}>
+                                    <Text style={styles.durationPillText}>
+                                        {item.total_days || item.days_count || 1} {(item.total_days || item.days_count || 1) > 1 ? 'Days' : 'Day'}
+                                    </Text>
+                                </View>
+                            </View>
                             <Text style={styles.reasonText}>{item.reason}</Text>
 
                             <View style={styles.approvalActionRow}>
@@ -364,7 +392,6 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                         </View>
                     ))
                 )}
-            </ScrollView>
 
             {/* Rejection Reason Modal */}
             <Modal visible={!!rejectingItem} transparent animationType="fade">
@@ -406,7 +433,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                     </View>
                 </TouchableOpacity>
             </Modal>
-        </SafeAreaView>
+        </AppShell>
     );
 };
 
@@ -453,7 +480,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         paddingHorizontal: theme.spacing.md,
         paddingVertical: theme.spacing.xs + 4,
         borderRadius: theme.borderRadius.md,
-        ...theme.shadows.sm,
     },
     applyBtnText: {
         color: '#FFFFFF',
@@ -479,9 +505,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         padding: theme.spacing.md,
         marginRight: theme.spacing.md,
         width: 160,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        ...theme.shadows.sm,
     },
     balanceType: {
         fontSize: 12,
@@ -533,8 +556,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: theme.borderRadius.lg,
         padding: theme.spacing.xl,
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: theme.colors.border,
     },
     emptyTitle: {
         fontSize: 16,
@@ -552,9 +573,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: theme.borderRadius.lg,
         padding: theme.spacing.md,
         marginBottom: theme.spacing.md,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        ...theme.shadows.sm,
     },
     cardHeader: {
         flexDirection: 'row',
@@ -573,19 +591,18 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginLeft: theme.spacing.xs + 2,
     },
     statusBadge: {
-        paddingHorizontal: theme.spacing.sm,
-        paddingVertical: theme.spacing.xs,
+        paddingHorizontal: theme.spacing.sm + 4,
+        paddingVertical: 3,
         borderRadius: theme.borderRadius.full,
-        borderWidth: 1,
     },
     statusBadgeText: {
         fontSize: 11,
         fontWeight: '800',
     },
     pendingBadge: {
-        backgroundColor: 'rgba(245, 158, 11, 0.1)',
-        paddingHorizontal: theme.spacing.sm,
-        paddingVertical: theme.spacing.xs,
+        backgroundColor: 'rgba(245, 158, 11, 0.12)',
+        paddingHorizontal: theme.spacing.sm + 4,
+        paddingVertical: 3,
         borderRadius: theme.borderRadius.full,
     },
     pendingBadgeText: {
@@ -593,11 +610,27 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontWeight: '800',
         color: '#F59E0B',
     },
+    dateRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginVertical: 4,
+    },
     dateRangeText: {
         fontSize: 14,
         fontWeight: '700',
-        color: theme.colors.primary,
-        marginBottom: 4,
+        color: theme.colors.textPrimary,
+    },
+    durationPill: {
+        backgroundColor: theme.colors.surfaceSubtle,
+        paddingHorizontal: theme.spacing.sm + 2,
+        paddingVertical: 3,
+        borderRadius: theme.borderRadius.full,
+    },
+    durationPillText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: theme.colors.textSecondary,
     },
     reasonText: {
         fontSize: 13,
@@ -621,15 +654,16 @@ const stylesheet = StyleSheet.create((theme) => ({
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: 'rgba(239, 68, 68, 0.1)',
-        paddingHorizontal: theme.spacing.sm,
-        paddingVertical: 4,
-        borderRadius: theme.borderRadius.sm,
+        paddingHorizontal: theme.spacing.md,
+        paddingVertical: 6,
+        borderRadius: theme.borderRadius.full,
+        minHeight: 32,
     },
     cancelBtnText: {
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: '700',
         color: theme.colors.status.danger,
-        marginLeft: 4,
+        marginLeft: 5,
     },
     approvalActionRow: {
         flexDirection: 'row',

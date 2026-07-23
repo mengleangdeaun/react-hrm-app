@@ -10,6 +10,8 @@ import {
     Image,
 } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { AppShell } from '../../components/common/AppShell';
+import { DashboardSkeleton } from '../../components/common/Skeletons';
 import { useAuth } from '../../context/AuthContext';
 import { useAppTheme } from '../../context/ThemeContext';
 import { apiClient } from '../../api/client';
@@ -143,9 +145,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         : '08:00 - 17:00';
 
     return (
-        <SafeAreaView style={styles.safeArea}>
-            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-
+        <AppShell showHeader={false} refreshing={refreshing} onRefresh={onRefresh}>
             {topBannerAnnouncement && (
                 <View style={styles.topBanner}>
                     <View style={styles.topBannerLeft}>
@@ -163,13 +163,10 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 </View>
             )}
 
-            <ScrollView
-                style={styles.scrollContainer}
-                contentContainerStyle={styles.scrollContent}
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
-                }
-            >
+            {isLoading ? (
+                <DashboardSkeleton />
+            ) : (
+                <>
                 {/* User Greeting & Header Actions */}
                 <View style={styles.headerRow}>
                     <View style={styles.userProfileGroup}>
@@ -263,7 +260,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                     </View>
 
                     <Text style={styles.digitalClockText}>
-                        {format(currentTime, 'hh:mm:ss a')}
+                        {format(currentTime, 'hh:mm a')}
                     </Text>
 
                     {/* Attendance Info Details */}
@@ -460,8 +457,9 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                         <ChevronRight color="#EC4899" size={18} />
                     </TouchableOpacity>
                 )}
-            </ScrollView>
-        </SafeAreaView>
+                </>
+            )}
+        </AppShell>
     );
 };
 
@@ -526,14 +524,14 @@ const stylesheet = StyleSheet.create((theme) => ({
     avatarImage: {
         width: 48,
         height: 48,
-        borderRadius: theme.borderRadius.lg,
+        borderRadius: theme.borderRadius.full,
         borderWidth: 2,
         borderColor: theme.colors.primary,
     },
     avatarFallback: {
         width: 48,
         height: 48,
-        borderRadius: theme.borderRadius.lg,
+        borderRadius: theme.borderRadius.full,
         backgroundColor: theme.colors.primary,
         justifyContent: 'center',
         alignItems: 'center',
