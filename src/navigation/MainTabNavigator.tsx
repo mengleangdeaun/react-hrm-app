@@ -1,7 +1,10 @@
 import React from 'react';
+import { View, StyleSheet } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { LayoutDashboard, QrCode, Calendar, Clock, User as UserIcon } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { LayoutDashboard, QrCode, Calendar, Bell, User as UserIcon } from 'lucide-react-native';
+import { useAppTheme } from '../context/ThemeContext';
 
 // Screens
 import { DashboardScreen } from '../screens/dashboard/DashboardScreen';
@@ -32,6 +35,7 @@ function DashboardStack() {
     return (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="DashboardMain" component={DashboardScreen} />
+            <Stack.Screen name="History" component={HistoryScreen} />
             <Stack.Screen name="LeaveList" component={LeaveListScreen} />
             <Stack.Screen name="CreateLeave" component={CreateLeaveScreen} />
             <Stack.Screen name="DayOff" component={DayOffScreen} />
@@ -50,6 +54,15 @@ function DashboardStack() {
     );
 }
 
+function NotificationStack() {
+    return (
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="NotificationList" component={NotificationListScreen} />
+            <Stack.Screen name="AnnouncementDetail" component={AnnouncementDetailScreen} />
+        </Stack.Navigator>
+    );
+}
+
 function ProfileStack() {
     return (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -59,23 +72,84 @@ function ProfileStack() {
     );
 }
 
+interface TabIconProps {
+    Icon: any;
+    focused: boolean;
+    color: string;
+    size: number;
+    topBarColor: string;
+    scanBgInactive: string;
+    isScan?: boolean;
+}
+
+function TabIconWithTopBar({
+    Icon,
+    focused,
+    color,
+    size,
+    topBarColor,
+    scanBgInactive,
+    isScan = false,
+}: TabIconProps) {
+    return (
+        <View style={styles.iconWrapper}>
+            {focused && <View style={[styles.activeTopIndicator, { backgroundColor: topBarColor }]} />}
+            {isScan ? (
+                <View
+                    style={[
+                        styles.scanIconContainer,
+                        { backgroundColor: focused ? topBarColor : scanBgInactive },
+                    ]}
+                >
+                    <Icon color={focused ? '#FFFFFF' : color} size={size} />
+                </View>
+            ) : (
+                <Icon color={color} size={size} />
+            )}
+        </View>
+    );
+}
+
 export function MainTabNavigator() {
+    const insets = useSafeAreaInsets();
+    const { isDark } = useAppTheme();
+
+    const backgroundColor = isDark ? '#0F172A' : '#FFFFFF';
+    const borderTopColor = isDark ? '#1E293B' : '#E2E8F0';
+    const activeTintColor = isDark ? '#3B82F6' : '#2563EB';
+    const inactiveTintColor = isDark ? '#94A3B8' : '#64748B';
+    const scanBgInactive = isDark ? '#1E293B' : '#F1F5F9';
+
+    const tabHeight = 58 + (insets.bottom > 0 ? insets.bottom : 8);
+
     return (
         <Tab.Navigator
             screenOptions={{
                 headerShown: false,
-                tabBarActiveTintColor: '#2563EB',
-                tabBarInactiveTintColor: '#64748B',
+                tabBarActiveTintColor: activeTintColor,
+                tabBarInactiveTintColor: inactiveTintColor,
                 tabBarStyle: {
-                    backgroundColor: '#1E293B',
-                    borderTopColor: '#334155',
-                    height: 65,
-                    paddingBottom: 10,
-                    paddingTop: 8,
+                    backgroundColor,
+                    borderTopColor,
+                    borderTopWidth: 1,
+                    height: tabHeight,
+                    paddingTop: 4,
+                    paddingBottom: insets.bottom > 0 ? insets.bottom : 8,
+                    elevation: 0,
+                    shadowColor: '#000000',
+                    shadowOffset: { width: 0, height: -1 },
+                    shadowOpacity: isDark ? 0.08 : 0.03,
+                    shadowRadius: 2,
+                },
+                tabBarItemStyle: {
+                    paddingTop: 4,
+                    paddingBottom: 2,
                 },
                 tabBarLabelStyle: {
-                    fontSize: 12,
+                    fontSize: 11,
                     fontWeight: '600',
+                    marginTop: 3,
+                    marginBottom: 2,
                 },
             }}
         >
@@ -84,31 +158,68 @@ export function MainTabNavigator() {
                 component={DashboardStack}
                 options={{
                     tabBarLabel: 'Home',
-                    tabBarIcon: ({ color, size }: { color: string; size: number }) => <LayoutDashboard color={color} size={size} />,
-                }}
-            />
-            <Tab.Screen
-                name="ScanTab"
-                component={ScanAttendanceScreen}
-                options={{
-                    tabBarLabel: 'Clock In',
-                    tabBarIcon: ({ color, size }: { color: string; size: number }) => <QrCode color={color} size={size + 4} />,
-                }}
-            />
-            <Tab.Screen
-                name="HistoryTab"
-                component={HistoryScreen}
-                options={{
-                    tabBarLabel: 'History',
-                    tabBarIcon: ({ color, size }: { color: string; size: number }) => <Clock color={color} size={size} />,
+                    tabBarIcon: ({ color, focused, size }) => (
+                        <TabIconWithTopBar
+                            Icon={LayoutDashboard}
+                            focused={focused}
+                            color={color}
+                            size={size}
+                            topBarColor={activeTintColor}
+                            scanBgInactive={scanBgInactive}
+                        />
+                    ),
                 }}
             />
             <Tab.Screen
                 name="CalendarTab"
                 component={ScheduleCalendarScreen}
                 options={{
-                    tabBarLabel: 'Schedule',
-                    tabBarIcon: ({ color, size }: { color: string; size: number }) => <Calendar color={color} size={size} />,
+                    tabBarLabel: 'Calendar',
+                    tabBarIcon: ({ color, focused, size }) => (
+                        <TabIconWithTopBar
+                            Icon={Calendar}
+                            focused={focused}
+                            color={color}
+                            size={size}
+                            topBarColor={activeTintColor}
+                            scanBgInactive={scanBgInactive}
+                        />
+                    ),
+                }}
+            />
+            <Tab.Screen
+                name="ScanTab"
+                component={ScanAttendanceScreen}
+                options={{
+                    tabBarLabel: 'Scan',
+                    tabBarIcon: ({ color, focused, size }) => (
+                        <TabIconWithTopBar
+                            Icon={QrCode}
+                            focused={focused}
+                            color={color}
+                            size={size}
+                            topBarColor={activeTintColor}
+                            scanBgInactive={scanBgInactive}
+                            isScan
+                        />
+                    ),
+                }}
+            />
+            <Tab.Screen
+                name="NotiTab"
+                component={NotificationStack}
+                options={{
+                    tabBarLabel: 'Noti',
+                    tabBarIcon: ({ color, focused, size }) => (
+                        <TabIconWithTopBar
+                            Icon={Bell}
+                            focused={focused}
+                            color={color}
+                            size={size}
+                            topBarColor={activeTintColor}
+                            scanBgInactive={scanBgInactive}
+                        />
+                    ),
                 }}
             />
             <Tab.Screen
@@ -116,9 +227,39 @@ export function MainTabNavigator() {
                 component={ProfileStack}
                 options={{
                     tabBarLabel: 'Profile',
-                    tabBarIcon: ({ color, size }: { color: string; size: number }) => <UserIcon color={color} size={size} />,
+                    tabBarIcon: ({ color, focused, size }) => (
+                        <TabIconWithTopBar
+                            Icon={UserIcon}
+                            focused={focused}
+                            color={color}
+                            size={size}
+                            topBarColor={activeTintColor}
+                            scanBgInactive={scanBgInactive}
+                        />
+                    ),
                 }}
             />
         </Tab.Navigator>
     );
 }
+
+const styles = StyleSheet.create({
+    iconWrapper: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        position: 'relative',
+    },
+    activeTopIndicator: {
+        position: 'absolute',
+        top: -8,
+        width: 30,
+        height: 3,
+        borderBottomLeftRadius: 3,
+        borderBottomRightRadius: 3,
+    },
+    scanIconContainer: {
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 10,
+    },
+});
