@@ -598,8 +598,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: theme.borderRadius.lg + 4,
         padding: theme.spacing.lg,
         marginBottom: theme.spacing.lg,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
         ...theme.shadows.sm,
     },
     clockHeader: {
@@ -694,7 +692,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         justifyContent: 'center',
         alignItems: 'center',
         marginTop: theme.spacing.xs,
-        ...theme.shadows.sm,
     },
     clockButtonText: {
         color: '#FFFFFF',
