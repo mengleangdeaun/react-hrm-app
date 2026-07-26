@@ -4,8 +4,6 @@ import {
     Text,
     TextInput,
     TouchableOpacity,
-    SafeAreaView,
-    StatusBar,
     Alert,
     Image,
     ScrollView,
@@ -14,30 +12,38 @@ import {
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
-import { activityApi } from '../../api/activity';
+import { activityApi, OFFICIAL_ACTIVITY_TYPES } from '../../api/activity';
 import { useAppTheme } from '../../context/ThemeContext';
+import { AppShell } from '../../components/common/AppShell';
 import {
-    ArrowLeft,
     Camera,
     Image as ImageIcon,
     MapPin,
     Check,
     X,
-    Briefcase,
     Wrench,
-    Truck,
-    ClipboardList,
-    Users,
+    Package,
+    Building2,
+    MessageSquare,
+    GraduationCap,
+    Headset,
+    MoreHorizontal,
     ChevronRight,
+    History,
 } from 'lucide-react-native';
 
-const CATEGORIES = [
-    { id: 'site_inspection', label: 'Site Inspection', desc: 'Equipment or building checks', Icon: Wrench },
-    { id: 'client_visit', label: 'Client Visit', desc: 'Customer meeting or sales pitch', Icon: Users },
-    { id: 'maintenance_check', label: 'Maintenance Check', desc: 'Repairs or maintenance tasks', Icon: Briefcase },
-    { id: 'delivery', label: 'Delivery / Logistics', desc: 'Part delivery or cargo drop-off', Icon: Truck },
-    { id: 'internal_task', label: 'Internal Task', desc: 'Office task or internal work', Icon: ClipboardList },
-];
+import { Platform } from 'react-native';
+
+const CATEGORY_ICONS: Record<string, any> = {
+    'Sale Outdoor': MapPin,
+    'Site Visit': Building2,
+    'Meeting / Discussion': MessageSquare,
+    'Delivery / Collection': Package,
+    'On-Site Service': Wrench,
+    'Training': GraduationCap,
+    'Support': Headset,
+    'Other': MoreHorizontal,
+};
 
 export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark } = useAppTheme();
@@ -73,7 +79,6 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
             const currentLoc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
             const { latitude, longitude } = currentLoc.coords;
 
-            // Attempt reverse geocode
             let addressName = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
             try {
                 const [reversed] = await Location.reverseGeocodeAsync({ latitude, longitude });
@@ -82,7 +87,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                     if (parts.length > 0) addressName = parts.join(', ');
                 }
             } catch (e) {
-                // Ignore geocode fallback
+                // Fallback coordinates
             }
 
             setLocation({
@@ -111,8 +116,13 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
         });
 
         if (!result.canceled && result.assets && result.assets.length > 0) {
-            const newAsset = result.assets[0];
-            setAttachments((prev) => [...prev, { uri: newAsset.uri, name: newAsset.fileName || `photo_${Date.now()}.jpg` }]);
+            const asset = result.assets[0];
+            const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpg';
+            const cleanExt = ext === 'png' ? 'png' : 'jpg';
+            const name = asset.fileName || `photo_${Date.now()}.${cleanExt}`;
+            const type = asset.mimeType || `image/${cleanExt}`;
+
+            setAttachments((prev) => [...prev, { uri: asset.uri, name, type }]);
         }
     };
 
@@ -124,10 +134,13 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
         });
 
         if (!result.canceled && result.assets) {
-            const newAssets = result.assets.map((asset: any, idx: number) => ({
-                uri: asset.uri,
-                name: asset.fileName || `photo_${Date.now()}_${idx}.jpg`,
-            }));
+            const newAssets = result.assets.map((asset: any, idx: number) => {
+                const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpg';
+                const cleanExt = ext === 'png' ? 'png' : 'jpg';
+                const name = asset.fileName || `photo_${Date.now()}_${idx}.${cleanExt}`;
+                const type = asset.mimeType || `image/${cleanExt}`;
+                return { uri: asset.uri, name, type };
+            });
             setAttachments((prev) => [...prev, ...newAssets]);
         }
     };
@@ -157,177 +170,191 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                 attachments,
             });
 
-            Alert.alert('Activity Submitted', 'Your work log entry has been submitted for supervisor review.', [
-                { text: 'OK', onPress: () => navigation.goBack() },
-            ]);
+            if (Platform.OS === 'web') {
+                window.alert('Activity Submitted: Your work log entry has been submitted.');
+                navigation.navigate('ActivityList');
+            } else {
+                Alert.alert('Activity Submitted', 'Your work log entry has been submitted.', [
+                    { text: 'OK', onPress: () => navigation.navigate('ActivityList') },
+                ]);
+            }
         } catch (error: any) {
-            Alert.alert('Submission Error', error?.message || 'Failed to submit activity report. Please try again.');
+            Alert.alert('Submission Error', error?.message || 'Failed to submit activity report.');
         } finally {
             setIsSubmitting(false);
         }
     };
 
+    const headerRight = (
+        <TouchableOpacity
+            style={styles.headerIconBtnSubtle}
+            onPress={() => navigation.navigate('ActivityList')}
+            activeOpacity={0.8}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+            <History color={theme.colors.primary} size={20} />
+        </TouchableOpacity>
+    );
+
     return (
-        <SafeAreaView style={styles.safeArea}>
-            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-
-            {/* Navigation Header */}
-            <View style={styles.topBar}>
-                <TouchableOpacity
-                    style={styles.iconCircle}
-                    onPress={() => {
-                        if (currentStep > 1) {
-                            setCurrentStep(currentStep - 1);
-                        } else {
-                            navigation.goBack();
-                        }
-                    }}
-                    activeOpacity={0.7}
-                >
-                    <ArrowLeft color={theme.colors.textPrimary} size={20} />
-                </TouchableOpacity>
-
-                <Text style={styles.headerTitle}>Log Daily Activity</Text>
-
-                <View style={styles.stepCounterBadge}>
-                    <Text style={styles.stepCounterText}>Step {currentStep}/3</Text>
-                </View>
+        <AppShell title="Log Activity" onBack={() => navigation.goBack()} headerRight={headerRight}>
+            {/* Step Progress Bar */}
+            <View style={styles.stepHeaderRow}>
+                <Text style={styles.stepProgressText}>Step {currentStep} of 3</Text>
+            </View>
+            <View style={styles.progressBarBg}>
+                <View style={[styles.progressBarFill, { width: `${(currentStep / 3) * 100}%` }]} />
             </View>
 
-            <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-                {/* Step Progress Bar */}
-                <View style={styles.progressBarBg}>
-                    <View style={[styles.progressBarFill, { width: `${(currentStep / 3) * 100}%` }]} />
-                </View>
+            {/* STEP 1: Select Category (2-Column Grid Layout) */}
+            {currentStep === 1 && (
+                <View>
+                    <Text style={styles.stepTitle}>1. Select Activity Type</Text>
+                    <Text style={styles.stepSubtitle}>Choose the category that best describes your task.</Text>
 
-                {/* STEP 1: Select Category */}
-                {currentStep === 1 && (
-                    <View>
-                        <Text style={styles.stepTitle}>1. Select Activity Type</Text>
-                        <Text style={styles.stepSubtitle}>Choose the category that best describes your task.</Text>
-
-                        {CATEGORIES.map((cat) => {
-                            const CatIcon = cat.Icon;
+                    <View style={styles.gridContainer}>
+                        {OFFICIAL_ACTIVITY_TYPES.map((cat) => {
+                            const CatIcon = CATEGORY_ICONS[cat.id] || MoreHorizontal;
                             const isSelected = selectedCategory === cat.id;
                             return (
                                 <TouchableOpacity
                                     key={cat.id}
-                                    style={[styles.categoryTile, isSelected && styles.categoryTileSelected]}
+                                    style={[styles.gridCardTile, isSelected && styles.gridCardTileSelected]}
                                     onPress={() => setSelectedCategory(cat.id)}
                                     activeOpacity={0.8}
                                 >
-                                    <View style={[styles.categoryIconBg, isSelected && styles.categoryIconBgSelected]}>
+                                    <View style={[styles.gridIconBg, isSelected && styles.gridIconBgSelected]}>
                                         <CatIcon color={isSelected ? '#FFFFFF' : theme.colors.primary} size={22} />
                                     </View>
-                                    <View style={styles.categoryTextGroup}>
-                                        <Text style={[styles.categoryLabel, isSelected && styles.categoryLabelSelected]}>
-                                            {cat.label}
-                                        </Text>
-                                        <Text style={styles.categoryDesc}>{cat.desc}</Text>
-                                    </View>
+                                    <Text
+                                        style={[styles.gridCardLabel, isSelected && styles.gridCardLabelSelected]}
+                                        numberOfLines={2}
+                                    >
+                                        {cat.label}
+                                    </Text>
                                     {isSelected && (
-                                        <View style={styles.checkBadge}>
-                                            <Check color="#FFFFFF" size={14} />
+                                        <View style={styles.gridCheckBadge}>
+                                            <Check color="#FFFFFF" size={12} />
                                         </View>
                                     )}
                                 </TouchableOpacity>
                             );
                         })}
+                    </View>
 
-                        <TouchableOpacity
-                            style={[styles.nextBtn, !selectedCategory && styles.nextBtnDisabled]}
-                            disabled={!selectedCategory}
-                            onPress={() => setCurrentStep(2)}
-                            activeOpacity={0.85}
-                        >
-                            <Text style={styles.nextBtnText}>Continue to Photo Proof</Text>
-                            <ChevronRight color="#FFFFFF" size={18} />
+                    <TouchableOpacity
+                        style={[styles.nextBtn, !selectedCategory && styles.nextBtnDisabled]}
+                        disabled={!selectedCategory}
+                        onPress={() => setCurrentStep(2)}
+                        activeOpacity={0.85}
+                    >
+                        <Text style={styles.nextBtnText}>Continue to Photo Proof</Text>
+                        <ChevronRight color="#FFFFFF" size={18} />
+                    </TouchableOpacity>
+                </View>
+            )}
+
+            {/* STEP 2: Photo Proof Capture */}
+            {currentStep === 2 && (
+                <View>
+                    <Text style={styles.stepTitle}>2. Attach Photo Proof</Text>
+                    <Text style={styles.stepSubtitle}>Capture or upload photos to verify your activity.</Text>
+
+                    <View style={styles.photoPickerRow}>
+                        <TouchableOpacity style={styles.pickerTile} onPress={takePhoto} activeOpacity={0.8}>
+                            <Camera color={theme.colors.primary} size={28} />
+                            <Text style={styles.pickerTileText}>Take Camera Photo</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.pickerTile} onPress={pickImage} activeOpacity={0.8}>
+                            <ImageIcon color={theme.colors.status.success} size={28} />
+                            <Text style={styles.pickerTileText}>Choose from Gallery</Text>
                         </TouchableOpacity>
                     </View>
-                )}
 
-                {/* STEP 2: Photo Proof Capture */}
-                {currentStep === 2 && (
-                    <View>
-                        <Text style={styles.stepTitle}>2. Attach Photo Proof</Text>
-                        <Text style={styles.stepSubtitle}>Capture or upload photos to verify your activity.</Text>
-
-                        <View style={styles.photoPickerRow}>
-                            <TouchableOpacity style={styles.pickerTile} onPress={takePhoto} activeOpacity={0.8}>
-                                <Camera color={theme.colors.primary} size={28} />
-                                <Text style={styles.pickerTileText}>Take Camera Photo</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity style={styles.pickerTile} onPress={pickImage} activeOpacity={0.8}>
-                                <ImageIcon color={theme.colors.status.success} size={28} />
-                                <Text style={styles.pickerTileText}>Choose from Gallery</Text>
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Thumbnail Grid */}
-                        {attachments.length > 0 && (
-                            <View style={styles.previewSection}>
-                                <Text style={styles.previewTitle}>Attached Photos ({attachments.length})</Text>
-                                <View style={styles.thumbnailGrid}>
-                                    {attachments.map((item, index) => (
-                                        <View key={index} style={styles.thumbnailWrapper}>
-                                            <Image source={{ uri: item.uri }} style={styles.thumbnailImg} />
-                                            <TouchableOpacity
-                                                style={styles.removeBtn}
-                                                onPress={() => removeAttachment(index)}
-                                            >
-                                                <X color="#FFFFFF" size={12} />
-                                            </TouchableOpacity>
-                                        </View>
-                                    ))}
-                                </View>
+                    {/* Thumbnail Grid */}
+                    {attachments.length > 0 && (
+                        <View style={styles.previewSection}>
+                            <Text style={styles.previewTitle}>Attached Photos ({attachments.length})</Text>
+                            <View style={styles.thumbnailGrid}>
+                                {attachments.map((item, index) => (
+                                    <View key={index} style={styles.thumbnailWrapper}>
+                                        <Image source={{ uri: item.uri }} style={styles.thumbnailImg} />
+                                        <TouchableOpacity
+                                            style={styles.removeBtn}
+                                            onPress={() => removeAttachment(index)}
+                                        >
+                                            <X color="#FFFFFF" size={12} />
+                                        </TouchableOpacity>
+                                    </View>
+                                ))}
                             </View>
-                        )}
+                        </View>
+                    )}
+
+                    <View style={styles.btnRow}>
+                        <TouchableOpacity
+                            style={styles.backStepBtn}
+                            onPress={() => setCurrentStep(1)}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={styles.backStepBtnText}>Back</Text>
+                        </TouchableOpacity>
 
                         <TouchableOpacity
-                            style={[styles.nextBtn, attachments.length === 0 && styles.nextBtnDisabled]}
+                            style={[styles.nextBtnFlex, attachments.length === 0 && styles.nextBtnDisabled]}
                             disabled={attachments.length === 0}
                             onPress={() => setCurrentStep(3)}
                             activeOpacity={0.85}
                         >
-                            <Text style={styles.nextBtnText}>Continue to Notes & Location</Text>
+                            <Text style={styles.nextBtnText}>Continue to Notes</Text>
                             <ChevronRight color="#FFFFFF" size={18} />
                         </TouchableOpacity>
                     </View>
-                )}
+                </View>
+            )}
 
-                {/* STEP 3: Notes & Location Tagging */}
-                {currentStep === 3 && (
-                    <View>
-                        <Text style={styles.stepTitle}>3. Location & Activity Notes</Text>
-                        <Text style={styles.stepSubtitle}>Review GPS location tag and add descriptive notes.</Text>
+            {/* STEP 3: Notes & Location Tagging */}
+            {currentStep === 3 && (
+                <View>
+                    <Text style={styles.stepTitle}>3. Location & Activity Notes</Text>
+                    <Text style={styles.stepSubtitle}>Review GPS location tag and add descriptive notes.</Text>
 
-                        {/* GPS Tagged Location Banner */}
-                        <View style={styles.locationCard}>
-                            <MapPin color={theme.colors.primary} size={20} />
-                            <View style={styles.locationTextGroup}>
-                                <Text style={styles.locationCardTitle}>Verified Location Tag</Text>
-                                <Text style={styles.locationCardSub} numberOfLines={2}>
-                                    {isLocating ? 'Resolving GPS coordinates...' : location?.address || 'Location Tagged'}
-                                </Text>
-                            </View>
-                            {isLocating && <ActivityIndicator size="small" color={theme.colors.primary} />}
+                    {/* GPS Tagged Location Banner */}
+                    <View style={styles.locationCard}>
+                        <MapPin color={theme.colors.primary} size={20} />
+                        <View style={styles.locationTextGroup}>
+                            <Text style={styles.locationCardTitle}>Verified Location Tag</Text>
+                            <Text style={styles.locationCardSub} numberOfLines={2}>
+                                {isLocating ? 'Resolving GPS coordinates...' : location?.address || 'Location Tagged'}
+                            </Text>
                         </View>
+                        {isLocating && <ActivityIndicator size="small" color={theme.colors.primary} />}
+                    </View>
 
-                        {/* Notes / Comment Text Input */}
-                        <Text style={styles.inputLabel}>Activity Notes / Details</Text>
-                        <TextInput
-                            style={[styles.input, styles.textArea]}
-                            value={comment}
-                            onChangeText={setComment}
-                            placeholder="Describe work completed, client feedback, or tasks performed..."
-                            placeholderTextColor={theme.colors.textSecondary}
-                            multiline
-                            numberOfLines={4}
-                        />
+                    {/* Notes / Comment Text Input */}
+                    <Text style={styles.inputLabel}>Activity Notes / Details</Text>
+                    <TextInput
+                        style={[styles.input, styles.textArea]}
+                        value={comment}
+                        onChangeText={setComment}
+                        placeholder="Describe work completed, client feedback, or tasks performed..."
+                        placeholderTextColor={theme.colors.textSecondary}
+                        multiline
+                        numberOfLines={4}
+                    />
+
+                    <View style={styles.btnRow}>
+                        <TouchableOpacity
+                            style={styles.backStepBtn}
+                            onPress={() => setCurrentStep(2)}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={styles.backStepBtnText}>Back</Text>
+                        </TouchableOpacity>
 
                         <TouchableOpacity
-                            style={styles.submitBtn}
+                            style={styles.submitBtnFlex}
                             onPress={handleSubmit}
                             disabled={isSubmitting}
                             activeOpacity={0.85}
@@ -335,62 +362,37 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                             {isSubmitting ? (
                                 <ActivityIndicator color="#FFFFFF" />
                             ) : (
-                                <Text style={styles.submitBtnText}>Submit Activity Report</Text>
+                                <Text style={styles.submitBtnText}>Submit Activity</Text>
                             )}
                         </TouchableOpacity>
                     </View>
-                )}
-            </ScrollView>
-        </SafeAreaView>
+                </View>
+            )}
+        </AppShell>
     );
 };
 
 const stylesheet = StyleSheet.create((theme) => ({
-    safeArea: {
-        flex: 1,
-        backgroundColor: theme.colors.background,
+    headerIconBtnSubtle: {
+        width: 36,
+        height: 36,
+        borderRadius: theme.borderRadius.full,
+        backgroundColor: theme.colors.surfaceSubtle,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    topBar: {
+    stepHeaderRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: theme.spacing.md + 4,
-        paddingVertical: theme.spacing.md,
+        marginBottom: 6,
     },
-    iconCircle: {
-        width: 40,
-        height: 40,
-        borderRadius: theme.borderRadius.md,
-        backgroundColor: theme.colors.surfaceSubtle,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-    },
-    headerTitle: {
-        color: theme.colors.textPrimary,
-        fontSize: 18,
-        fontWeight: '700',
-    },
-    stepCounterBadge: {
-        backgroundColor: theme.colors.surfaceSubtle,
-        paddingHorizontal: theme.spacing.sm + 2,
-        paddingVertical: theme.spacing.xs,
-        borderRadius: theme.borderRadius.full,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-    },
-    stepCounterText: {
+    stepProgressText: {
         fontSize: 12,
         fontWeight: '700',
         color: theme.colors.primary,
-    },
-    container: {
-        flex: 1,
-    },
-    scrollContent: {
-        paddingHorizontal: theme.spacing.md + 4,
-        paddingBottom: theme.spacing.xl,
     },
     progressBarBg: {
         height: 4,
@@ -405,21 +407,21 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: theme.borderRadius.full,
     },
     stepTitle: {
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: '800',
         color: theme.colors.textPrimary,
-        marginBottom: 4,
+        marginBottom: 2,
     },
     stepSubtitle: {
-        fontSize: 13,
+        fontSize: 12,
         color: theme.colors.textSecondary,
-        marginBottom: theme.spacing.lg,
+        marginBottom: theme.spacing.md,
     },
     categoryTile: {
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg,
         padding: theme.spacing.md,
-        marginBottom: theme.spacing.md,
+        marginBottom: theme.spacing.sm + 2,
         flexDirection: 'row',
         alignItems: 'center',
         borderWidth: 1,
@@ -428,13 +430,13 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     categoryTileSelected: {
         borderColor: theme.colors.primary,
-        backgroundColor: 'rgba(37, 99, 235, 0.05)',
+        backgroundColor: theme.colors.surfaceSubtle,
     },
     categoryIconBg: {
-        width: 44,
-        height: 44,
+        width: 40,
+        height: 40,
         borderRadius: theme.borderRadius.md,
-        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+        backgroundColor: theme.colors.surfaceSubtle,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -443,10 +445,10 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     categoryTextGroup: {
         flex: 1,
-        marginLeft: theme.spacing.sm + 4,
+        marginLeft: theme.spacing.sm + 2,
     },
     categoryLabel: {
-        fontSize: 15,
+        fontSize: 14,
         fontWeight: '700',
         color: theme.colors.textPrimary,
     },
@@ -454,13 +456,13 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.primary,
     },
     categoryDesc: {
-        fontSize: 12,
+        fontSize: 11,
         color: theme.colors.textSecondary,
-        marginTop: 2,
+        marginTop: 1,
     },
     checkBadge: {
-        width: 24,
-        height: 24,
+        width: 20,
+        height: 20,
         borderRadius: theme.borderRadius.full,
         backgroundColor: theme.colors.primary,
         justifyContent: 'center',
@@ -493,7 +495,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginBottom: theme.spacing.lg,
     },
     previewTitle: {
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: '700',
         color: theme.colors.textSecondary,
         marginBottom: theme.spacing.sm,
@@ -507,8 +509,8 @@ const stylesheet = StyleSheet.create((theme) => ({
         position: 'relative',
     },
     thumbnailImg: {
-        width: 80,
-        height: 80,
+        width: 76,
+        height: 76,
         borderRadius: theme.borderRadius.md,
     },
     removeBtn: {
@@ -530,7 +532,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         alignItems: 'center',
         borderWidth: 1,
         borderColor: theme.colors.border,
-        marginBottom: theme.spacing.lg,
+        marginBottom: theme.spacing.md,
         ...theme.shadows.sm,
     },
     locationTextGroup: {
@@ -550,7 +552,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginTop: 2,
     },
     inputLabel: {
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: '700',
         color: theme.colors.textSecondary,
         marginBottom: theme.spacing.xs + 2,
@@ -562,22 +564,52 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderColor: theme.colors.border,
         color: theme.colors.textPrimary,
         paddingHorizontal: theme.spacing.md,
-        fontSize: 14,
+        fontSize: 13,
     },
     textArea: {
-        height: 120,
+        height: 100,
         textAlignVertical: 'top',
         paddingTop: theme.spacing.md,
-        marginBottom: theme.spacing.xl,
+        marginBottom: theme.spacing.lg,
+    },
+    btnRow: {
+        flexDirection: 'row',
+        gap: theme.spacing.md,
+        marginTop: theme.spacing.sm,
+    },
+    backStepBtn: {
+        backgroundColor: theme.colors.surfaceSubtle,
+        height: 48,
+        paddingHorizontal: theme.spacing.lg,
+        borderRadius: theme.borderRadius.md,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+    },
+    backStepBtnText: {
+        color: theme.colors.textPrimary,
+        fontWeight: '700',
+        fontSize: 14,
     },
     nextBtn: {
         backgroundColor: theme.colors.primary,
-        height: 52,
+        height: 48,
         borderRadius: theme.borderRadius.md,
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        marginTop: theme.spacing.md,
+        marginTop: theme.spacing.sm,
+        ...theme.shadows.sm,
+    },
+    nextBtnFlex: {
+        flex: 1,
+        backgroundColor: theme.colors.primary,
+        height: 48,
+        borderRadius: theme.borderRadius.md,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
         ...theme.shadows.sm,
     },
     nextBtnDisabled: {
@@ -586,12 +618,13 @@ const stylesheet = StyleSheet.create((theme) => ({
     nextBtnText: {
         color: '#FFFFFF',
         fontWeight: '700',
-        fontSize: 15,
+        fontSize: 14,
         marginRight: theme.spacing.xs,
     },
-    submitBtn: {
+    submitBtnFlex: {
+        flex: 1,
         backgroundColor: theme.colors.primary,
-        height: 52,
+        height: 48,
         borderRadius: theme.borderRadius.md,
         justifyContent: 'center',
         alignItems: 'center',
@@ -600,6 +633,65 @@ const stylesheet = StyleSheet.create((theme) => ({
     submitBtnText: {
         color: '#FFFFFF',
         fontWeight: '700',
-        fontSize: 16,
+        fontSize: 15,
+    },
+    gridContainer: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        marginBottom: theme.spacing.sm,
+    },
+    gridCardTile: {
+        width: '48%',
+        backgroundColor: theme.colors.surface,
+        borderRadius: theme.borderRadius.lg,
+        paddingVertical: theme.spacing.lg,
+        paddingHorizontal: theme.spacing.xs,
+        marginBottom: theme.spacing.md,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 1.5,
+        borderColor: theme.colors.border,
+        position: 'relative',
+        ...theme.shadows.sm,
+    },
+    gridCardTileSelected: {
+        borderColor: theme.colors.primary,
+        backgroundColor: theme.colors.surfaceSubtle,
+        ...theme.shadows.md,
+    },
+    gridIconBg: {
+        width: 48,
+        height: 48,
+        borderRadius: theme.borderRadius.md,
+        backgroundColor: theme.colors.surfaceSubtle,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: theme.spacing.sm,
+    },
+    gridIconBgSelected: {
+        backgroundColor: theme.colors.primary,
+    },
+    gridCardLabel: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: theme.colors.textPrimary,
+        textAlign: 'center',
+        paddingHorizontal: 2,
+    },
+    gridCardLabelSelected: {
+        color: theme.colors.primary,
+        fontWeight: '800',
+    },
+    gridCheckBadge: {
+        position: 'absolute',
+        top: 8,
+        right: 8,
+        width: 20,
+        height: 20,
+        borderRadius: theme.borderRadius.full,
+        backgroundColor: theme.colors.primary,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
 }));

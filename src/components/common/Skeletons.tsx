@@ -84,6 +84,82 @@ export const ListSkeleton: React.FC<{ count?: number }> = ({ count = 4 }) => {
     );
 };
 
+export const CreateLeaveSkeleton: React.FC = () => {
+    return (
+        <View style={styles.container}>
+            {/* Category Header */}
+            <Skeleton.Text lines={1} height={14} style={{ width: '40%', marginBottom: 12 }} />
+
+            {/* Leave Balances Carousel Placeholder */}
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 24 }}>
+                <Skeleton.Box width={160} height={90} borderRadius={16} />
+                <Skeleton.Box width={160} height={90} borderRadius={16} />
+            </View>
+
+            {/* Duration Mode Header */}
+            <Skeleton.Text lines={1} height={14} style={{ width: '35%', marginBottom: 12 }} />
+
+            {/* Duration Pill Switcher Placeholder */}
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 24 }}>
+                <Skeleton.Box width={80} height={36} borderRadius={18} />
+                <Skeleton.Box width={75} height={36} borderRadius={18} />
+                <Skeleton.Box width={85} height={36} borderRadius={18} />
+                <Skeleton.Box width={80} height={36} borderRadius={18} />
+            </View>
+
+            {/* Form Section Cards Placeholders */}
+            <Skeleton.Box width="100%" height={110} borderRadius={16} style={{ marginBottom: 16 }} />
+            <Skeleton.Box width="100%" height={120} borderRadius={16} style={{ marginBottom: 16 }} />
+            <Skeleton.Box width="100%" height={60} borderRadius={16} style={{ marginBottom: 24 }} />
+
+            {/* Submit Button Placeholder */}
+            <Skeleton.Box width="100%" height={48} borderRadius={12} />
+        </View>
+    );
+};
+
+export function ActivityListSkeleton() {
+    return (
+        <View style={styles.container}>
+            {[1, 2, 3].map((i) => (
+                <View key={i} style={styles.cardPlaceholder}>
+                    <View style={styles.cardHeaderRow}>
+                        <Skeleton.Box width={130} height={24} borderRadius={12} />
+                        <Skeleton.Box width={80} height={20} borderRadius={10} />
+                    </View>
+                    <Skeleton.Text lines={2} height={14} gap={8} style={{ marginTop: 12, marginBottom: 14 }} />
+                    <View style={styles.cardHeaderRow}>
+                        <Skeleton.Box width={120} height={14} borderRadius={4} />
+                        <Skeleton.Box width={90} height={14} borderRadius={4} />
+                    </View>
+                </View>
+            ))}
+        </View>
+    );
+}
+
+export function AttendanceHistorySkeleton() {
+    return (
+        <View style={styles.container}>
+            {[1, 2, 3].map((i) => (
+                <View key={i} style={styles.attendanceCardPlaceholder}>
+                    <View style={styles.cardHeaderRow}>
+                        <Skeleton.Box width={160} height={16} borderRadius={6} />
+                        <Skeleton.Box width={70} height={18} borderRadius={9} />
+                    </View>
+                    <Skeleton.Box width="100%" height={54} borderRadius={10} style={{ marginTop: 12 }} />
+                    <Skeleton.Box width="100%" height={22} borderRadius={11} style={{ marginTop: 8 }} />
+                    <Skeleton.Box width="100%" height={54} borderRadius={10} style={{ marginTop: 8 }} />
+                    <View style={[styles.cardHeaderRow, { marginTop: 12 }]}>
+                        <Skeleton.Box width={80} height={18} borderRadius={6} />
+                        <Skeleton.Box width={95} height={14} borderRadius={4} />
+                    </View>
+                </View>
+            ))}
+        </View>
+    );
+}
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,
@@ -98,8 +174,13 @@ const styles = StyleSheet.create({
         padding: 16,
         borderRadius: 12,
         marginBottom: 12,
+    },
+    attendanceCardPlaceholder: {
+        padding: 16,
+        borderRadius: 16,
+        marginBottom: 16,
         borderWidth: 1,
-        borderColor: 'rgba(150, 150, 150, 0.15)',
+        borderColor: 'rgba(148, 163, 184, 0.15)',
     },
     cardHeaderRow: {
         flexDirection: 'row',

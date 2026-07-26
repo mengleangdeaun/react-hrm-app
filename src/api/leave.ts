@@ -8,13 +8,18 @@ export interface LeaveType {
 
 export interface LeaveBalance {
     id: number;
-    employee_id?: string;
+    employee_id?: string | number;
     leave_policy_id?: number;
-    allocated_days: number;
-    used_days: number;
-    pending_days: number;
-    remaining_days: number;
+    leave_type_id?: number;
+    allocated_days?: number;
+    total_accrued?: number | string;
+    used_days?: number;
+    total_taken?: number | string;
+    pending_days?: number;
+    remaining_days?: number;
+    balance?: number | string;
     leave_type?: LeaveType | string;
+    leaveType?: LeaveType | string;
 }
 
 export interface LeaveRequest {
@@ -43,7 +48,31 @@ export const leaveApi = {
      */
     getMyBalances: async () => {
         const response = await apiClient.get('/employee-app/my-leave-balances');
-        return response.data;
+        const rawData = response.data;
+        const list = Array.isArray(rawData)
+            ? rawData
+            : Array.isArray(rawData?.balances)
+            ? rawData.balances
+            : Array.isArray(rawData?.data)
+            ? rawData.data
+            : [];
+
+        const normalized = list.map((item: any) => {
+            const rem = parseFloat(item.remaining_days ?? item.balance ?? item.remaining ?? 0);
+            const used = parseFloat(item.used_days ?? item.total_taken ?? item.taken ?? 0);
+            const alloc = parseFloat(item.allocated_days ?? item.total_accrued ?? item.allowed ?? 0);
+            const lType = item.leave_type || item.leaveType;
+
+            return {
+                ...item,
+                remaining_days: isNaN(rem) ? 0 : rem,
+                used_days: isNaN(used) ? 0 : used,
+                allocated_days: isNaN(alloc) ? 0 : alloc,
+                leave_type: lType,
+            };
+        });
+
+        return Array.isArray(rawData) ? normalized : { ...rawData, balances: normalized };
     },
 
     /**
@@ -88,6 +117,14 @@ export const leaveApi = {
 
         const response = await apiClient.post('/employee-app/leave-requests', formData, {
             headers: { 'Content-Type': 'multipart/form-data' },
+            transformRequest: [
+                (reqData, headers) => {
+                    if (headers) {
+                        delete headers['Content-Type'];
+                    }
+                    return reqData;
+                },
+            ],
         });
         return response.data;
     },

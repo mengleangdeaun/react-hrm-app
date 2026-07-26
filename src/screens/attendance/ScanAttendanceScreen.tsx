@@ -2,19 +2,20 @@ import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
-    StyleSheet,
     TouchableOpacity,
     Alert,
     ActivityIndicator,
     Modal,
     SafeAreaView,
 } from 'react-native';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
-import { MapPin, Navigation, CheckCircle2, XCircle, QrCode, ArrowLeft } from 'lucide-react-native';
+import { MapPin, Navigation, CheckCircle2, QrCode, ArrowLeft } from 'lucide-react-native';
 import { ENV } from '../../config/env';
 import { apiClient } from '../../api/client';
+import { useAppTheme } from '../../context/ThemeContext';
 
 // Geofence Distance Calculator (Haversine formula in meters)
 function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
@@ -33,6 +34,10 @@ function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+    const { isDark } = useAppTheme();
+    const { theme } = useUnistyles();
+    const styles = stylesheet;
+
     const [cameraPermission, requestCameraPermission] = useCameraPermissions();
     const [locationPermission, setLocationPermission] = useState<boolean | null>(null);
     const [currentLocation, setCurrentLocation] = useState<any>(null);
@@ -81,7 +86,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
     if (!cameraPermission || locationPermission === null || loadingLocation) {
         return (
             <SafeAreaView style={styles.centerContainer}>
-                <ActivityIndicator size="large" color="#2563EB" />
+                <ActivityIndicator size="large" color={theme.colors.primary} />
                 <Text style={styles.loadingText}>Verifying GPS & Camera Permissions...</Text>
             </SafeAreaView>
         );
@@ -90,7 +95,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
     if (!cameraPermission.granted) {
         return (
             <SafeAreaView style={styles.centerContainer}>
-                <QrCode color="#94A3B8" size={60} />
+                <QrCode color={theme.colors.textSecondary} size={60} />
                 <Text style={styles.permTitle}>Camera Permission Required</Text>
                 <Text style={styles.permDesc}>
                     Please allow camera access to scan Attendance QR code.
@@ -105,7 +110,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
     if (!locationPermission) {
         return (
             <SafeAreaView style={styles.centerContainer}>
-                <MapPin color="#EF4444" size={60} />
+                <MapPin color={theme.colors.status.danger} size={60} />
                 <Text style={styles.permTitle}>Location Access Required</Text>
                 <Text style={styles.permDesc}>
                     High-accuracy GPS location is required to verify office geofence clock-in.
@@ -153,7 +158,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
             {/* Header Controls */}
             <SafeAreaView style={styles.headerSafeArea}>
                 <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()}>
-                    <ArrowLeft color="#FFFFFF" size={22} />
+                    <ArrowLeft color="#FFFFFF" size={20} />
                 </TouchableOpacity>
                 <Text style={styles.headerTitle}>Attendance Scanner</Text>
                 <View style={{ width: 40 }} />
@@ -162,7 +167,10 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
             {/* Radar & Geofence Verification Card */}
             <View style={styles.radarCard}>
                 <View style={styles.radarRow}>
-                    <Navigation color={isWithinGeofence ? '#10B981' : '#EF4444'} size={22} />
+                    <Navigation
+                        color={isWithinGeofence ? theme.colors.status.success : theme.colors.status.danger}
+                        size={22}
+                    />
                     <View style={styles.radarInfo}>
                         <Text style={styles.radarTitle}>
                             {isWithinGeofence ? 'Office Location Verified' : 'Out of Radius'}
@@ -187,10 +195,10 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
             {/* Scanner Frame */}
             <View style={styles.overlay}>
                 <View style={styles.scanSquare}>
-                    <View style={[styles.corner, styles.tl]} />
-                    <View style={[styles.corner, styles.tr]} />
-                    <View style={[styles.corner, styles.bl]} />
-                    <View style={[styles.corner, styles.br]} />
+                    <View style={[styles.corner, styles.tl, { borderColor: theme.colors.primary }]} />
+                    <View style={[styles.corner, styles.tr, { borderColor: theme.colors.primary }]} />
+                    <View style={[styles.corner, styles.bl, { borderColor: theme.colors.primary }]} />
+                    <View style={[styles.corner, styles.br, { borderColor: theme.colors.primary }]} />
                 </View>
                 <Text style={styles.scanPrompt}>
                     Align Office QR Code to record Attendance
@@ -201,7 +209,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
             <Modal visible={successModalVisible} transparent animationType="slide">
                 <View style={styles.modalBackdrop}>
                     <View style={styles.modalContent}>
-                        <CheckCircle2 color="#10B981" size={70} />
+                        <CheckCircle2 color={theme.colors.status.success} size={64} />
                         <Text style={styles.modalTitle}>Attendance Recorded!</Text>
                         <Text style={styles.modalSub}>
                             Successfully recorded {punchDetails?.type} at {punchDetails?.time}
@@ -225,6 +233,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
                                 setScanned(false);
                                 navigation.navigate('HomeTab');
                             }}
+                            activeOpacity={0.85}
                         >
                             <Text style={styles.modalBtnText}>Done</Text>
                         </TouchableOpacity>
@@ -235,38 +244,38 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
     );
 };
 
-const styles = StyleSheet.create({
+const stylesheet = StyleSheet.create((theme) => ({
     container: {
         flex: 1,
         backgroundColor: '#000000',
     },
     centerContainer: {
         flex: 1,
-        backgroundColor: '#0F172A',
+        backgroundColor: theme.colors.background,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 24,
+        padding: theme.spacing.lg,
     },
     loadingText: {
-        color: '#94A3B8',
+        color: theme.colors.textSecondary,
         fontSize: 14,
-        marginTop: 16,
+        marginTop: theme.spacing.md,
     },
     headerSafeArea: {
         position: 'absolute',
-        top: 40,
-        left: 20,
-        right: 20,
+        top: theme.spacing.xl,
+        left: theme.spacing.md,
+        right: theme.spacing.md,
         zIndex: 20,
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
     },
     iconCircle: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: 'rgba(15, 23, 42, 0.8)',
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(0, 0, 0, 0.6)',
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -277,47 +286,48 @@ const styles = StyleSheet.create({
     },
     radarCard: {
         position: 'absolute',
-        top: 100,
-        left: 20,
-        right: 20,
+        top: 96,
+        left: theme.spacing.md,
+        right: theme.spacing.md,
         zIndex: 20,
-        backgroundColor: 'rgba(30, 41, 59, 0.95)',
-        borderRadius: 16,
-        padding: 14,
+        backgroundColor: theme.colors.surface,
+        borderRadius: theme.borderRadius.lg,
+        padding: theme.spacing.md,
         borderWidth: 1,
-        borderColor: '#334155',
+        borderColor: theme.colors.border,
+        ...theme.shadows.md,
     },
     radarRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        gap: theme.spacing.sm + 4,
     },
     radarInfo: {
         flex: 1,
     },
     radarTitle: {
-        color: '#F8FAFC',
+        color: theme.colors.textPrimary,
         fontSize: 14,
         fontWeight: '700',
     },
     radarSub: {
-        color: '#94A3B8',
+        color: theme.colors.textSecondary,
         fontSize: 12,
         marginTop: 2,
     },
     badge: {
-        paddingHorizontal: 8,
+        paddingHorizontal: theme.spacing.sm,
         paddingVertical: 4,
-        borderRadius: 6,
+        borderRadius: theme.borderRadius.sm,
     },
-    badgeSuccess: { backgroundColor: '#10B98120' },
-    badgeError: { backgroundColor: '#EF444420' },
-    badgeText: { color: '#F8FAFC', fontSize: 10, fontWeight: '800' },
+    badgeSuccess: { backgroundColor: theme.colors.surfaceSubtle },
+    badgeError: { backgroundColor: theme.colors.surfaceSubtle },
+    badgeText: { color: theme.colors.textPrimary, fontSize: 10, fontWeight: '800' },
     overlay: {
-        ...StyleSheet.absoluteFill,
+        ...StyleSheet.absoluteFillObject,
         justifyContent: 'center',
         alignItems: 'center',
-        backgroundColor: 'rgba(15, 23, 42, 0.4)',
+        backgroundColor: 'rgba(0, 0, 0, 0.45)',
     },
     scanSquare: {
         width: 240,
@@ -329,51 +339,51 @@ const styles = StyleSheet.create({
         position: 'absolute',
         width: 28,
         height: 28,
-        borderColor: '#2563EB',
     },
     tl: { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 12 },
     tr: { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 12 },
     bl: { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 12 },
     br: { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 12 },
     scanPrompt: {
-        color: '#F8FAFC',
+        color: '#FFFFFF',
         fontSize: 14,
         fontWeight: '600',
-        marginTop: 24,
+        marginTop: theme.spacing.lg,
     },
-    permTitle: { fontSize: 20, fontWeight: '700', color: '#F8FAFC', marginTop: 16 },
-    permDesc: { fontSize: 14, color: '#94A3B8', textAlign: 'center', marginVertical: 12 },
-    btnPrimary: { backgroundColor: '#2563EB', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 12 },
+    permTitle: { fontSize: 20, fontWeight: '700', color: theme.colors.textPrimary, marginTop: theme.spacing.md },
+    permDesc: { fontSize: 14, color: theme.colors.textSecondary, textAlign: 'center', marginVertical: theme.spacing.sm },
+    btnPrimary: { backgroundColor: theme.colors.primary, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm + 4, borderRadius: theme.borderRadius.md },
     btnText: { color: '#FFFFFF', fontWeight: '700' },
     modalBackdrop: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.75)',
+        backgroundColor: 'rgba(0, 0, 0, 0.65)',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 24,
+        padding: theme.spacing.lg,
     },
     modalContent: {
-        backgroundColor: '#1E293B',
-        borderRadius: 24,
-        padding: 24,
+        backgroundColor: theme.colors.surface,
+        borderRadius: theme.borderRadius.lg + 4,
+        padding: theme.spacing.lg,
         alignItems: 'center',
         width: '100%',
         borderWidth: 1,
-        borderColor: '#334155',
+        borderColor: theme.colors.border,
+        ...theme.shadows.md,
     },
-    modalTitle: { fontSize: 22, fontWeight: '800', color: '#F8FAFC', marginTop: 16 },
-    modalSub: { fontSize: 14, color: '#94A3B8', textAlign: 'center', marginTop: 6, marginBottom: 20 },
+    modalTitle: { fontSize: 22, fontWeight: '800', color: theme.colors.textPrimary, marginTop: theme.spacing.md },
+    modalSub: { fontSize: 14, color: theme.colors.textSecondary, textAlign: 'center', marginTop: 6, marginBottom: theme.spacing.md },
     modalDetails: {
         width: '100%',
-        backgroundColor: '#0F172A',
-        borderRadius: 14,
-        padding: 14,
-        marginBottom: 20,
+        backgroundColor: theme.colors.surfaceSubtle,
+        borderRadius: theme.borderRadius.md,
+        padding: theme.spacing.md,
+        marginBottom: theme.spacing.md,
         gap: 8,
     },
     detailRow: { flexDirection: 'row', justifyContent: 'space-between' },
-    detailLabel: { color: '#64748B', fontSize: 13 },
-    detailVal: { color: '#F8FAFC', fontSize: 13, fontWeight: '600' },
-    modalBtn: { backgroundColor: '#2563EB', width: '100%', height: 48, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+    detailLabel: { color: theme.colors.textSecondary, fontSize: 13 },
+    detailVal: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
+    modalBtn: { backgroundColor: theme.colors.primary, width: '100%', height: 48, borderRadius: theme.borderRadius.md, justifyContent: 'center', alignItems: 'center', ...theme.shadows.sm },
     modalBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-});
+}));

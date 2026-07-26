@@ -18,12 +18,15 @@ interface AppShellProps {
     title?: string;
     onBack?: () => void;
     headerRight?: React.ReactNode;
+    subHeader?: React.ReactNode;
     scrollable?: boolean;
     refreshing?: boolean;
     onRefresh?: () => void;
     style?: any;
     contentContainerStyle?: any;
     showHeader?: boolean;
+    onScroll?: (event: any) => void;
+    scrollEventThrottle?: number;
 }
 
 export const AppShell: React.FC<AppShellProps> = ({
@@ -31,12 +34,15 @@ export const AppShell: React.FC<AppShellProps> = ({
     title,
     onBack,
     headerRight,
+    subHeader,
     scrollable = true,
     refreshing = false,
     onRefresh,
     style,
     contentContainerStyle,
     showHeader = true,
+    onScroll,
+    scrollEventThrottle = 16,
 }) => {
     const { isDark } = useAppTheme();
     const theme = isDark ? darkTheme : lightTheme;
@@ -69,10 +75,14 @@ export const AppShell: React.FC<AppShellProps> = ({
                 </View>
             )}
 
+            {subHeader && <View style={styles.subHeaderContainer}>{subHeader}</View>}
+
             {scrollable ? (
                 <ScrollView
                     style={styles.scrollContainer}
                     contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
+                    onScroll={onScroll}
+                    scrollEventThrottle={scrollEventThrottle}
                     refreshControl={
                         onRefresh ? (
                             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
@@ -107,7 +117,7 @@ const styles = StyleSheet.create({
     backButton: {
         width: 36,
         height: 36,
-        borderRadius: 10,
+        borderRadius: 50,
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 12,
@@ -121,6 +131,9 @@ const styles = StyleSheet.create({
     headerRight: {
         flexDirection: 'row',
         alignItems: 'center',
+    },
+    subHeaderContainer: {
+        zIndex: 10,
     },
     scrollContainer: {
         flex: 1,

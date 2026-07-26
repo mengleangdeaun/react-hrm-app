@@ -181,50 +181,48 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         }
     };
 
-    const getLeaveTypeName = (leaveTypeObj: any) => {
-        if (typeof leaveTypeObj === 'string') return leaveTypeObj;
-        if (leaveTypeObj && typeof leaveTypeObj === 'object' && leaveTypeObj.name) return leaveTypeObj.name;
+    const getRemainingDays = (item: any) => {
+        const val = item.remaining_days ?? item.balance ?? item.remaining ?? 0;
+        return typeof val === 'number' ? val : parseFloat(val) || 0;
+    };
+
+    const getUsedDays = (item: any) => {
+        const val = item.used_days ?? item.total_taken ?? item.taken ?? 0;
+        return typeof val === 'number' ? val : parseFloat(val) || 0;
+    };
+
+    const getAllocatedDays = (item: any) => {
+        const val = item.allocated_days ?? item.total_accrued ?? item.allowed ?? 0;
+        return typeof val === 'number' ? val : parseFloat(val) || 0;
+    };
+
+    const getLeaveTypeName = (leaveTypeObj: any, item?: any) => {
+        const target = leaveTypeObj || item?.leaveType;
+        if (typeof target === 'string') return target;
+        if (target && typeof target === 'object' && target.name) return target.name;
         return 'Leave';
     };
 
     const headerRight = (
         <TouchableOpacity
-            style={styles.applyBtn}
+            style={styles.headerIconBtn}
             onPress={() => navigation.navigate('CreateLeave')}
-            activeOpacity={0.85}
+            activeOpacity={0.8}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-            <Plus color="#FFFFFF" size={18} />
-            <Text style={styles.applyBtnText}>Apply Leave</Text>
+            <Plus color="#FFFFFF" size={20} />
         </TouchableOpacity>
     );
 
     return (
         <AppShell
-            title="Leave Management"
+            title="Leave Requests"
             onBack={() => navigation.goBack()}
             headerRight={headerRight}
             refreshing={refreshing}
             onRefresh={onRefresh}
         >
-                {/* Leave Balances Carousel */}
-                {leaveBalances.length > 0 && (
-                    <View style={styles.balanceSection}>
-                        <Text style={styles.sectionTitle}>Leave Balances</Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.balanceCarousel}>
-                            {leaveBalances.map((item, idx) => (
-                                <View key={idx} style={styles.balanceCard}>
-                                    <Text style={styles.balanceType}>{getLeaveTypeName(item.leave_type)}</Text>
-                                    <Text style={styles.balanceRemaining}>{item.remaining_days} Days</Text>
-                                    <Text style={styles.balanceSub}>
-                                        Used {item.used_days} of {item.allocated_days} days
-                                    </Text>
-                                </View>
-                            ))}
-                        </ScrollView>
-                    </View>
-                )}
-
-                {/* Tab Navigation Switcher */}
+                {/* Tab Navigation Switcher (Top priority on Requests page) */}
                 <View style={styles.tabSwitcher}>
                     <TouchableOpacity
                         style={[styles.tabBtn, activeTab === 'my_requests' && styles.tabBtnActive]}
@@ -243,6 +241,24 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                         </Text>
                     </TouchableOpacity>
                 </View>
+
+                {/* Leave Balances Carousel Summary */}
+                {leaveBalances.length > 0 && (
+                    <View style={styles.balanceSection}>
+                        <Text style={styles.sectionTitle}>Leave Balances Summary</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.balanceCarousel}>
+                            {leaveBalances.map((item, idx) => (
+                                <View key={idx} style={styles.balanceCard}>
+                                    <Text style={styles.balanceType}>{getLeaveTypeName(item.leave_type, item)}</Text>
+                                    <Text style={styles.balanceRemaining}>{getRemainingDays(item)} Days</Text>
+                                    <Text style={styles.balanceSub}>
+                                        Used {getUsedDays(item)} of {getAllocatedDays(item)} days
+                                    </Text>
+                                </View>
+                            ))}
+                        </ScrollView>
+                    </View>
+                )}
 
                 {/* Tab Content */}
                 {isLoading ? (
@@ -473,19 +489,14 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderWidth: 1,
         borderColor: theme.colors.border,
     },
-    applyBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: theme.colors.primary,
-        paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.xs + 4,
+    headerIconBtn: {
+        width: 36,
+        height: 36,
         borderRadius: theme.borderRadius.md,
-    },
-    applyBtnText: {
-        color: '#FFFFFF',
-        fontWeight: '700',
-        fontSize: 13,
-        marginLeft: theme.spacing.xs,
+        backgroundColor: theme.colors.primary,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...theme.shadows.sm,
     },
     balanceSection: {
         marginBottom: theme.spacing.lg,

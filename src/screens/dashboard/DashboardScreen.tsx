@@ -309,7 +309,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 <View style={styles.quickGrid}>
                     <TouchableOpacity
                         style={styles.gridTile}
-                        onPress={() => navigation.navigate('LeaveList')}
+                        onPress={() => navigation.navigate('CreateLeave')}
                         activeOpacity={0.8}
                     >
                         <View style={[styles.tileIconContainer, { backgroundColor: 'rgba(37, 99, 235, 0.1)' }]}>
@@ -321,7 +321,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
                     <TouchableOpacity
                         style={styles.gridTile}
-                        onPress={() => navigation.navigate('ActivityList')}
+                        onPress={() => navigation.navigate('CreateActivity')}
                         activeOpacity={0.8}
                     >
                         <View style={[styles.tileIconContainer, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
@@ -333,11 +333,11 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
                     <TouchableOpacity
                         style={styles.gridTile}
-                        onPress={() => navigation.navigate('HistoryTab')}
+                        onPress={() => navigation.navigate('History')}
                         activeOpacity={0.8}
                     >
-                        <View style={[styles.tileIconContainer, { backgroundColor: 'rgba(6, 182, 212, 0.1)' }]}>
-                            <History color="#06B6D4" size={22} />
+                        <View style={[styles.tileIconContainer, { backgroundColor: theme.colors.surfaceSubtle }]}>
+                            <History color={theme.colors.primary} size={22} />
                         </View>
                         <Text style={styles.tileTitle}>Attendance Log</Text>
                         <Text style={styles.tileSubtitle}>Past Punch Records</Text>

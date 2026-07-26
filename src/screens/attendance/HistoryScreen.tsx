@@ -1,18 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
     FlatList,
     TouchableOpacity,
-    SafeAreaView,
-    StatusBar,
-    ActivityIndicator,
     RefreshControl,
     Modal,
+    ScrollView,
+    Animated,
 } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { AppShell } from '../../components/common/AppShell';
-import { ListSkeleton } from '../../components/common/Skeletons';
+import { AttendanceHistorySkeleton } from '../../components/common/Skeletons';
 import { attendanceApi, HistoryRecord } from '../../api/attendance';
 import { useAppTheme } from '../../context/ThemeContext';
 import {
@@ -21,8 +20,6 @@ import {
     AlertTriangle,
     ArrowDownLeft,
     ArrowUpRight,
-    Sun,
-    Moon,
     Filter,
     X,
     Clock,
@@ -31,31 +28,124 @@ import {
 } from 'lucide-react-native';
 import { format, parseISO } from 'date-fns';
 
-export const HistoryScreen: React.FC = () => {
-    const { isDark, toggleTheme } = useAppTheme();
+export const AUDIT_CATEGORIES = [
+    { id: 'all', label: 'All Logs' },
+    { id: 'early_in', label: 'Early In', key: 'in_status', value: 'Early' },
+    { id: 'late_in', label: 'Late In', key: 'in_status', value: 'Late' },
+    { id: 'early_departure', label: 'Early Depart', key: 'out_status', value: 'Early' },
+    { id: 'stay_late', label: 'Stay Late', key: 'out_status', value: 'Stay Late' },
+    { id: 'overtime', label: 'Overtime', key: 'out_status', value: 'Overtime' },
+];
+
+export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+    const { isDark } = useAppTheme();
     const { theme } = useUnistyles();
     const styles = stylesheet;
 
-    const [selectedQuickFilter, setSelectedQuickFilter] = useState<'all' | 'on_time' | 'late' | 'overtime'>('all');
+    // Applied Filters
+    const currentMonthStr = format(new Date(), 'yyyy-MM');
+    const [selectedQuickFilter, setSelectedQuickFilter] = useState<string>('all');
+    const [selectedMonth, setSelectedMonth] = useState<string>(''); // YYYY-MM
     const [historyLogs, setHistoryLogs] = useState<HistoryRecord[]>([]);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [refreshing, setRefreshing] = useState<boolean>(false);
 
-    // Advanced Filter Modal State
+    // Advanced Filter Modal Draft State
+    const [draftQuickFilter, setDraftQuickFilter] = useState<string>('all');
+    const [draftMonth, setDraftMonth] = useState<string>('');
     const [filterModalVisible, setFilterModalVisible] = useState<boolean>(false);
-    const [selectedMonth, setSelectedMonth] = useState<string>(''); // YYYY-MM
+
+    // Smart Animated Tab Bar Scroll Hide/Show State
+    const tabBarAnim = useRef(new Animated.Value(1)).current;
+    const isTabBarHiddenRef = useRef<boolean>(false);
+    const lastScrollY = useRef<number>(0);
+
+    const handleScroll = (event: any) => {
+        const currentY = event?.nativeEvent?.contentOffset?.y || 0;
+        const diff = currentY - lastScrollY.current;
+
+        if (Math.abs(diff) < 8) return;
+
+        if (currentY <= 20) {
+            if (isTabBarHiddenRef.current) {
+                isTabBarHiddenRef.current = false;
+                Animated.timing(tabBarAnim, {
+                    toValue: 1,
+                    duration: 220,
+                    useNativeDriver: false,
+                }).start();
+            }
+        } else if (diff > 12) {
+            // Scroll down -> hide smoothly
+            if (!isTabBarHiddenRef.current) {
+                isTabBarHiddenRef.current = true;
+                Animated.timing(tabBarAnim, {
+                    toValue: 0,
+                    duration: 220,
+                    useNativeDriver: false,
+                }).start();
+            }
+        } else if (diff < -12) {
+            // Scroll up -> show smoothly
+            if (isTabBarHiddenRef.current) {
+                isTabBarHiddenRef.current = false;
+                Animated.timing(tabBarAnim, {
+                    toValue: 1,
+                    duration: 220,
+                    useNativeDriver: false,
+                }).start();
+            }
+        }
+
+        lastScrollY.current = currentY;
+    };
 
     useEffect(() => {
         fetchHistory();
     }, [selectedQuickFilter, selectedMonth]);
+
+    const openFilterModal = () => {
+        setDraftQuickFilter(selectedQuickFilter);
+        setDraftMonth(selectedMonth);
+        setFilterModalVisible(true);
+    };
+
+    const handleApplyFilters = () => {
+        setSelectedQuickFilter(draftQuickFilter);
+        setSelectedMonth(draftMonth);
+        setFilterModalVisible(false);
+    };
+
+    const handleResetFilters = () => {
+        setDraftQuickFilter('all');
+        setDraftMonth('');
+        setSelectedQuickFilter('all');
+        setSelectedMonth('');
+        setFilterModalVisible(false);
+    };
+
+    const getMonthOptions = () => {
+        const months = [];
+        const now = new Date();
+        for (let i = 0; i < 6; i++) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const value = format(d, 'yyyy-MM');
+            const label = format(d, 'MMMM yyyy');
+            months.push({ value, label });
+        }
+        return months;
+    };
 
     const fetchHistory = async () => {
         try {
             setIsLoading(true);
             const params: any = {};
             if (selectedMonth) params.month = selectedMonth;
-            if (selectedQuickFilter === 'late') params.in_status = 'Late';
-            if (selectedQuickFilter === 'overtime') params.out_status = 'Overtime';
+
+            const categoryObj = AUDIT_CATEGORIES.find((c) => c.id === selectedQuickFilter);
+            if (categoryObj && (categoryObj as any).key && (categoryObj as any).value) {
+                params[(categoryObj as any).key] = (categoryObj as any).value;
+            }
 
             const data = await attendanceApi.getHistory(params);
             const records: HistoryRecord[] = Array.isArray(data)
@@ -138,66 +228,11 @@ export const HistoryScreen: React.FC = () => {
 
         return (
             <View style={styles.card}>
-                {/* Accent Top Bar */}
-                <View
-                    style={[
-                        styles.cardAccentBar,
-                        {
-                            backgroundColor: isLate
-                                ? theme.colors.status.warning
-                                : hasOvertime
-                                ? theme.colors.status.success
-                                : theme.colors.primary,
-                        },
-                    ]}
-                />
-
-                {/* Card Header: Date & Status Badge */}
+                {/* Card Header: Date */}
                 <View style={styles.cardHeader}>
                     <View style={styles.dateGroup}>
                         <Calendar color={theme.colors.primary} size={16} />
                         <Text style={styles.dateText}>{formatDateHeader(item.date)}</Text>
-                    </View>
-
-                    <View style={styles.statusGroup}>
-                        {isActiveSession && (
-                            <View style={styles.pulseBadge}>
-                                <View style={styles.pulseDot} />
-                                <Text style={styles.pulseText}>ACTIVE</Text>
-                            </View>
-                        )}
-
-                        <View
-                            style={[
-                                styles.statusBadge,
-                                {
-                                    backgroundColor: isLate
-                                        ? 'rgba(245, 158, 11, 0.1)'
-                                        : 'rgba(16, 185, 129, 0.1)',
-                                    borderColor: isLate
-                                        ? 'rgba(245, 158, 11, 0.2)'
-                                        : 'rgba(16, 185, 129, 0.2)',
-                                },
-                            ]}
-                        >
-                            {isLate ? (
-                                <AlertTriangle color={theme.colors.status.warning} size={12} />
-                            ) : (
-                                <CheckCircle2 color={theme.colors.status.success} size={12} />
-                            )}
-                            <Text
-                                style={[
-                                    styles.statusBadgeText,
-                                    {
-                                        color: isLate
-                                            ? theme.colors.status.warning
-                                            : theme.colors.status.success,
-                                    },
-                                ]}
-                            >
-                                {(item.status || (isLate ? 'LATE' : 'PRESENT')).toUpperCase()}
-                            </Text>
-                        </View>
                     </View>
                 </View>
 
@@ -294,94 +329,94 @@ export const HistoryScreen: React.FC = () => {
 
     const headerRight = (
         <TouchableOpacity
-            onPress={() => setFilterModalVisible(true)}
+            onPress={openFilterModal}
             style={styles.iconButton}
-            activeOpacity={0.7}
+            activeOpacity={0.8}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
         >
-            <Filter color={selectedMonth ? theme.colors.primary : theme.colors.textPrimary} size={18} />
+            <Filter color={(selectedMonth || selectedQuickFilter !== 'all') ? theme.colors.primary : theme.colors.textPrimary} size={18} />
         </TouchableOpacity>
+    );
+
+    const subHeader = (
+        <Animated.View
+            style={[
+                styles.tabBarContainer,
+                {
+                    opacity: tabBarAnim,
+                    height: tabBarAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 44],
+                    }),
+                    marginBottom: tabBarAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, 16],
+                    }),
+                    transform: [
+                        {
+                            translateY: tabBarAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: [-10, 0],
+                            }),
+                        },
+                    ],
+                },
+            ]}
+        >
+            <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tabBarScrollContent}
+            >
+                {AUDIT_CATEGORIES.map((tab) => {
+                    const isActive = selectedQuickFilter === tab.id;
+                    return (
+                        <TouchableOpacity
+                            key={tab.id}
+                            style={[styles.tabItem, isActive && styles.tabItemActive]}
+                            onPress={() => setSelectedQuickFilter(tab.id)}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={[styles.tabItemText, isActive && styles.tabItemTextActive]}>
+                                {tab.label}
+                            </Text>
+                            {isActive && <View style={styles.tabIndicator} />}
+                        </TouchableOpacity>
+                    );
+                })}
+            </ScrollView>
+        </Animated.View>
     );
 
     return (
         <AppShell
             title="Attendance History"
+            onBack={() => navigation?.goBack()}
             headerRight={headerRight}
+            subHeader={subHeader}
             scrollable={false}
         >
             <View style={styles.container}>
-                {/* Filter Chips */}
-                <View style={styles.filterChipsRow}>
-                    <TouchableOpacity
-                        style={[
-                            styles.chip,
-                            selectedQuickFilter === 'all' && styles.chipActive,
-                        ]}
-                        onPress={() => setSelectedQuickFilter('all')}
-                    >
-                        <Text
-                            style={[
-                                styles.chipText,
-                                selectedQuickFilter === 'all' && styles.chipTextActive,
-                            ]}
-                        >
-                            All Logs
+                {/* Active Month Filter Chip Banner */}
+                {selectedMonth ? (
+                    <View style={styles.activeMonthChip}>
+                        <Clock color="#FFFFFF" size={14} />
+                        <Text style={styles.activeMonthChipText}>
+                            {format(parseISO(selectedMonth + '-01'), 'MMMM yyyy')}
                         </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[
-                            styles.chip,
-                            selectedQuickFilter === 'on_time' && styles.chipActive,
-                        ]}
-                        onPress={() => setSelectedQuickFilter('on_time')}
-                    >
-                        <Text
-                            style={[
-                                styles.chipText,
-                                selectedQuickFilter === 'on_time' && styles.chipTextActive,
-                            ]}
+                        <TouchableOpacity
+                            onPress={() => setSelectedMonth('')}
+                            style={styles.activeMonthCloseBtn}
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                         >
-                            On Time
-                        </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[
-                            styles.chip,
-                            selectedQuickFilter === 'late' && styles.chipActive,
-                        ]}
-                        onPress={() => setSelectedQuickFilter('late')}
-                    >
-                        <Text
-                            style={[
-                                styles.chipText,
-                                selectedQuickFilter === 'late' && styles.chipTextActive,
-                            ]}
-                        >
-                            Late Punches
-                        </Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={[
-                            styles.chip,
-                            selectedQuickFilter === 'overtime' && styles.chipActive,
-                        ]}
-                        onPress={() => setSelectedQuickFilter('overtime')}
-                    >
-                        <Text
-                            style={[
-                                styles.chipText,
-                                selectedQuickFilter === 'overtime' && styles.chipTextActive,
-                            ]}
-                        >
-                            Overtime
-                        </Text>
-                    </TouchableOpacity>
-                </View>
+                            <X color="#FFFFFF" size={12} />
+                        </TouchableOpacity>
+                    </View>
+                ) : null}
 
                 {isLoading ? (
-                    <ListSkeleton count={4} />
+                    <AttendanceHistorySkeleton />
                 ) : historyLogs.length === 0 ? (
                     <View style={styles.centerContainer}>
                         <Clock color={theme.colors.textSecondary} size={44} />
@@ -395,6 +430,8 @@ export const HistoryScreen: React.FC = () => {
                         renderItem={renderItem}
                         contentContainerStyle={styles.listContent}
                         showsVerticalScrollIndicator={false}
+                        onScroll={handleScroll}
+                        scrollEventThrottle={16}
                         refreshControl={
                             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
                         }
@@ -409,40 +446,67 @@ export const HistoryScreen: React.FC = () => {
                     activeOpacity={1}
                     onPress={() => setFilterModalVisible(false)}
                 >
-                    <View style={styles.modalSheet}>
+                    <TouchableOpacity activeOpacity={1} style={styles.modalSheet}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Filter History</Text>
-                            <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
-                                <X color={theme.colors.textPrimary} size={20} />
-                            </TouchableOpacity>
+                            {(draftQuickFilter !== 'all' || draftMonth) ? (
+                                <TouchableOpacity onPress={handleResetFilters}>
+                                    <Text style={styles.resetBtnText}>Reset All</Text>
+                                </TouchableOpacity>
+                            ) : (
+                                <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
+                                    <X color={theme.colors.textPrimary} size={20} />
+                                </TouchableOpacity>
+                            )}
                         </View>
 
-                        <Text style={styles.filterSectionLabel}>Month Filter</Text>
-                        <View style={styles.monthOptionsRow}>
-                            {['2026-07', '2026-06', '2026-05'].map((m) => (
-                                <TouchableOpacity
-                                    key={m}
-                                    style={[
-                                        styles.monthBtn,
-                                        selectedMonth === m && styles.monthBtnSelected,
-                                    ]}
-                                    onPress={() => {
-                                        setSelectedMonth(selectedMonth === m ? '' : m);
-                                        setFilterModalVisible(false);
-                                    }}
-                                >
-                                    <Text
-                                        style={[
-                                            styles.monthBtnText,
-                                            selectedMonth === m && styles.monthBtnTextSelected,
-                                        ]}
+                        {/* Review Month Picker */}
+                        <Text style={styles.filterSectionLabel}>Review Month</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.monthPillsRow}>
+                            {getMonthOptions().map((m) => {
+                                const isSel = draftMonth === m.value;
+                                return (
+                                    <TouchableOpacity
+                                        key={m.value}
+                                        style={[styles.monthPill, isSel && styles.monthPillSelected]}
+                                        onPress={() => setDraftMonth(m.value)}
+                                        activeOpacity={0.8}
                                     >
-                                        {m}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
+                                        <Text style={[styles.monthPillText, isSel && styles.monthPillTextSelected]}>
+                                            {m.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </ScrollView>
+
+                        {/* Quick Filter Selection */}
+                        <Text style={styles.filterSectionLabel}>Status Category</Text>
+                        <View style={styles.quickFilterCol}>
+                            {AUDIT_CATEGORIES.map((f) => {
+                                const isSel = draftQuickFilter === f.id;
+                                return (
+                                    <TouchableOpacity
+                                        key={f.id}
+                                        style={[styles.filterOption, isSel && styles.filterOptionSelected]}
+                                        onPress={() => setDraftQuickFilter(f.id)}
+                                    >
+                                        <Text style={[styles.filterOptionText, isSel && styles.filterOptionTextSelected]}>
+                                            {f.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
                         </View>
-                    </View>
+
+                        <TouchableOpacity
+                            style={styles.applyFilterBtn}
+                            onPress={handleApplyFilters}
+                            activeOpacity={0.85}
+                        >
+                            <Text style={styles.applyFilterBtnText}>Apply Filter</Text>
+                        </TouchableOpacity>
+                    </TouchableOpacity>
                 </TouchableOpacity>
             </Modal>
         </AppShell>
@@ -456,56 +520,78 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     container: {
         flex: 1,
-        paddingHorizontal: theme.spacing.md + 4,
-        paddingTop: theme.spacing.md,
-    },
-    headerRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: theme.spacing.md,
-    },
-    headerTitle: {
-        fontSize: 22,
-        fontWeight: '800',
-        color: theme.colors.textPrimary,
-    },
-    headerActions: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: theme.spacing.xs + 2,
     },
     iconButton: {
-        padding: theme.spacing.sm,
+        width: 36,
+        height: 36,
         backgroundColor: theme.colors.surfaceSubtle,
         borderRadius: theme.borderRadius.md,
         borderWidth: 1,
         borderColor: theme.colors.border,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-    filterChipsRow: {
+    tabBarContainer: {
+        backgroundColor: theme.colors.surface,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.colors.border,
+        overflow: 'hidden',
+    },
+    tabBarScrollContent: {
+        paddingHorizontal: theme.spacing.sm,
         flexDirection: 'row',
-        gap: theme.spacing.xs + 2,
-        marginBottom: theme.spacing.md,
+        alignItems: 'center',
     },
-    chip: {
-        paddingHorizontal: theme.spacing.sm + 4,
-        paddingVertical: theme.spacing.xs + 2,
-        borderRadius: theme.borderRadius.md,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        backgroundColor: theme.colors.surfaceSubtle,
+    tabItem: {
+        paddingHorizontal: theme.spacing.md,
+        paddingVertical: theme.spacing.sm + 4,
+        position: 'relative',
     },
-    chipActive: {
-        backgroundColor: theme.colors.primary,
-        borderColor: theme.colors.primary,
-    },
-    chipText: {
+    tabItemActive: {},
+    tabItemText: {
         fontSize: 12,
-        fontWeight: '600',
+        fontWeight: '700',
         color: theme.colors.textSecondary,
+        textTransform: 'uppercase',
+        letterSpacing: 0.4,
     },
-    chipTextActive: {
+    tabItemTextActive: {
+        color: theme.colors.primary,
+        fontWeight: '800',
+    },
+    tabIndicator: {
+        position: 'absolute',
+        bottom: 0,
+        left: theme.spacing.md,
+        right: theme.spacing.md,
+        height: 2.5,
+        backgroundColor: theme.colors.primary,
+    },
+    activeMonthChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: theme.colors.primary,
+        paddingHorizontal: theme.spacing.md,
+        paddingVertical: theme.spacing.xs + 4,
+        borderRadius: theme.borderRadius.full,
+        alignSelf: 'flex-start',
+        marginBottom: theme.spacing.md,
+        gap: 8,
+        ...theme.shadows.sm,
+    },
+    activeMonthChipText: {
         color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    activeMonthCloseBtn: {
+        backgroundColor: 'rgba(255, 255, 255, 0.25)',
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginLeft: 4,
     },
     centerContainer: {
         flex: 1,
@@ -528,9 +614,9 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     card: {
         backgroundColor: theme.colors.surface,
-        borderRadius: theme.borderRadius.lg,
-        padding: theme.spacing.md,
-        marginBottom: theme.spacing.md,
+        borderRadius: theme.borderRadius.lg + 4,
+        padding: theme.spacing.md + 2,
+        marginBottom: theme.spacing.lg,
         borderWidth: 1,
         borderColor: theme.colors.border,
         position: 'relative',
@@ -542,7 +628,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         top: 0,
         left: 0,
         right: 0,
-        height: 3,
+        height: 4,
     },
     cardHeader: {
         flexDirection: 'row',
@@ -568,7 +654,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     pulseBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(245, 158, 11, 0.15)',
+        backgroundColor: theme.colors.surfaceSubtle,
         paddingHorizontal: theme.spacing.xs + 4,
         paddingVertical: 2,
         borderRadius: theme.borderRadius.full,
@@ -577,13 +663,13 @@ const stylesheet = StyleSheet.create((theme) => ({
         width: 6,
         height: 6,
         borderRadius: 3,
-        backgroundColor: '#F59E0B',
+        backgroundColor: theme.colors.status.warning,
         marginRight: 4,
     },
     pulseText: {
         fontSize: 10,
         fontWeight: '800',
-        color: '#F59E0B',
+        color: theme.colors.status.warning,
     },
     statusBadge: {
         flexDirection: 'row',
@@ -591,7 +677,9 @@ const stylesheet = StyleSheet.create((theme) => ({
         paddingHorizontal: theme.spacing.sm,
         paddingVertical: theme.spacing.xs,
         borderRadius: theme.borderRadius.full,
+        backgroundColor: theme.colors.surfaceSubtle,
         borderWidth: 1,
+        borderColor: theme.colors.border,
     },
     statusBadgeText: {
         fontSize: 11,
@@ -664,7 +752,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderTopColor: theme.colors.border,
     },
     lateChip: {
-        backgroundColor: 'rgba(245, 158, 11, 0.1)',
+        backgroundColor: theme.colors.surfaceSubtle,
         paddingHorizontal: theme.spacing.xs + 4,
         paddingVertical: 2,
         borderRadius: theme.borderRadius.sm,
@@ -676,7 +764,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.status.warning,
     },
     earlyChip: {
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        backgroundColor: theme.colors.surfaceSubtle,
         paddingHorizontal: theme.spacing.xs + 4,
         paddingVertical: 2,
         borderRadius: theme.borderRadius.sm,
@@ -690,7 +778,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     overtimeChip: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        backgroundColor: theme.colors.surfaceSubtle,
         paddingHorizontal: theme.spacing.xs + 4,
         paddingVertical: 2,
         borderRadius: theme.borderRadius.sm,
@@ -731,35 +819,78 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontWeight: '700',
         color: theme.colors.textPrimary,
     },
+    resetBtnText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: theme.colors.status.danger,
+        textTransform: 'uppercase',
+    },
     filterSectionLabel: {
         fontSize: 12,
         fontWeight: '700',
         color: theme.colors.textSecondary,
         textTransform: 'uppercase',
-        marginBottom: theme.spacing.sm,
+        marginBottom: theme.spacing.xs + 2,
     },
-    monthOptionsRow: {
+    monthPillsRow: {
         flexDirection: 'row',
-        gap: theme.spacing.sm,
+        marginBottom: theme.spacing.md,
     },
-    monthBtn: {
+    monthPill: {
         paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.sm,
-        borderRadius: theme.borderRadius.md,
+        paddingVertical: theme.spacing.xs + 4,
+        borderRadius: theme.borderRadius.full,
         backgroundColor: theme.colors.surfaceSubtle,
         borderWidth: 1,
         borderColor: theme.colors.border,
+        marginRight: theme.spacing.xs + 2,
     },
-    monthBtnSelected: {
+    monthPillSelected: {
         backgroundColor: theme.colors.primary,
         borderColor: theme.colors.primary,
     },
-    monthBtnText: {
-        fontSize: 13,
+    monthPillText: {
+        fontSize: 12,
         fontWeight: '600',
         color: theme.colors.textPrimary,
     },
-    monthBtnTextSelected: {
+    monthPillTextSelected: {
         color: '#FFFFFF',
+        fontWeight: '700',
+    },
+    quickFilterCol: {
+        marginBottom: theme.spacing.md,
+    },
+    filterOption: {
+        paddingVertical: theme.spacing.sm + 2,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.colors.border,
+    },
+    filterOptionSelected: {
+        backgroundColor: theme.colors.surfaceSubtle,
+        paddingHorizontal: theme.spacing.sm,
+        borderRadius: theme.borderRadius.sm,
+    },
+    filterOptionText: {
+        fontSize: 14,
+        color: theme.colors.textPrimary,
+    },
+    filterOptionTextSelected: {
+        color: theme.colors.primary,
+        fontWeight: '700',
+    },
+    applyFilterBtn: {
+        backgroundColor: theme.colors.primary,
+        height: 48,
+        borderRadius: theme.borderRadius.md,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: theme.spacing.md,
+        ...theme.shadows.sm,
+    },
+    applyFilterBtnText: {
+        color: '#FFFFFF',
+        fontSize: 14,
+        fontWeight: '700',
     },
 }));
