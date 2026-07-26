@@ -1,13 +1,14 @@
 {
   "expo": {
-    "name": "hrms-app",
+    "name": "HRM App",
     "slug": "hrms-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.hrmsapp.mobile"
     },
     "android": {
       "adaptiveIcon": {
@@ -17,13 +18,20 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.anonymous.hrmsapp"
+      "package": "com.hrmsapp.mobile",
+      "versionCode": 1
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f2ffa67d-e933-4319-b417-ed9f4aa44f92"
+      }
+    },
+    "owner": "twenttwo"
   }
 }

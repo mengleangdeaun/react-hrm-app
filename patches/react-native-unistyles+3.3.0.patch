@@ -1,0 +1,16 @@
+diff --git a/node_modules/react-native-unistyles/cxx/converters/TransformOriginConverter.cpp b/node_modules/react-native-unistyles/cxx/converters/TransformOriginConverter.cpp
+index 1234567..abcdefg 100644
+--- a/node_modules/react-native-unistyles/cxx/converters/TransformOriginConverter.cpp
++++ b/node_modules/react-native-unistyles/cxx/converters/TransformOriginConverter.cpp
+@@ -1,8 +1,11 @@
+ #include "TransformOriginConverter.h"
+ 
++// RN 0.81 removed parseUnprocessedTransformOriginString from facebook::react.
++// UNISTYLES_HAS_RN_TRANSFORM_ORIGIN_PARSER is intentionally left undefined
++// so the fallback (return std::nullopt) is used instead.
+ #if defined(RN_SERIALIZABLE_STATE) &&                                          \
+     __has_include(<react/renderer/components/view/conversions.h>)
+-#include <react/renderer/components/view/conversions.h>
++// #include <react/renderer/components/view/conversions.h>
+ // #define UNISTYLES_HAS_RN_TRANSFORM_ORIGIN_PARSER 1
+ #endif
