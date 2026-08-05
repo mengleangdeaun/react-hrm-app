@@ -61,6 +61,12 @@ function NotificationStack() {
         <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="NotificationList" component={NotificationListScreen} />
             <Stack.Screen name="AnnouncementDetail" component={AnnouncementDetailScreen} />
+            <Stack.Screen name="LeaveList" component={LeaveListScreen} />
+            <Stack.Screen name="CelebrationWish" component={CelebrationWishScreen} />
+            <Stack.Screen name="WishesInbox" component={WishesInboxScreen} />
+            <Stack.Screen name="QuizList" component={QuizListScreen} />
+            <Stack.Screen name="TakeQuiz" component={TakeQuizScreen} />
+            <Stack.Screen name="QuizResult" component={QuizResultScreen} />
         </Stack.Navigator>
     );
 }

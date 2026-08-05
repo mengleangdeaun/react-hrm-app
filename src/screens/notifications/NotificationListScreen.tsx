@@ -1,19 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
     View,
-    Text,
     ScrollView,
     TouchableOpacity,
     SafeAreaView,
     StatusBar,
-    ActivityIndicator,
     RefreshControl,
     Alert,
-    Image,
 } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { isToday, isYesterday, isThisWeek, parseISO, isValid, format } from 'date-fns';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notificationApi, NotificationItem, CelebrantItem } from '../../api/notification';
 import { useAppTheme } from '../../context/ThemeContext';
+import { useTranslation } from '../../context/LanguageContext';
+import { AppText as Text } from '../../components/AppText';
+import { NotificationListSkeleton } from '../../components/common/Skeletons';
 import {
     Bell,
     ChevronRight,
@@ -23,169 +25,273 @@ import {
     Gift,
     Calendar,
     AlertTriangle,
-    Info,
     PartyPopper,
 } from 'lucide-react-native';
 
 const CATEGORY_FILTERS = [
-    { id: 'all', label: 'All Alerts' },
-    { id: 'announcement', label: 'Announcements' },
-    { id: 'leave', label: 'Leave Updates' },
-    { id: 'celebration', label: 'Celebrations' },
-    { id: 'system', label: 'System' },
+    { id: 'all', labelKey: 'tab_all', fallback: 'All Alerts' },
+    { id: 'announcement', labelKey: 'tab_announcement', fallback: 'Announcements' },
+    { id: 'leave', labelKey: 'tab_leave', fallback: 'Leave Updates' },
+    { id: 'celebration', labelKey: 'tab_birthday', fallback: 'Celebrations' },
+    { id: 'others', labelKey: 'tab_other', fallback: 'Others' },
 ];
 
+export interface GroupedNotifications {
+    titleKey: string;
+    fallbackTitle: string;
+    data: NotificationItem[];
+}
+
+export const groupNotificationsByDate = (items: NotificationItem[]): GroupedNotifications[] => {
+    const todayItems: NotificationItem[] = [];
+    const yesterdayItems: NotificationItem[] = [];
+    const thisWeekItems: NotificationItem[] = [];
+    const olderItems: NotificationItem[] = [];
+
+    items.forEach((item) => {
+        if (!item.created_at) {
+            todayItems.push(item);
+            return;
+        }
+        try {
+            const dateObj = parseISO(item.created_at);
+            if (!isValid(dateObj)) {
+                todayItems.push(item);
+            } else if (isToday(dateObj)) {
+                todayItems.push(item);
+            } else if (isYesterday(dateObj)) {
+                yesterdayItems.push(item);
+            } else if (isThisWeek(dateObj)) {
+                thisWeekItems.push(item);
+            } else {
+                olderItems.push(item);
+            }
+        } catch {
+            todayItems.push(item);
+        }
+    });
+
+    const result: GroupedNotifications[] = [];
+    if (todayItems.length > 0) result.push({ titleKey: 'today', fallbackTitle: 'TODAY', data: todayItems });
+    if (yesterdayItems.length > 0) result.push({ titleKey: 'yesterday', fallbackTitle: 'YESTERDAY', data: yesterdayItems });
+    if (thisWeekItems.length > 0) result.push({ titleKey: 'this_week', fallbackTitle: 'THIS WEEK', data: thisWeekItems });
+    if (olderItems.length > 0) result.push({ titleKey: 'earlier', fallbackTitle: 'EARLIER', data: olderItems });
+
+    return result;
+};
+
+const formatNotificationTime = (rawStr?: string) => {
+    if (!rawStr) return 'Recent';
+    try {
+        const d = parseISO(rawStr);
+        if (!isValid(d)) return rawStr;
+        return format(d, 'hh:mm a');
+    } catch {
+        return rawStr;
+    }
+};
+
 export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-    const { isDark } = useAppTheme();
+    const { isDark, primaryColor } = useAppTheme();
+    const { t } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
+    const queryClient = useQueryClient();
 
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
-    const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-    const [celebrations, setCelebrations] = useState<CelebrantItem[]>([]);
-    const [isLoading, setIsLoading] = useState<boolean>(true);
     const [refreshing, setRefreshing] = useState<boolean>(false);
 
-    useEffect(() => {
-        loadData();
-    }, [selectedCategory]);
-
-    const loadData = async () => {
-        try {
-            setIsLoading(true);
-
-            // Fetch active team celebrations
-            const celebRes = await notificationApi.getCelebrations().catch(() => []);
-            if (Array.isArray(celebRes)) setCelebrations(celebRes);
-
-            // Fetch notifications
-            const notifRes = await notificationApi.getNotifications().catch(() => null);
+    // 10-minute React Query Caching for Notifications
+    const { data: notifications = [], isLoading: isLoadingNotifs, isFetching: isFetchingNotifs } = useQuery<NotificationItem[]>({
+        queryKey: ['notificationsList'],
+        queryFn: async () => {
+            const notifRes = await notificationApi.getNotifications();
             const list = Array.isArray(notifRes) ? notifRes : Array.isArray(notifRes?.data) ? notifRes.data : [];
+            return list;
+        },
+        staleTime: 1000 * 60 * 10, // 10 minutes cache
+    });
 
-            setNotifications(list);
-        } catch (error) {
-            console.warn('Failed to load notifications:', error);
-            // Fallback demo data
-            setNotifications([
-                {
-                    id: '101',
-                    type: 'announcement',
-                    title: 'Mid-Year Performance Review Schedule',
-                    message: 'All department reviews will be conducted starting next Monday. Please submit self-assessments.',
-                    read_at: null,
-                    created_at: '10:00 AM',
-                },
-                {
-                    id: '102',
-                    type: 'leave',
-                    title: 'Leave Request Approved',
-                    message: 'Your Annual leave application for Aug 10 - Aug 12 has been approved by HR Manager.',
-                    read_at: '2026-07-21T15:30:00Z',
-                    created_at: 'Yesterday',
-                },
-                {
-                    id: '103',
-                    type: 'celebration',
-                    title: 'Happy Birthday Alex Smith! 🎉',
-                    message: 'Wish Alex Smith a very Happy Birthday today!',
-                    read_at: null,
-                    created_at: 'Jul 21',
-                },
-            ]);
-        } finally {
-            setIsLoading(false);
-            setRefreshing(false);
-        }
-    };
+    // 10-minute React Query Caching for Team Celebrations
+    const { data: celebrations = [] } = useQuery<CelebrantItem[]>({
+        queryKey: ['celebrationsList'],
+        queryFn: async () => {
+            const celebRes = await notificationApi.getCelebrations();
+            return Array.isArray(celebRes) ? celebRes : [];
+        },
+        staleTime: 1000 * 60 * 10, // 10 minutes cache
+    });
 
-    const onRefresh = () => {
+    // Optimistic Mutation: Mark All Read
+    const markAllReadMutation = useMutation({
+        mutationFn: () => notificationApi.markAllAsRead(),
+        onMutate: async () => {
+            await queryClient.cancelQueries({ queryKey: ['notificationsList'] });
+            const previous = queryClient.getQueryData<NotificationItem[]>(['notificationsList']);
+            const nowIso = new Date().toISOString();
+            queryClient.setQueryData<NotificationItem[]>(['notificationsList'], (old) =>
+                (old || []).map((n) => ({ ...n, read_at: n.read_at || nowIso }))
+            );
+            return { previous };
+        },
+        onError: (_err, _vars, context) => {
+            if (context?.previous) {
+                queryClient.setQueryData(['notificationsList'], context.previous);
+            }
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['notificationsList'] });
+        },
+    });
+
+    // Optimistic Mutation: Delete Single Notification
+    const deleteMutation = useMutation({
+        mutationFn: (id: string | number) => notificationApi.deleteNotification(id),
+        onMutate: async (id) => {
+            await queryClient.cancelQueries({ queryKey: ['notificationsList'] });
+            const previous = queryClient.getQueryData<NotificationItem[]>(['notificationsList']);
+            queryClient.setQueryData<NotificationItem[]>(['notificationsList'], (old) =>
+                (old || []).filter((n) => n.id !== id)
+            );
+            return { previous };
+        },
+        onError: (_err, _vars, context) => {
+            if (context?.previous) {
+                queryClient.setQueryData(['notificationsList'], context.previous);
+            }
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['notificationsList'] });
+        },
+    });
+
+    // Optimistic Mutation: Clear All Notifications
+    const deleteAllMutation = useMutation({
+        mutationFn: () => notificationApi.deleteAllNotifications(),
+        onMutate: async () => {
+            await queryClient.cancelQueries({ queryKey: ['notificationsList'] });
+            const previous = queryClient.getQueryData<NotificationItem[]>(['notificationsList']);
+            queryClient.setQueryData<NotificationItem[]>(['notificationsList'], []);
+            return { previous };
+        },
+        onError: (_err, _vars, context) => {
+            if (context?.previous) {
+                queryClient.setQueryData(['notificationsList'], context.previous);
+            }
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['notificationsList'] });
+        },
+    });
+
+    const onRefresh = async () => {
         setRefreshing(true);
-        loadData();
+        await Promise.all([
+            queryClient.invalidateQueries({ queryKey: ['notificationsList'] }),
+            queryClient.invalidateQueries({ queryKey: ['celebrationsList'] }),
+        ]);
+        setRefreshing(false);
     };
 
-    const handleMarkAllRead = async () => {
-        try {
-            await notificationApi.markAllAsRead();
-            setNotifications((prev) => prev.map((item) => ({ ...item, read_at: new Date().toISOString() })));
-        } catch (err) {
-            console.warn('Failed to mark all as read', err);
-        }
+    const handleMarkAllRead = () => {
+        markAllReadMutation.mutate();
     };
 
     const handleClearAll = () => {
-        Alert.alert('Clear All Notifications', 'Are you sure you want to delete all notifications?', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-                text: 'Clear All',
-                style: 'destructive',
-                onPress: async () => {
-                    try {
-                        await notificationApi.deleteAllNotifications();
-                        setNotifications([]);
-                    } catch (err) {
-                        console.warn('Failed to clear notifications', err);
-                    }
+        Alert.alert(
+            t('confirm_delete_all', 'Clear Notifications'),
+            t('delete_all_confirmation', 'Are you sure you want to delete all notifications?'),
+            [
+                { text: t('cancel', 'Cancel'), style: 'cancel' },
+                {
+                    text: t('confirm_delete', 'Clear All'),
+                    style: 'destructive',
+                    onPress: () => deleteAllMutation.mutate(),
                 },
-            },
-        ]);
+            ]
+        );
     };
 
-    const handleItemPress = async (item: NotificationItem) => {
+    const handleItemPress = (item: NotificationItem) => {
         if (!item.read_at) {
             notificationApi.markAsRead(item.id).catch(() => null);
-            setNotifications((prev) =>
-                prev.map((n) => (n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n))
+            queryClient.setQueryData<NotificationItem[]>(['notificationsList'], (old) =>
+                (old || []).map((n) => (n.id === item.id ? { ...n, read_at: new Date().toISOString() } : n))
             );
         }
 
         const type = (item.type || '').toLowerCase();
-        if (type.includes('leave')) {
+        const dataType = (item.data?.type || '').toLowerCase();
+        const isQuiz = type.includes('quiz') || dataType.includes('quiz');
+
+        if (isQuiz) {
+            const quizId = item.data?.quiz_id || item.data?.target_id || item.data?.id;
+            if (quizId) {
+                navigation.navigate('TakeQuiz', { quizId });
+            } else {
+                navigation.navigate('QuizList');
+            }
+        } else if (type.includes('leave')) {
             navigation.navigate('LeaveList');
         } else if (type.includes('celebration')) {
             navigation.navigate('WishesInbox');
         } else {
-            navigation.navigate('AnnouncementDetail', { id: item.id, notification: item });
+            // Target integer Announcement ID resolution to prevent 404
+            const targetAnnouncementId =
+                item.announcement_id ||
+                item.data?.announcement_id ||
+                item.data?.id ||
+                (typeof item.id === 'number' ? item.id : null);
+
+            navigation.navigate('AnnouncementDetail', {
+                id: targetAnnouncementId,
+                notificationId: item.id,
+                notification: item,
+            });
         }
     };
 
-    const handleDeleteItem = async (id: string | number) => {
-        try {
-            await notificationApi.deleteNotification(id);
-            setNotifications((prev) => prev.filter((n) => n.id !== id));
-        } catch (err) {
-            console.warn('Delete failed', err);
-        }
+    const handleDeleteItem = (id: string | number) => {
+        deleteMutation.mutate(id);
     };
 
     const filteredNotifications = notifications.filter((item) => {
         if (selectedCategory === 'all') return true;
-        const t = (item.type || '').toLowerCase();
-        return t.includes(selectedCategory);
+        const tStr = (item.type || '').toLowerCase();
+        if (selectedCategory === 'others' || selectedCategory === 'other' || selectedCategory === 'system') {
+            const isAnnouncement = tStr.includes('announcement');
+            const isLeave = tStr.includes('leave');
+            const isCelebration = tStr.includes('celebration');
+            return !isAnnouncement && !isLeave && !isCelebration;
+        }
+        return tStr.includes(selectedCategory);
     });
 
+    const groupedData = groupNotificationsByDate(filteredNotifications);
+
     const getCategoryIcon = (typeStr: string) => {
-        const t = (typeStr || '').toLowerCase();
-        if (t.includes('leave')) return <Calendar color={theme.colors.primary} size={18} />;
-        if (t.includes('celebration')) return <Gift color="#EC4899" size={18} />;
-        if (t.includes('system') || t.includes('alert')) return <AlertTriangle color="#F59E0B" size={18} />;
-        return <Bell color={theme.colors.primary} size={18} />;
+        const tStr = (typeStr || '').toLowerCase();
+        if (tStr.includes('leave')) return <Calendar color={primaryColor} size={18} />;
+        if (tStr.includes('celebration')) return <Gift color="#EC4899" size={18} />;
+        if (tStr.includes('system') || tStr.includes('alert') || tStr.includes('quiz')) return <AlertTriangle color={theme.colors.status.warning} size={18} />;
+        return <Bell color={primaryColor} size={18} />;
     };
 
     return (
         <SafeAreaView style={styles.safeArea}>
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-            {/* Navigation Header */}
+            {/* Top Navigation Header Bar */}
             <View style={styles.topBar}>
                 <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-                    <ArrowLeft color={theme.colors.textPrimary} size={20} />
+                    <ArrowLeft color={theme.colors.textPrimary} size={19} />
                 </TouchableOpacity>
 
-                <Text style={styles.headerTitle}>Notifications Center</Text>
+                <Text style={styles.headerTitle}>{t('noti', 'Notifications Center')}</Text>
 
                 <View style={styles.headerActions}>
                     <TouchableOpacity style={styles.iconCircle} onPress={handleMarkAllRead} activeOpacity={0.7}>
-                        <CheckCheck color={theme.colors.primary} size={18} />
+                        <CheckCheck color={primaryColor} size={18} />
                     </TouchableOpacity>
 
                     <TouchableOpacity style={styles.iconCircle} onPress={handleClearAll} activeOpacity={0.7}>
@@ -194,11 +300,47 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
                 </View>
             </View>
 
+            {/* Sub-Header Category Segmented Underlined Tab Bar */}
+            <View style={styles.tabBarContainer}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.tabBarScrollContent}
+                >
+                    {CATEGORY_FILTERS.map((cat) => {
+                        const isActive = selectedCategory === cat.id;
+                        return (
+                            <TouchableOpacity
+                                key={cat.id}
+                                style={styles.tabItem}
+                                onPress={() => setSelectedCategory(cat.id)}
+                                activeOpacity={0.8}
+                            >
+                                <Text
+                                    style={[
+                                        styles.tabItemText,
+                                        isActive && { color: primaryColor, fontWeight: '800' },
+                                    ]}
+                                >
+                                    {t(cat.labelKey, cat.fallback)}
+                                </Text>
+                                {isActive && <View style={[styles.tabIndicator, { backgroundColor: primaryColor }]} />}
+                            </TouchableOpacity>
+                        );
+                    })}
+                </ScrollView>
+            </View>
+
             <ScrollView
                 style={styles.container}
                 contentContainerStyle={styles.scrollContent}
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+                    <RefreshControl
+                        refreshing={refreshing || isFetchingNotifs}
+                        onRefresh={onRefresh}
+                        tintColor={primaryColor}
+                        colors={[primaryColor]}
+                    />
                 }
             >
                 {/* Team Celebration Banner Header */}
@@ -211,90 +353,84 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
                         <PartyPopper color="#EC4899" size={24} />
                         <View style={styles.celebrationBannerText}>
                             <Text style={styles.celebrationTitle}>
-                                {celebrations.length} Team Celebration{celebrations.length > 1 ? 's' : ''} Today! 🎉
+                                {celebrations.length} {t('team_celebration', 'Team Celebration')}{celebrations.length > 1 ? 's' : ''} {t('today', 'Today')}! 🎉
                             </Text>
                             <Text style={styles.celebrationSub}>
-                                {celebrations.map((c) => c.name).join(', ')} • Send wishes
+                                {celebrations.map((c) => c.name).join(', ')} • {t('open_my_wishes', 'Send wishes')}
                             </Text>
                         </View>
                         <ChevronRight color="#EC4899" size={18} />
                     </TouchableOpacity>
                 )}
 
-                {/* Category Filter Chips */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterBar}>
-                    {CATEGORY_FILTERS.map((cat) => (
-                        <TouchableOpacity
-                            key={cat.id}
-                            style={[
-                                styles.filterChip,
-                                selectedCategory === cat.id && styles.filterChipActive,
-                            ]}
-                            onPress={() => setSelectedCategory(cat.id)}
-                            activeOpacity={0.8}
-                        >
-                            <Text
-                                style={[
-                                    styles.filterChipText,
-                                    selectedCategory === cat.id && styles.filterChipTextActive,
-                                ]}
-                            >
-                                {cat.label}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
-
-                {/* Notifications List */}
-                {isLoading ? (
-                    <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color={theme.colors.primary} />
-                    </View>
+                {/* Notifications List Grouped by Date */}
+                {isLoadingNotifs ? (
+                    <NotificationListSkeleton />
                 ) : filteredNotifications.length === 0 ? (
                     <View style={styles.emptyCard}>
                         <Bell color={theme.colors.textSecondary} size={44} />
-                        <Text style={styles.emptyTitle}>No Notifications</Text>
-                        <Text style={styles.emptySub}>You are all caught up! No active notifications found.</Text>
+                        <Text style={styles.emptyTitle}>{t('nothing_here_yet', 'No Notifications')}</Text>
+                        <Text style={styles.emptySub}>
+                            {t('everything_up_to_date', 'You are all caught up! No active notifications found.')}
+                        </Text>
                     </View>
                 ) : (
-                    filteredNotifications.map((item) => {
-                        const isUnread = !item.read_at;
-                        return (
-                            <TouchableOpacity
-                                key={item.id}
-                                style={[styles.card, isUnread && styles.unreadCard]}
-                                onPress={() => handleItemPress(item)}
-                                activeOpacity={0.8}
-                            >
-                                <View style={styles.cardHeader}>
-                                    <View style={styles.iconBg}>{getCategoryIcon(item.type)}</View>
+                    groupedData.map((group) => (
+                        <View key={group.titleKey} style={styles.dateGroupWrapper}>
+                            {/* Sticky Date Section Header */}
+                            <Text style={styles.dateSectionHeader}>
+                                {t(group.titleKey, group.fallbackTitle)}
+                            </Text>
 
-                                    <View style={styles.headerTextGroup}>
-                                        <Text style={[styles.cardTitle, isUnread && styles.unreadCardTitle]} numberOfLines={1}>
-                                            {item.title}
-                                        </Text>
-                                        <Text style={styles.cardDate}>{item.created_at || 'Recent'}</Text>
-                                    </View>
-
-                                    {isUnread && <View style={styles.unreadDot} />}
-                                </View>
-
-                                <Text style={styles.cardMessage} numberOfLines={2}>
-                                    {item.message}
-                                </Text>
-
-                                <View style={styles.cardFooter}>
+                            {group.data.map((item) => {
+                                const isUnread = !item.read_at;
+                                return (
                                     <TouchableOpacity
-                                        style={styles.deleteBtn}
-                                        onPress={() => handleDeleteItem(item.id)}
+                                        key={item.id}
+                                        style={[
+                                            styles.card,
+                                            isUnread && [
+                                                styles.unreadCard,
+                                                { borderColor: primaryColor, backgroundColor: `${primaryColor}08` },
+                                            ],
+                                        ]}
+                                        onPress={() => handleItemPress(item)}
+                                        activeOpacity={0.8}
                                     >
-                                        <Trash2 color={theme.colors.textSecondary} size={14} />
+                                        <View style={styles.cardHeader}>
+                                            <View style={styles.iconBg}>{getCategoryIcon(item.type)}</View>
+
+                                            <View style={styles.headerTextGroup}>
+                                                <Text style={[styles.cardTitle, isUnread && styles.unreadCardTitle]} numberOfLines={1}>
+                                                    {item.title}
+                                                </Text>
+                                                <Text style={styles.cardDate}>
+                                                    {formatNotificationTime(item.created_at)}
+                                                </Text>
+                                            </View>
+
+                                            {isUnread && <View style={[styles.unreadDot, { backgroundColor: primaryColor }]} />}
+                                        </View>
+
+                                        <Text style={styles.cardMessage} numberOfLines={2}>
+                                            {item.message}
+                                        </Text>
+
+                                        <View style={styles.cardFooter}>
+                                            <TouchableOpacity
+                                                style={styles.deleteBtn}
+                                                onPress={() => handleDeleteItem(item.id)}
+                                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                            >
+                                                <Trash2 color={theme.colors.textSecondary} size={14} />
+                                            </TouchableOpacity>
+                                            <ChevronRight color={theme.colors.textSecondary} size={16} />
+                                        </View>
                                     </TouchableOpacity>
-                                    <ChevronRight color={theme.colors.textSecondary} size={16} />
-                                </View>
-                            </TouchableOpacity>
-                        );
-                    })
+                                );
+                            })}
+                        </View>
+                    ))
                 )}
             </ScrollView>
         </SafeAreaView>
@@ -314,10 +450,10 @@ const stylesheet = StyleSheet.create((theme) => ({
         paddingVertical: theme.spacing.md,
     },
     iconCircle: {
-        width: 40,
-        height: 40,
+        width: 38,
+        height: 38,
         borderRadius: theme.borderRadius.md,
-        backgroundColor: theme.colors.surfaceSubtle,
+        backgroundColor: theme.colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
@@ -331,13 +467,46 @@ const stylesheet = StyleSheet.create((theme) => ({
     headerActions: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: theme.spacing.xs + 2,
+        gap: theme.spacing.xs + 4,
+    },
+    tabBarContainer: {
+        backgroundColor: theme.colors.surface,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.colors.border,
+        overflow: 'hidden',
+    },
+    tabBarScrollContent: {
+        paddingHorizontal: theme.spacing.sm,
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    tabItem: {
+        paddingHorizontal: theme.spacing.md,
+        paddingVertical: theme.spacing.sm + 4,
+        position: 'relative',
+    },
+    tabItemText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: theme.colors.textSecondary,
+        textTransform: 'uppercase',
+        letterSpacing: 0.4,
+    },
+    tabIndicator: {
+        position: 'absolute',
+        bottom: 0,
+        left: 16,
+        right: 16,
+        height: 3,
+        borderTopLeftRadius: 3,
+        borderTopRightRadius: 3,
     },
     container: {
         flex: 1,
     },
     scrollContent: {
         paddingHorizontal: theme.spacing.md + 4,
+        paddingTop: theme.spacing.md,
         paddingBottom: theme.spacing.xl,
     },
     celebrationBanner: {
@@ -347,7 +516,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         flexDirection: 'row',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(236, 72, 153, 0.2)',
+        borderColor: 'rgba(236, 72, 153, 0.25)',
         marginBottom: theme.spacing.md,
     },
     celebrationBannerText: {
@@ -364,34 +533,18 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textSecondary,
         marginTop: 2,
     },
-    filterBar: {
-        flexDirection: 'row',
-        marginBottom: theme.spacing.md,
+    dateGroupWrapper: {
+        marginBottom: theme.spacing.sm,
     },
-    filterChip: {
-        paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.xs + 2,
-        borderRadius: theme.borderRadius.md,
-        backgroundColor: theme.colors.surfaceSubtle,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        marginRight: theme.spacing.xs + 2,
-    },
-    filterChipActive: {
-        backgroundColor: theme.colors.primary,
-        borderColor: theme.colors.primary,
-    },
-    filterChipText: {
-        fontSize: 12,
-        fontWeight: '600',
+    dateSectionHeader: {
+        fontSize: 11,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 0.8,
         color: theme.colors.textSecondary,
-    },
-    filterChipTextActive: {
-        color: '#FFFFFF',
-    },
-    loadingContainer: {
-        paddingVertical: theme.spacing.xxl,
-        alignItems: 'center',
+        marginBottom: theme.spacing.xs + 2,
+        marginLeft: theme.spacing.xs,
+        marginTop: theme.spacing.xs,
     },
     emptyCard: {
         backgroundColor: theme.colors.surface,
@@ -412,19 +565,19 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontSize: 12,
         color: theme.colors.textSecondary,
         marginTop: 2,
+        textAlign: 'center',
     },
     card: {
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg,
         padding: theme.spacing.md,
-        marginBottom: theme.spacing.md,
+        marginBottom: theme.spacing.sm + 4,
         borderWidth: 1,
         borderColor: theme.colors.border,
         ...theme.shadows.sm,
     },
     unreadCard: {
-        borderColor: theme.colors.primary,
-        backgroundColor: 'rgba(37, 99, 235, 0.03)',
+        borderWidth: 1,
     },
     cardHeader: {
         flexDirection: 'row',
@@ -438,10 +591,12 @@ const stylesheet = StyleSheet.create((theme) => ({
         backgroundColor: theme.colors.surfaceSubtle,
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: theme.colors.border,
     },
     headerTextGroup: {
         flex: 1,
-        marginLeft: theme.spacing.sm,
+        marginLeft: theme.spacing.sm + 2,
     },
     cardTitle: {
         fontSize: 14,
@@ -460,7 +615,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         width: 8,
         height: 8,
         borderRadius: 4,
-        backgroundColor: theme.colors.primary,
     },
     cardMessage: {
         fontSize: 13,

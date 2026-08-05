@@ -4,10 +4,12 @@ export interface QuizItem {
     id: number;
     ulid?: string;
     token: string;
-    status: 'available' | 'in_progress' | 'passed' | 'failed' | 'completed';
+    status: 'available' | 'in_progress' | 'passed' | 'failed' | 'completed' | 'timed_out' | string;
     score?: number | null;
     started_at?: string | null;
     completed_at?: string | null;
+    created_at?: string;
+    quiz_snapshot?: any;
     quiz: {
         id: number;
         title: string;

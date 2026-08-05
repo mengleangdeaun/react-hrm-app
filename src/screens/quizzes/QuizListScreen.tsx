@@ -1,261 +1,263 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
     View,
-    Text,
     ScrollView,
     TouchableOpacity,
     SafeAreaView,
     StatusBar,
-    ActivityIndicator,
     RefreshControl,
 } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { format, parseISO, isValid } from 'date-fns';
 import { quizApi, QuizItem } from '../../api/quiz';
 import { useAppTheme } from '../../context/ThemeContext';
+import { useTranslation } from '../../context/LanguageContext';
+import { AppText as Text } from '../../components/AppText';
+import { QuizListSkeleton } from '../../components/common/Skeletons';
 import {
     Award,
     Clock,
     ArrowLeft,
     ChevronRight,
-    CheckCircle2,
-    XCircle,
-    Play,
-    BookOpen,
-    Sun,
-    Moon,
+    Book,
+    CheckCheck,
+    HelpCircle,
 } from 'lucide-react-native';
 
-const STATUS_FILTERS = [
-    { id: 'all', label: 'All Quizzes' },
-    { id: 'available', label: 'Available' },
-    { id: 'in_progress', label: 'In Progress' },
-    { id: 'passed', label: 'Passed' },
-    { id: 'failed', label: 'Failed' },
+const QUIZ_TABS = [
+    { id: 'active', labelKey: 'active', fallback: 'Active' },
+    { id: 'history', labelKey: 'history', fallback: 'History' },
 ];
 
+const formatQuizDate = (rawStr?: string) => {
+    if (!rawStr) return 'Recent';
+    try {
+        const d = parseISO(rawStr);
+        if (!isValid(d)) return rawStr;
+        return format(d, 'MMM d, yyyy');
+    } catch {
+        return rawStr;
+    }
+};
+
 export const QuizListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-    const { isDark, toggleTheme } = useAppTheme();
+    const { isDark, primaryColor } = useAppTheme();
+    const { t } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
+    const queryClient = useQueryClient();
 
-    const [selectedStatus, setSelectedStatus] = useState<string>('all');
-    const [quizzes, setQuizzes] = useState<QuizItem[]>([]);
-    const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [activeTab, setActiveTab] = useState<'active' | 'history'>('active');
     const [refreshing, setRefreshing] = useState<boolean>(false);
 
-    useEffect(() => {
-        loadQuizzes();
-    }, [selectedStatus]);
-
-    const loadQuizzes = async () => {
-        try {
-            setIsLoading(true);
+    // 10-minute React Query Caching for Quizzes
+    const { data: quizzes = [], isLoading, isFetching } = useQuery<QuizItem[]>({
+        queryKey: ['quizzesList'],
+        queryFn: async () => {
             const res = await quizApi.getAssignedQuizzes().catch(() => null);
             const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
-            setQuizzes(list);
-        } catch (error) {
-            console.warn('Failed to load quizzes:', error);
-            // Fallback demo quizzes
-            setQuizzes([
-                {
-                    id: 104,
-                    token: 'qz_token_cyber_2026',
-                    status: 'available',
-                    quiz: {
-                        id: 12,
-                        title: 'Q3 Cybersecurity & Data Privacy Orientation',
-                        description: 'Mandatory annual training on data protection, phishing detection, and password policy.',
-                        duration: 900,
-                        passing_percentage: 75,
-                        points: 100,
-                        total_questions: 10,
-                    },
-                },
-                {
-                    id: 105,
-                    token: 'qz_token_hr_policy',
-                    status: 'passed',
-                    score: 90,
-                    quiz: {
-                        id: 13,
-                        title: 'Company Culture & HR Policies',
-                        description: 'Overview of employee handbook, leave policies, and workplace code of conduct.',
-                        duration: 600,
-                        passing_percentage: 70,
-                        points: 100,
-                        total_questions: 8,
-                    },
-                },
-            ]);
-        } finally {
-            setIsLoading(false);
-            setRefreshing(false);
-        }
-    };
-
-    const onRefresh = () => {
-        setRefreshing(true);
-        loadQuizzes();
-    };
-
-    const filteredQuizzes = quizzes.filter((item) => {
-        if (selectedStatus === 'all') return true;
-        return (item.status || '').toLowerCase() === selectedStatus;
+            return list;
+        },
+        staleTime: 1000 * 60 * 10, // 10 minutes memory cache
     });
 
-    const getStatusBadge = (status: string, score?: number | null) => {
-        const s = (status || '').toLowerCase();
-        if (s === 'passed') {
-            return {
-                bg: 'rgba(16, 185, 129, 0.1)',
-                border: 'rgba(16, 185, 129, 0.2)',
-                color: theme.colors.status.success,
-                label: `PASSED (${score ?? 0}%)`,
-                Icon: CheckCircle2,
-            };
-        }
-        if (s === 'failed') {
-            return {
-                bg: 'rgba(239, 68, 68, 0.1)',
-                border: 'rgba(239, 68, 68, 0.2)',
-                color: theme.colors.status.danger,
-                label: `FAILED (${score ?? 0}%)`,
-                Icon: XCircle,
-            };
-        }
-        if (s === 'in_progress') {
-            return {
-                bg: 'rgba(245, 158, 11, 0.1)',
-                border: 'rgba(245, 158, 11, 0.2)',
-                color: '#F59E0B',
-                label: 'IN PROGRESS',
-                Icon: Clock,
-            };
-        }
-        return {
-            bg: 'rgba(37, 99, 235, 0.1)',
-            border: 'rgba(37, 99, 235, 0.2)',
-            color: theme.colors.primary,
-            label: 'AVAILABLE',
-            Icon: Play,
-        };
+    const onRefresh = async () => {
+        setRefreshing(true);
+        await queryClient.invalidateQueries({ queryKey: ['quizzesList'] });
+        setRefreshing(false);
     };
+
+    const activeQuizzes = quizzes.filter((q) => q.status === 'in_progress' || q.status === 'available');
+    const historyQuizzes = quizzes.filter((q) => q.status === 'completed' || q.status === 'timed_out' || q.status === 'passed' || q.status === 'failed');
 
     return (
         <SafeAreaView style={styles.safeArea}>
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-            {/* Header */}
+            {/* Navigation Header Bar */}
             <View style={styles.topBar}>
                 <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-                    <ArrowLeft color={theme.colors.textPrimary} size={20} />
+                    <ArrowLeft color={theme.colors.textPrimary} size={19} />
                 </TouchableOpacity>
 
-                <Text style={styles.headerTitle}>Assigned Training Quizzes</Text>
+                <Text style={styles.headerTitle}>{t('quizzes', 'Quizzes')}</Text>
 
-                <TouchableOpacity onPress={toggleTheme} style={styles.iconCircle} activeOpacity={0.7}>
-                    {isDark ? <Sun color="#F59E0B" size={18} /> : <Moon color="#2563EB" size={18} />}
-                </TouchableOpacity>
+                <View style={{ width: 38 }} />
+            </View>
+
+            {/* Sub-Header Category Segmented Underlined Tab Bar */}
+            <View style={styles.tabBarContainer}>
+                <View style={styles.tabBarRow}>
+                    {QUIZ_TABS.map((tab) => {
+                        const isActive = activeTab === tab.id;
+                        const count = tab.id === 'active' ? activeQuizzes.length : historyQuizzes.length;
+                        return (
+                            <TouchableOpacity
+                                key={tab.id}
+                                style={styles.tabItem}
+                                onPress={() => setActiveTab(tab.id as any)}
+                                activeOpacity={0.8}
+                            >
+                                <Text
+                                    style={[
+                                        styles.tabItemText,
+                                        isActive && { color: primaryColor, fontWeight: '800' },
+                                    ]}
+                                >
+                                    {t(tab.labelKey, tab.fallback)} ({count})
+                                </Text>
+                                {isActive && <View style={[styles.tabIndicator, { backgroundColor: primaryColor }]} />}
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
             </View>
 
             <ScrollView
                 style={styles.container}
                 contentContainerStyle={styles.scrollContent}
                 refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+                    <RefreshControl
+                        refreshing={refreshing || isFetching}
+                        onRefresh={onRefresh}
+                        tintColor={primaryColor}
+                        colors={[primaryColor]}
+                    />
                 }
             >
-                {/* Status Filter Chips */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterBar}>
-                    {STATUS_FILTERS.map((cat) => (
-                        <TouchableOpacity
-                            key={cat.id}
-                            style={[
-                                styles.filterChip,
-                                selectedStatus === cat.id && styles.filterChipActive,
-                            ]}
-                            onPress={() => setSelectedStatus(cat.id)}
-                            activeOpacity={0.8}
-                        >
-                            <Text
-                                style={[
-                                    styles.filterChipText,
-                                    selectedStatus === cat.id && styles.filterChipTextActive,
-                                ]}
-                            >
-                                {cat.label}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
-
                 {isLoading ? (
-                    <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color={theme.colors.primary} />
-                    </View>
-                ) : filteredQuizzes.length === 0 ? (
-                    <View style={styles.emptyCard}>
-                        <BookOpen color={theme.colors.textSecondary} size={44} />
-                        <Text style={styles.emptyTitle}>No Quizzes Assigned</Text>
-                        <Text style={styles.emptySub}>No training assessments match your selected filter.</Text>
-                    </View>
+                    <QuizListSkeleton />
+                ) : activeTab === 'active' ? (
+                    activeQuizzes.length === 0 ? (
+                        <View style={styles.emptyCard}>
+                            <HelpCircle color={theme.colors.textSecondary} size={44} />
+                            <Text style={styles.emptyTitle}>{t('no_active_quizzes', 'No active quizzes')}</Text>
+                            <Text style={styles.emptySub}>
+                                {t('no_active_quizzes_desc', 'You do not have any pending assessment tests assigned at the moment.')}
+                            </Text>
+                        </View>
+                    ) : (
+                        activeQuizzes.map((item) => {
+                            const durationMins = item.quiz?.duration ? Math.round(item.quiz.duration / 60) : null;
+                            return (
+                                <View key={item.id} style={styles.card}>
+                                    <View style={styles.cardHeader}>
+                                        <View style={styles.iconBgPrimary}>
+                                            <Book color={primaryColor} size={20} />
+                                        </View>
+                                        <Text style={styles.cardTitle} numberOfLines={1}>
+                                            {item.quiz?.title || 'Training Assessment'}
+                                        </Text>
+                                    </View>
+
+                                    {/* Duration & Points Grid Box */}
+                                    <View style={styles.infoGrid}>
+                                        <View style={styles.infoGridItem}>
+                                            <Clock color={primaryColor} size={15} />
+                                            <Text style={styles.infoGridText}>
+                                                {durationMins ? `${durationMins} Mins` : t('no_limit', 'No Limit')}
+                                            </Text>
+                                        </View>
+                                        <View style={styles.infoGridItem}>
+                                            <CheckCheck color={primaryColor} size={15} />
+                                            <Text style={styles.infoGridText}>
+                                                {item.quiz?.points ?? 100} {t('points', 'Points')}
+                                            </Text>
+                                        </View>
+                                    </View>
+
+                                    <TouchableOpacity
+                                        style={[styles.primaryActionBtn, { backgroundColor: primaryColor }]}
+                                        activeOpacity={0.85}
+                                        onPress={() => navigation.navigate('TakeQuiz', { quizId: item.quiz?.id || item.id, token: item.token })}
+                                    >
+                                        <Text style={styles.primaryActionBtnText}>
+                                            {t('start_assessment', 'Start Assessment')}
+                                        </Text>
+                                        <ChevronRight color="#FFFFFF" size={16} />
+                                    </TouchableOpacity>
+                                </View>
+                            );
+                        })
+                    )
                 ) : (
-                    filteredQuizzes.map((item) => {
-                        const statusObj = getStatusBadge(item.status, item.score);
-                        const StatusIcon = statusObj.Icon;
-                        const durationMins = Math.round((item.quiz?.duration || 600) / 60);
+                    historyQuizzes.length === 0 ? (
+                        <View style={styles.emptyCard}>
+                            <Award color={theme.colors.textSecondary} size={44} />
+                            <Text style={styles.emptyTitle}>{t('no_history_yet', 'No history yet')}</Text>
+                            <Text style={styles.emptySub}>
+                                {t('quizzes_history_empty_desc', 'Completed quizzes will be listed here with scores and detailed reviews.')}
+                            </Text>
+                        </View>
+                    ) : (
+                        historyQuizzes.map((item) => {
+                            const snap = item.quiz_snapshot;
+                            const maxPoints = snap?.points ?? item.quiz?.points ?? 100;
+                            const passingPct = snap?.passing_percentage ?? item.quiz?.passing_percentage ?? 70;
+                            const quizTitle = snap?.title ?? item.quiz?.title ?? 'Training Assessment';
+                            const passingPoints = maxPoints * (passingPct / 100);
+                            const isPassed = item.score !== null && item.score !== undefined && item.score >= passingPoints;
+                            const scorePct = Math.round(((item.score ?? 0) / (maxPoints || 1)) * 100);
+                            const dateStr = formatQuizDate(item.completed_at || item.created_at);
 
-                        return (
-                            <TouchableOpacity
-                                key={item.id}
-                                style={styles.card}
-                                onPress={() => {
-                                    if (item.status === 'passed' || item.status === 'failed') {
-                                        navigation.navigate('QuizResult', { token: item.token, quizData: item });
-                                    } else {
-                                        navigation.navigate('TakeQuiz', { token: item.token, quizData: item });
-                                    }
-                                }}
-                                activeOpacity={0.8}
-                            >
-                                <View style={styles.cardHeader}>
-                                    <View style={styles.iconBg}>
-                                        <Award color="#8B5CF6" size={20} />
+                            return (
+                                <View key={item.id} style={styles.card}>
+                                    <View style={styles.cardHeader}>
+                                        <View style={styles.iconBgIndigo}>
+                                            <Award color="#8B5CF6" size={20} />
+                                        </View>
+                                        <View style={styles.headerTextGroup}>
+                                            <Text style={styles.cardTitle} numberOfLines={1}>
+                                                {quizTitle}
+                                            </Text>
+                                            <Text style={styles.cardDate}>{dateStr}</Text>
+                                        </View>
+
+                                        <View
+                                            style={[
+                                                styles.badgePill,
+                                                isPassed ? styles.badgePassed : styles.badgeFailed,
+                                            ]}
+                                        >
+                                            <Text
+                                                style={[
+                                                    styles.badgePillText,
+                                                    isPassed ? styles.badgePassedText : styles.badgeFailedText,
+                                                ]}
+                                            >
+                                                {isPassed ? t('passed', 'Passed') : t('failed', 'Failed')}
+                                            </Text>
+                                        </View>
                                     </View>
-                                    <Text style={styles.cardTitle} numberOfLines={1}>
-                                        {item.quiz?.title || 'Training Assessment'}
-                                    </Text>
-                                </View>
 
-                                <Text style={styles.cardDesc} numberOfLines={2}>
-                                    {item.quiz?.description || 'No training description provided.'}
-                                </Text>
-
-                                <View style={styles.infoRow}>
-                                    <Clock color={theme.colors.textSecondary} size={13} />
-                                    <Text style={styles.infoText}>
-                                        {durationMins} Mins • Pass {item.quiz?.passing_percentage || 70}%
-                                    </Text>
-                                </View>
-
-                                <View style={styles.cardFooter}>
-                                    <View style={[styles.statusBadge, { backgroundColor: statusObj.bg, borderColor: statusObj.border }]}>
-                                        <StatusIcon color={statusObj.color} size={12} />
-                                        <Text style={[styles.statusBadgeText, { color: statusObj.color }]}>
-                                            {statusObj.label}
+                                    {/* Score Box */}
+                                    <View style={styles.scoreRow}>
+                                        <Text style={styles.scoreLabel}>{t('score', 'Score')}</Text>
+                                        <Text
+                                            style={[
+                                                styles.scoreValue,
+                                                { color: isPassed ? theme.colors.status.success : theme.colors.status.danger },
+                                            ]}
+                                        >
+                                            {item.score ?? 0} / {maxPoints} ({scorePct}%)
                                         </Text>
                                     </View>
 
-                                    <View style={styles.actionBtn}>
-                                        <Text style={styles.actionBtnText}>
-                                            {item.status === 'passed' || item.status === 'failed' ? 'View Results' : 'Start Exam'}
+                                    <TouchableOpacity
+                                        style={styles.outlineActionBtn}
+                                        activeOpacity={0.85}
+                                        onPress={() => navigation.navigate('QuizResult', { token: item.token, quizData: item })}
+                                    >
+                                        <Text style={styles.outlineActionBtnText}>
+                                            {t('view_feedback', 'View Feedback')}
                                         </Text>
-                                        <ChevronRight color={theme.colors.primary} size={14} />
-                                    </View>
+                                        <ChevronRight color={theme.colors.textPrimary} size={16} />
+                                    </TouchableOpacity>
                                 </View>
-                            </TouchableOpacity>
-                        );
-                    })
+                            );
+                        })
+                    )
                 )}
             </ScrollView>
         </SafeAreaView>
@@ -275,10 +277,10 @@ const stylesheet = StyleSheet.create((theme) => ({
         paddingVertical: theme.spacing.md,
     },
     iconCircle: {
-        width: 40,
-        height: 40,
+        width: 38,
+        height: 38,
         borderRadius: theme.borderRadius.md,
-        backgroundColor: theme.colors.surfaceSubtle,
+        backgroundColor: theme.colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
@@ -289,41 +291,43 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontSize: 18,
         fontWeight: '700',
     },
+    tabBarContainer: {
+        backgroundColor: theme.colors.surface,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.colors.border,
+    },
+    tabBarRow: {
+        flexDirection: 'row',
+        paddingHorizontal: theme.spacing.md,
+    },
+    tabItem: {
+        paddingHorizontal: theme.spacing.md + 4,
+        paddingVertical: theme.spacing.sm + 4,
+        position: 'relative',
+    },
+    tabItemText: {
+        fontSize: 12,
+        fontWeight: '700',
+        color: theme.colors.textSecondary,
+        textTransform: 'uppercase',
+        letterSpacing: 0.4,
+    },
+    tabIndicator: {
+        position: 'absolute',
+        bottom: 0,
+        left: 16,
+        right: 16,
+        height: 3,
+        borderTopLeftRadius: 3,
+        borderTopRightRadius: 3,
+    },
     container: {
         flex: 1,
     },
     scrollContent: {
         paddingHorizontal: theme.spacing.md + 4,
+        paddingTop: theme.spacing.md,
         paddingBottom: theme.spacing.xl,
-    },
-    filterBar: {
-        flexDirection: 'row',
-        marginBottom: theme.spacing.md,
-    },
-    filterChip: {
-        paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.xs + 2,
-        borderRadius: theme.borderRadius.md,
-        backgroundColor: theme.colors.surfaceSubtle,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        marginRight: theme.spacing.xs + 2,
-    },
-    filterChipActive: {
-        backgroundColor: theme.colors.primary,
-        borderColor: theme.colors.primary,
-    },
-    filterChipText: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: theme.colors.textSecondary,
-    },
-    filterChipTextActive: {
-        color: '#FFFFFF',
-    },
-    loadingContainer: {
-        paddingVertical: theme.spacing.xxl,
-        alignItems: 'center',
     },
     emptyCard: {
         backgroundColor: theme.colors.surface,
@@ -344,6 +348,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontSize: 12,
         color: theme.colors.textSecondary,
         marginTop: 2,
+        textAlign: 'center',
     },
     card: {
         backgroundColor: theme.colors.surface,
@@ -357,68 +362,141 @@ const stylesheet = StyleSheet.create((theme) => ({
     cardHeader: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: theme.spacing.xs,
+        marginBottom: theme.spacing.sm + 2,
     },
-    iconBg: {
-        width: 36,
-        height: 36,
+    iconBgPrimary: {
+        width: 40,
+        height: 40,
+        borderRadius: theme.borderRadius.md,
+        backgroundColor: theme.colors.surfaceSubtle,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+    },
+    iconBgIndigo: {
+        width: 40,
+        height: 40,
         borderRadius: theme.borderRadius.md,
         backgroundColor: 'rgba(139, 92, 246, 0.1)',
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1,
+        borderColor: 'rgba(139, 92, 246, 0.2)',
+    },
+    headerTextGroup: {
+        flex: 1,
+        marginLeft: theme.spacing.sm + 2,
     },
     cardTitle: {
         fontSize: 15,
-        fontWeight: '700',
+        fontWeight: '800',
         color: theme.colors.textPrimary,
         flex: 1,
-        marginLeft: theme.spacing.sm,
+        marginLeft: theme.spacing.sm + 2,
     },
-    cardDesc: {
-        fontSize: 13,
+    cardDate: {
+        fontSize: 11,
+        fontWeight: '600',
         color: theme.colors.textSecondary,
-        lineHeight: 18,
-        marginBottom: theme.spacing.sm,
+        marginTop: 2,
     },
-    infoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: theme.spacing.sm,
-    },
-    infoText: {
-        fontSize: 12,
-        color: theme.colors.textSecondary,
-        marginLeft: 4,
-    },
-    cardFooter: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingTop: theme.spacing.xs + 2,
-        borderTopWidth: 1,
-        borderTopColor: theme.colors.border,
-    },
-    statusBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: theme.spacing.sm,
-        paddingVertical: 2,
+    badgePill: {
+        paddingHorizontal: theme.spacing.sm + 2,
+        paddingVertical: 3,
         borderRadius: theme.borderRadius.full,
         borderWidth: 1,
     },
-    statusBadgeText: {
+    badgePassed: {
+        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+        borderColor: 'rgba(16, 185, 129, 0.25)',
+    },
+    badgePassedText: {
+        color: '#10B981',
+    },
+    badgeFailed: {
+        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        borderColor: 'rgba(239, 68, 68, 0.25)',
+    },
+    badgeFailedText: {
+        color: '#EF4444',
+    },
+    badgePillText: {
         fontSize: 10,
         fontWeight: '800',
-        marginLeft: 4,
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
-    actionBtn: {
+    infoGrid: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: theme.colors.surfaceSubtle,
+        borderRadius: theme.borderRadius.md,
+        padding: theme.spacing.md,
+        marginBottom: theme.spacing.md,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+    },
+    infoGridItem: {
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 6,
     },
-    actionBtnText: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: theme.colors.primary,
-        marginRight: 2,
+    infoGridText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: theme.colors.textSecondary,
+    },
+    scoreRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: theme.colors.surfaceSubtle,
+        borderRadius: theme.borderRadius.md,
+        padding: theme.spacing.md,
+        marginBottom: theme.spacing.md,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+    },
+    scoreLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: theme.colors.textSecondary,
+    },
+    scoreValue: {
+        fontSize: 14,
+        fontWeight: '800',
+    },
+    primaryActionBtn: {
+        height: 44,
+        borderRadius: theme.borderRadius.md,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 6,
+    },
+    primaryActionBtnText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '800',
+        letterSpacing: 0.3,
+    },
+    outlineActionBtn: {
+        height: 44,
+        borderRadius: theme.borderRadius.md,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        backgroundColor: theme.colors.surface,
+        gap: 6,
+    },
+    outlineActionBtnText: {
+        color: theme.colors.textPrimary,
+        fontSize: 13,
+        fontWeight: '800',
+        letterSpacing: 0.3,
     },
 }));

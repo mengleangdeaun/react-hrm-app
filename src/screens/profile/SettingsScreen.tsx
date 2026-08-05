@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
     View,
-    Text,
     ScrollView,
     TouchableOpacity,
     SafeAreaView,
@@ -9,16 +8,20 @@ import {
     Switch,
     Alert,
     Modal,
-    TextInput,
-    ActivityIndicator,
+    RefreshControl,
 } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import * as Camera from 'expo-camera';
 import * as Location from 'expo-location';
+import * as Notifications from 'expo-notifications';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
-import { useAppTheme } from '../../context/ThemeContext';
+import { useAppTheme, ColorThemeId, FontSizeScaleId, THEME_FONTS, isFontMatching } from '../../context/ThemeContext';
+import { useTranslation } from '../../context/LanguageContext';
 import { getDeviceId } from '../../utils/device';
-import { profileApi } from '../../api/profile';
+import { profileApi, UserPreferences, PwaInfo } from '../../api/profile';
+import { AppText as Text } from '../../components/AppText';
+import { AppFeedbackSheet } from '../../components/AppFeedbackSheet';
 import {
     ArrowLeft,
     Globe,
@@ -31,116 +34,441 @@ import {
     Shield,
     Camera as CameraIcon,
     MapPin,
-    Send,
     MessageSquare,
     CheckCircle2,
     X,
-    Star,
+    Bell,
+    Palette,
+    Type,
+    FileText,
+    Lock,
 } from 'lucide-react-native';
 
+const COLOR_THEMES = [
+    { id: 'default', name: 'Default', hex: '#DF0000' },
+    { id: 'sky', name: 'Sky', hex: '#0284C7' },
+    { id: 'emerald', name: 'Emerald', hex: '#059669' },
+    { id: 'violet', name: 'Violet', hex: '#7C3AED' },
+    { id: 'rose', name: 'Rose', hex: '#E11D48' },
+    { id: 'amber', name: 'Amber', hex: '#D97706' },
+] as const;
+
+const FONT_SIZES = [
+    { id: 'small', labelKey: 'small', fallback: 'Small' },
+    { id: 'medium', labelKey: 'medium', fallback: 'Medium' },
+    { id: 'large', labelKey: 'large', fallback: 'Large' },
+] as const;
+
+const cleanHtml = (html?: string) => {
+    if (!html) return 'Formal documentation is on the way!';
+    return html.replace(/<[^>]*>?/gm, '').trim() || 'Formal documentation is on the way!';
+};
+
 export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-    const { isDark, toggleTheme } = useAppTheme();
+    const { isDark, toggleTheme, primaryColor, setAccentTheme, setFontScale, setFontFamily, colorTheme, fontSizeId, fontFamily } = useAppTheme();
+    const { locale, setLocale, t } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
+    const queryClient = useQueryClient();
 
     const { isBiometricAvailable } = useAuth();
     const [biometricsEnabled, setBiometricsEnabled] = useState(true);
-    const [language, setLanguage] = useState<'en' | 'kh'>('en');
-
-    // Hardware Device ID
     const [deviceId, setDeviceId] = useState<string>('Loading...');
 
     // Permissions State
     const [cameraPermissionGranted, setCameraPermissionGranted] = useState<boolean>(false);
     const [locationPermissionGranted, setLocationPermissionGranted] = useState<boolean>(false);
+    const [notificationsPermissionGranted, setNotificationsPermissionGranted] = useState<boolean>(false);
     const [permissionsModalVisible, setPermissionsModalVisible] = useState<boolean>(false);
 
-    // Feedback Modal State
+    // Legal Modals State
+    const [policyModalVisible, setPolicyModalVisible] = useState<boolean>(false);
+    const [termsModalVisible, setTermsModalVisible] = useState<boolean>(false);
+
+    // Feedback Sheet State
     const [feedbackModalVisible, setFeedbackModalVisible] = useState<boolean>(false);
-    const [feedbackCategory, setFeedbackCategory] = useState<'bug_report' | 'feature_request' | 'general'>('bug_report');
-    const [feedbackRating, setFeedbackRating] = useState<number>(5);
-    const [feedbackComment, setFeedbackComment] = useState<string>('');
-    const [isSubmittingFeedback, setIsSubmittingFeedback] = useState<boolean>(false);
+
+    // React Query: Fetch Preferences
+    const { data: prefs, isFetching: isFetchingPrefs } = useQuery<UserPreferences>({
+        queryKey: ['userPreferences'],
+        queryFn: async () => {
+            const res = await profileApi.getPreferences();
+            return res?.data || res;
+        },
+        staleTime: 1000 * 60 * 10,
+    });
+
+    // React Query: Fetch PWA Info (App Version, Privacy Policy, Terms)
+    const { data: pwaInfo } = useQuery<PwaInfo>({
+        queryKey: ['pwaInfo'],
+        queryFn: async () => {
+            const res = await profileApi.getPwaInfo();
+            return res?.data || res;
+        },
+        staleTime: 1000 * 60 * 30,
+    });
+
+    // Update Preferences Mutation
+    const updatePrefMutation = useMutation({
+        mutationFn: (newPrefs: Partial<UserPreferences>) =>
+            profileApi.updatePreferences({ ...(prefs || {}), ...newPrefs }),
+        onMutate: async (newPrefs) => {
+            await queryClient.cancelQueries({ queryKey: ['userPreferences'] });
+            const previousPrefs = queryClient.getQueryData<UserPreferences>(['userPreferences']);
+            queryClient.setQueryData(['userPreferences'], (old: any) => ({
+                ...(old || {}),
+                ...newPrefs,
+            }));
+            return { previousPrefs };
+        },
+        onError: (_err, _newPrefs, context) => {
+            if (context?.previousPrefs) {
+                queryClient.setQueryData(['userPreferences'], context.previousPrefs);
+            }
+            Alert.alert(t('error', 'Error'), t('sync_failed', 'Failed to sync preferences. Please try again.'));
+        },
+        onSettled: () => {
+            queryClient.invalidateQueries({ queryKey: ['userPreferences'] });
+        },
+    });
 
     useEffect(() => {
         initSettings();
     }, []);
 
+    // Sync initial preferences from server when fetched
+    useEffect(() => {
+        if (prefs) {
+            if (prefs.locale && (prefs.locale === 'en' || prefs.locale === 'kh') && prefs.locale !== locale) {
+                setLocale(prefs.locale as any);
+            }
+            if (prefs.color_theme && prefs.color_theme !== colorTheme) {
+                setAccentTheme(prefs.color_theme as ColorThemeId);
+            }
+            if (prefs.font_size && prefs.font_size !== fontSizeId) {
+                setFontScale(prefs.font_size as FontSizeScaleId);
+            }
+            if (prefs.font_family && prefs.font_family !== fontFamily) {
+                setFontFamily(prefs.font_family);
+            }
+        }
+    }, [prefs]);
+
     const initSettings = async () => {
         const devId = await getDeviceId();
         setDeviceId(devId);
 
-        // Check Camera & Location permissions
+        // Check Permissions
         const cam = await Camera.Camera.getCameraPermissionsAsync();
         setCameraPermissionGranted(cam.granted);
 
         const loc = await Location.getForegroundPermissionsAsync();
         setLocationPermissionGranted(loc.granted);
+
+        const notif = await Notifications.getPermissionsAsync();
+        setNotificationsPermissionGranted(notif.granted);
+    };
+
+    const handleToggleDarkMode = (val: boolean) => {
+        if (val !== isDark) {
+            toggleTheme();
+        }
+        updatePrefMutation.mutate({ dark_mode: val });
+    };
+
+    const handleSelectLanguage = (lang: 'en' | 'kh') => {
+        setLocale(lang);
+        updatePrefMutation.mutate({ locale: lang, language: lang });
+    };
+
+    const handleSelectFontSize = (size: FontSizeScaleId) => {
+        setFontScale(size);
+        updatePrefMutation.mutate({ font_size: size });
+    };
+
+    const handleSelectFontFamily = (family: string) => {
+        setFontFamily(family);
+        updatePrefMutation.mutate({ font_family: family });
+    };
+
+    const handleSelectColorTheme = (themeId: ColorThemeId) => {
+        setAccentTheme(themeId);
+        updatePrefMutation.mutate({ color_theme: themeId, accent_color: themeId });
+    };
+
+    const handleToggleNotifications = async (val: boolean) => {
+        if (val) {
+            const res = await Notifications.requestPermissionsAsync();
+            setNotificationsPermissionGranted(res.granted);
+        }
+        updatePrefMutation.mutate({ notifications_enabled: val });
     };
 
     const handleRequestCamera = async () => {
         const res = await Camera.Camera.requestCameraPermissionsAsync();
         setCameraPermissionGranted(res.granted);
+        updatePrefMutation.mutate({ camera_enabled: res.granted });
     };
 
     const handleRequestLocation = async () => {
         const res = await Location.requestForegroundPermissionsAsync();
         setLocationPermissionGranted(res.granted);
+        updatePrefMutation.mutate({ location_enabled: res.granted });
+    };
+
+    const handleRequestNotifications = async () => {
+        const res = await Notifications.requestPermissionsAsync();
+        setNotificationsPermissionGranted(res.granted);
+        updatePrefMutation.mutate({ notifications_enabled: res.granted });
     };
 
     const handleClearCache = () => {
-        Alert.alert('Clear Offline Cache', 'All offline attendance logs and cached announcements cleared.', [
-            { text: 'OK' },
-        ]);
+        Alert.alert(
+            t('clear_offline_storage', 'Clear Offline Storage'),
+            t('decouple_warning', 'Purge offline cache and temporary data files?'),
+            [
+                {
+                    text: t('confirm_delete', 'Confirm'),
+                    style: 'destructive',
+                    onPress: () => {
+                        queryClient.clear();
+                        Alert.alert(t('success', 'Success!'), t('everything_up_to_date', 'Local offline storage purged successfully.'));
+                    },
+                },
+                { text: t('cancel', 'Cancel'), style: 'cancel' },
+            ]
+        );
     };
 
-    const handleSubmitFeedback = async () => {
-        if (!feedbackComment.trim()) {
-            Alert.alert('Required', 'Please enter your feedback comments.');
-            return;
-        }
-
-        setIsSubmittingFeedback(true);
-        try {
-            await profileApi.submitFeedback({
-                category: feedbackCategory,
-                rating: feedbackRating,
-                comment: feedbackComment,
-            });
-            Alert.alert('Feedback Received', 'Thank you! Your feedback has been sent to our development team.');
-            setFeedbackModalVisible(false);
-            setFeedbackComment('');
-        } catch (err: any) {
-            Alert.alert('Error', err?.message || 'Failed to submit feedback.');
-        } finally {
-            setIsSubmittingFeedback(false);
-        }
-    };
+    const currentLanguage = locale;
+    const currentFontSize = fontSizeId;
+    const currentFontFamily = prefs?.font_family || fontFamily;
+    const currentColorTheme = colorTheme;
+    const isDarkModeActive = prefs?.dark_mode !== undefined ? prefs.dark_mode : isDark;
 
     return (
         <SafeAreaView style={styles.safeArea}>
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-            {/* Navigation Header */}
+            {/* Top Navigation Bar */}
             <View style={styles.topBar}>
                 <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-                    <ArrowLeft color={theme.colors.textPrimary} size={20} />
+                    <ArrowLeft color={theme.colors.textPrimary} size={19} />
                 </TouchableOpacity>
 
-                <Text style={styles.headerTitle}>App Settings</Text>
+                <Text style={styles.headerTitle}>{t('settings', 'App Settings')}</Text>
 
-                <View style={{ width: 40 }} />
+                <View style={{ width: 38 }} />
             </View>
 
-            <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-                {/* Security & Hardware Device Section */}
-                <Text style={styles.sectionHeaderTitle}>Security & Hardware Device</Text>
+            <ScrollView
+                style={styles.container}
+                contentContainerStyle={styles.scrollContent}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={isFetchingPrefs}
+                        onRefresh={() => queryClient.invalidateQueries({ queryKey: ['userPreferences'] })}
+                        tintColor={primaryColor}
+                        colors={[primaryColor]}
+                    />
+                }
+            >
+                {/* 1. Appearance & Customization Section */}
+                <Text style={styles.sectionHeaderTitle}>{t('appearance_theme', 'Appearance & Theme')}</Text>
                 <View style={styles.card}>
+                    {/* Dark Mode */}
                     <View style={styles.row}>
                         <View style={styles.rowInfo}>
-                            <Smartphone color={theme.colors.primary} size={20} />
+                            <View style={styles.iconBox}>
+                                {isDark ? (
+                                    <Moon color={theme.colors.textSecondary} size={18} />
+                                ) : (
+                                    <Sun color={theme.colors.textSecondary} size={18} />
+                                )}
+                            </View>
                             <View style={styles.textFlex}>
-                                <Text style={styles.rowTitle}>Registered Hardware Device</Text>
+                                <Text style={styles.rowTitle}>{t('dark_mode', 'Dark Mode')}</Text>
+                                <Text style={styles.rowSub}>{t('appearance', 'High-contrast dark UI theme')}</Text>
+                            </View>
+                        </View>
+                        <Switch
+                            value={isDarkModeActive}
+                            onValueChange={handleToggleDarkMode}
+                            trackColor={{ false: theme.colors.border, true: primaryColor }}
+                        />
+                    </View>
+
+                    <View style={styles.divider} />
+
+                    {/* Language Selection */}
+                    <View style={styles.rowColumn}>
+                        <View style={styles.rowInfo}>
+                            <View style={styles.iconBox}>
+                                <Globe color={theme.colors.textSecondary} size={18} />
+                            </View>
+                            <View style={styles.textFlex}>
+                                <Text style={styles.rowTitle}>{t('language', 'App Language')}</Text>
+                                <Text style={styles.rowSub}>{t('select_language', 'Select display language')}</Text>
+                            </View>
+                        </View>
+                        <View style={styles.optionRow}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.pillBtn,
+                                    currentLanguage === 'en' && { backgroundColor: primaryColor, borderColor: primaryColor },
+                                ]}
+                                onPress={() => handleSelectLanguage('en')}
+                            >
+                                <Text
+                                    style={[
+                                        styles.pillBtnText,
+                                        currentLanguage === 'en' && styles.pillBtnTextActive,
+                                    ]}
+                                >
+                                    {t('english', 'English')}
+                                </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[
+                                    styles.pillBtn,
+                                    currentLanguage === 'kh' && { backgroundColor: primaryColor, borderColor: primaryColor },
+                                ]}
+                                onPress={() => handleSelectLanguage('kh')}
+                            >
+                                <Text
+                                    style={[
+                                        styles.pillBtnText,
+                                        currentLanguage === 'kh' && styles.pillBtnTextActive,
+                                    ]}
+                                >
+                                    {t('khmer', 'ភាសាខ្មែរ')}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    <View style={styles.divider} />
+
+                    {/* Font Family Selection */}
+                    <View style={styles.rowColumn}>
+                        <View style={styles.rowInfo}>
+                            <View style={styles.iconBox}>
+                                <Type color={theme.colors.textSecondary} size={18} />
+                            </View>
+                            <View style={styles.textFlex}>
+                                <Text style={styles.rowTitle}>{t('font_family', 'Font Family')}</Text>
+                                <Text style={styles.rowSub}>Select typography font family</Text>
+                            </View>
+                        </View>
+                        <View style={styles.fontGrid}>
+                            {THEME_FONTS.map((f) => {
+                                const isActive = isFontMatching(currentFontFamily, f.value);
+                                return (
+                                    <TouchableOpacity
+                                        key={f.label}
+                                        style={[
+                                            styles.pillBtn,
+                                            isActive && { backgroundColor: primaryColor, borderColor: primaryColor },
+                                        ]}
+                                        onPress={() => handleSelectFontFamily(f.value)}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.pillBtnText,
+                                                isActive && styles.pillBtnTextActive,
+                                            ]}
+                                        >
+                                            {f.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                    </View>
+
+                    <View style={styles.divider} />
+
+                    {/* Typography Font Size */}
+                    <View style={styles.rowColumn}>
+                        <View style={styles.rowInfo}>
+                            <View style={styles.iconBox}>
+                                <Type color={theme.colors.textSecondary} size={18} />
+                            </View>
+                            <View style={styles.textFlex}>
+                                <Text style={styles.rowTitle}>{t('font_size', 'Text Font Size')}</Text>
+                                <Text style={styles.rowSub}>{t('scale', 'Adjust content scale')}</Text>
+                            </View>
+                        </View>
+                        <View style={styles.optionRow}>
+                            {FONT_SIZES.map((f) => {
+                                const isActive = currentFontSize === f.id || (f.id === 'medium' && currentFontSize === 'normal');
+                                return (
+                                    <TouchableOpacity
+                                        key={f.id}
+                                        style={[
+                                            styles.pillBtn,
+                                            isActive && { backgroundColor: primaryColor, borderColor: primaryColor },
+                                        ]}
+                                        onPress={() => handleSelectFontSize(f.id as FontSizeScaleId)}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.pillBtnText,
+                                                isActive && styles.pillBtnTextActive,
+                                            ]}
+                                        >
+                                            {t(f.labelKey, f.fallback)}
+                                        </Text>
+                                    </TouchableOpacity>
+                                );
+                            })}
+                        </View>
+                    </View>
+
+                    <View style={styles.divider} />
+
+                    {/* Accent Color Theme */}
+                    <View style={styles.rowColumn}>
+                        <View style={styles.rowInfo}>
+                            <View style={styles.iconBox}>
+                                <Palette color={theme.colors.textSecondary} size={18} />
+                            </View>
+                            <View style={styles.textFlex}>
+                                <Text style={styles.rowTitle}>{t('accent_colors', 'Accent Color Theme')}</Text>
+                                <Text style={styles.rowSub}>{t('accent_hint', 'Personalize theme highlight hue')}</Text>
+                            </View>
+                        </View>
+                        <View style={styles.colorSwatchRow}>
+                            {COLOR_THEMES.map((c) => (
+                                <TouchableOpacity
+                                    key={c.id}
+                                    style={[
+                                        styles.colorSwatch,
+                                        { backgroundColor: c.hex },
+                                        currentColorTheme === c.id && styles.colorSwatchActive,
+                                    ]}
+                                    onPress={() => handleSelectColorTheme(c.id as ColorThemeId)}
+                                >
+                                    {currentColorTheme === c.id && (
+                                        <CheckCircle2 color={theme.colors.onPrimary} size={14} />
+                                    )}
+                                </TouchableOpacity>
+                            ))}
+                        </View>
+                    </View>
+                </View>
+
+                {/* 2. Security & Hardware Device Section */}
+                <Text style={styles.sectionHeaderTitle}>{t('security_hardware', 'Security & Hardware')}</Text>
+                <View style={styles.card}>
+                    {/* Hardware Binding */}
+                    <View style={styles.row}>
+                        <View style={styles.rowInfo}>
+                            <View style={styles.iconBox}>
+                                <Smartphone color={theme.colors.textSecondary} size={18} />
+                            </View>
+                            <View style={styles.textFlex}>
+                                <Text style={styles.rowTitle}>{t('registered_hardware_device', 'Registered Hardware Device')}</Text>
                                 <Text style={styles.rowSub} numberOfLines={1}>
                                     ID: {deviceId}
                                 </Text>
@@ -152,81 +480,122 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                         </View>
                     </View>
 
+                    {/* Biometric Lock */}
                     {isBiometricAvailable && (
                         <>
                             <View style={styles.divider} />
                             <View style={styles.row}>
                                 <View style={styles.rowInfo}>
-                                    <Fingerprint color={theme.colors.status.success} size={20} />
+                                    <View style={styles.iconBox}>
+                                        <Fingerprint color={theme.colors.textSecondary} size={18} />
+                                    </View>
                                     <View style={styles.textFlex}>
-                                        <Text style={styles.rowTitle}>Biometric Lock</Text>
-                                        <Text style={styles.rowSub}>Sign in via Face ID / Touch ID</Text>
+                                        <Text style={styles.rowTitle}>{t('biometric_lock', 'Biometric Lock')}</Text>
+                                        <Text style={styles.rowSub}>{t('access_account', 'Authenticate with Face ID / Touch ID')}</Text>
                                     </View>
                                 </View>
                                 <Switch
                                     value={biometricsEnabled}
                                     onValueChange={setBiometricsEnabled}
-                                    trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
+                                    trackColor={{ false: theme.colors.border, true: primaryColor }}
                                 />
                             </View>
                         </>
                     )}
-                </View>
-
-                {/* Appearance & Language Section */}
-                <Text style={styles.sectionHeaderTitle}>Appearance & Preferences</Text>
-                <View style={styles.card}>
-                    <View style={styles.row}>
-                        <View style={styles.rowInfo}>
-                            {isDark ? <Moon color="#8B5CF6" size={20} /> : <Sun color="#F59E0B" size={20} />}
-                            <View style={styles.textFlex}>
-                                <Text style={styles.rowTitle}>Dark Mode Theme</Text>
-                                <Text style={styles.rowSub}>High-contrast dark UI theme</Text>
-                            </View>
-                        </View>
-                        <Switch
-                            value={isDark}
-                            onValueChange={toggleTheme}
-                            trackColor={{ false: theme.colors.border, true: theme.colors.primary }}
-                        />
-                    </View>
 
                     <View style={styles.divider} />
 
+                    {/* Push Notifications Toggle */}
                     <View style={styles.row}>
                         <View style={styles.rowInfo}>
-                            <Globe color={theme.colors.primary} size={20} />
+                            <View style={styles.iconBox}>
+                                <Bell color={theme.colors.textSecondary} size={18} />
+                            </View>
                             <View style={styles.textFlex}>
-                                <Text style={styles.rowTitle}>App Language</Text>
-                                <Text style={styles.rowSub}>
-                                    Current: {language === 'en' ? 'English' : 'Khmer (ភាសាខ្មែរ)'}
-                                </Text>
+                                <Text style={styles.rowTitle}>{t('push_notifications', 'Push Notifications')}</Text>
+                                <Text style={styles.rowSub}>{t('activity_attendance_alerts', 'Attendance alerts & announcements')}</Text>
                             </View>
                         </View>
-                        <TouchableOpacity
-                            onPress={() => setLanguage(language === 'en' ? 'kh' : 'en')}
-                            style={styles.langBtn}
-                        >
-                            <Text style={styles.langBtnText}>
-                                {language === 'en' ? 'Switch to ខ្មែរ' : 'Switch to EN'}
-                            </Text>
-                        </TouchableOpacity>
+                        <Switch
+                            value={prefs?.notifications_enabled ?? notificationsPermissionGranted}
+                            onValueChange={handleToggleNotifications}
+                            trackColor={{ false: theme.colors.border, true: primaryColor }}
+                        />
                     </View>
                 </View>
 
-                {/* System Access & Feedback Section */}
-                <Text style={styles.sectionHeaderTitle}>System & Diagnostics</Text>
+                {/* 3. System Access & Diagnostics */}
+                <Text style={styles.sectionHeaderTitle}>{t('system_diagnostics', 'System & Diagnostics')}</Text>
                 <View style={styles.card}>
+                    {/* System Permissions Trigger */}
                     <TouchableOpacity
                         style={styles.row}
                         onPress={() => setPermissionsModalVisible(true)}
                         activeOpacity={0.8}
                     >
                         <View style={styles.rowInfo}>
-                            <Shield color={theme.colors.primary} size={20} />
+                            <View style={styles.iconBox}>
+                                <Shield color={theme.colors.textSecondary} size={18} />
+                            </View>
                             <View style={styles.textFlex}>
-                                <Text style={styles.rowTitle}>System Permissions Access</Text>
-                                <Text style={styles.rowSub}>Manage Camera, GPS Location & Telegram Link</Text>
+                                <Text style={styles.rowTitle}>{t('system_permissions_access', 'System Permissions Access')}</Text>
+                                <Text style={styles.rowSub}>{t('permission_hint', 'Camera, GPS Geofence & Notification grants')}</Text>
+                            </View>
+                        </View>
+                    </TouchableOpacity>
+
+                    <View style={styles.divider} />
+
+                    {/* Feedback Drawer Trigger */}
+                    <TouchableOpacity
+                        style={styles.row}
+                        onPress={() => setFeedbackModalVisible(true)}
+                        activeOpacity={0.8}
+                    >
+                        <View style={styles.rowInfo}>
+                            <View style={styles.iconBox}>
+                                <MessageSquare color={theme.colors.textSecondary} size={18} />
+                            </View>
+                            <View style={styles.textFlex}>
+                                <Text style={styles.rowTitle}>{t('in_app_feedback', 'In-App Feedback & Bug Reports')}</Text>
+                                <Text style={styles.rowSub}>{t('help_us_description', 'Send app suggestions to development team')}</Text>
+                            </View>
+                        </View>
+                    </TouchableOpacity>
+
+                    <View style={styles.divider} />
+
+                    {/* Clear Storage */}
+                    <TouchableOpacity style={styles.row} onPress={handleClearCache} activeOpacity={0.8}>
+                        <View style={styles.rowInfo}>
+                            <View style={styles.iconBox}>
+                                <Trash2 color={theme.colors.status.danger} size={18} />
+                            </View>
+                            <View style={styles.textFlex}>
+                                <Text style={[styles.rowTitle, { color: theme.colors.status.danger }]}>
+                                    {t('clear_offline_storage', 'Clear Offline Storage')}
+                                </Text>
+                                <Text style={styles.rowSub}>{t('decouple_warning', 'Purge offline cache & temporary data')}</Text>
+                            </View>
+                        </View>
+                    </TouchableOpacity>
+                </View>
+
+                {/* 4. Legal & About Section */}
+                <Text style={styles.sectionHeaderTitle}>{t('legal_information', 'Legal & Information')}</Text>
+                <View style={styles.card}>
+                    <TouchableOpacity
+                        style={styles.row}
+                        onPress={() => setPolicyModalVisible(true)}
+                        activeOpacity={0.8}
+                    >
+                        <View style={styles.rowInfo}>
+                            <View style={styles.iconBox}>
+                                <Lock color={theme.colors.textSecondary} size={18} />
+                            </View>
+                            <View style={styles.textFlex}>
+                                <Text style={styles.rowTitle}>{t('privacy_policy', 'Privacy Policy')}</Text>
+                                <Text style={styles.rowSub}>{t('read_details', 'View data privacy terms')}</Text>
                             </View>
                         </View>
                     </TouchableOpacity>
@@ -235,37 +604,35 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
                     <TouchableOpacity
                         style={styles.row}
-                        onPress={() => setFeedbackModalVisible(true)}
+                        onPress={() => setTermsModalVisible(true)}
                         activeOpacity={0.8}
                     >
                         <View style={styles.rowInfo}>
-                            <MessageSquare color={theme.colors.status.success} size={20} />
-                            <View style={styles.textFlex}>
-                                <Text style={styles.rowTitle}>In-App Feedback & Bug Reports</Text>
-                                <Text style={styles.rowSub}>Send app suggestions to development team</Text>
+                            <View style={styles.iconBox}>
+                                <FileText color={theme.colors.textSecondary} size={18} />
                             </View>
-                        </View>
-                    </TouchableOpacity>
-
-                    <View style={styles.divider} />
-
-                    <TouchableOpacity style={styles.row} onPress={handleClearCache} activeOpacity={0.8}>
-                        <View style={styles.rowInfo}>
-                            <Trash2 color={theme.colors.status.danger} size={20} />
                             <View style={styles.textFlex}>
-                                <Text style={styles.rowTitle}>Clear Offline Storage</Text>
-                                <Text style={styles.rowSub}>Purge local cache and temporary files</Text>
+                                <Text style={styles.rowTitle}>{t('terms_of_service', 'Terms of Service')}</Text>
+                                <Text style={styles.rowSub}>{t('read_details', 'View mobile service agreement')}</Text>
                             </View>
                         </View>
                     </TouchableOpacity>
                 </View>
 
-                {/* App Version Footer */}
+                {/* Footer App Version Info */}
                 <View style={styles.footerInfo}>
-                    <Info color={theme.colors.textSecondary} size={16} />
-                    <Text style={styles.footerText}>S-Cool HRMS Mobile • Version 2.4.0 (Expo SDK 52 Unistyles v3)</Text>
+                    <Info color={theme.colors.textSecondary} size={15} />
+                    <Text style={styles.footerText}>
+                        SCCG APP • {t('version', 'Version')} {pwaInfo?.version || '1.1.1'}
+                    </Text>
                 </View>
             </ScrollView>
+
+            {/* Native Bottom Sheet App Feedback */}
+            <AppFeedbackSheet
+                visible={feedbackModalVisible}
+                onClose={() => setFeedbackModalVisible(false)}
+            />
 
             {/* System Permissions Sheet Modal */}
             <Modal visible={permissionsModalVisible} transparent animationType="fade">
@@ -276,7 +643,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 >
                     <View style={styles.modalSheet}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>System Permissions</Text>
+                            <Text style={styles.modalTitle}>{t('system_access_grants', 'System Access Grants')}</Text>
                             <TouchableOpacity onPress={() => setPermissionsModalVisible(false)}>
                                 <X color={theme.colors.textPrimary} size={20} />
                             </TouchableOpacity>
@@ -285,15 +652,17 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                         {/* Camera Permission */}
                         <View style={styles.permRow}>
                             <View style={styles.rowInfo}>
-                                <CameraIcon color={theme.colors.primary} size={20} />
+                                <View style={styles.iconBox}>
+                                    <CameraIcon color={theme.colors.textSecondary} size={18} />
+                                </View>
                                 <View style={styles.textFlex}>
-                                    <Text style={styles.permTitle}>Camera Access</Text>
-                                    <Text style={styles.permSub}>Required for QR attendance clock-in & photos</Text>
+                                    <Text style={styles.permTitle}>{t('camera_access', 'Camera Access')}</Text>
+                                    <Text style={styles.permSub}>{t('align_qr_within_frame', 'Required for QR attendance clock-in')}</Text>
                                 </View>
                             </View>
                             <TouchableOpacity style={styles.permActionBtn} onPress={handleRequestCamera}>
                                 <Text style={styles.permActionText}>
-                                    {cameraPermissionGranted ? 'Granted' : 'Grant'}
+                                    {cameraPermissionGranted ? t('granted', 'Granted') : t('grant', 'Grant')}
                                 </Text>
                             </TouchableOpacity>
                         </View>
@@ -301,15 +670,35 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                         {/* GPS Location Permission */}
                         <View style={styles.permRow}>
                             <View style={styles.rowInfo}>
-                                <MapPin color={theme.colors.status.warning} size={20} />
+                                <View style={styles.iconBox}>
+                                    <MapPin color={theme.colors.textSecondary} size={18} />
+                                </View>
                                 <View style={styles.textFlex}>
-                                    <Text style={styles.permTitle}>GPS Geofence Location</Text>
-                                    <Text style={styles.permSub}>Required to verify branch clock-in radius</Text>
+                                    <Text style={styles.permTitle}>{t('gps_geofence_location', 'GPS Geofence Location')}</Text>
+                                    <Text style={styles.permSub}>{t('enable_gps_desc', 'Required to verify office clock-in radius')}</Text>
                                 </View>
                             </View>
                             <TouchableOpacity style={styles.permActionBtn} onPress={handleRequestLocation}>
                                 <Text style={styles.permActionText}>
-                                    {locationPermissionGranted ? 'Granted' : 'Grant'}
+                                    {locationPermissionGranted ? t('granted', 'Granted') : t('grant', 'Grant')}
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Notifications Permission */}
+                        <View style={styles.permRow}>
+                            <View style={styles.rowInfo}>
+                                <View style={styles.iconBox}>
+                                    <Bell color={theme.colors.textSecondary} size={18} />
+                                </View>
+                                <View style={styles.textFlex}>
+                                    <Text style={styles.permTitle}>{t('push_notifications', 'Push Notifications')}</Text>
+                                    <Text style={styles.permSub}>{t('activity_attendance_alerts', 'Receive attendance reminders & announcements')}</Text>
+                                </View>
+                            </View>
+                            <TouchableOpacity style={styles.permActionBtn} onPress={handleRequestNotifications}>
+                                <Text style={styles.permActionText}>
+                                    {notificationsPermissionGranted ? t('granted', 'Granted') : t('grant', 'Grant')}
                                 </Text>
                             </TouchableOpacity>
                         </View>
@@ -317,82 +706,42 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 </TouchableOpacity>
             </Modal>
 
-            {/* In-App Feedback Drawer Modal */}
-            <Modal visible={feedbackModalVisible} transparent animationType="fade">
+            {/* Privacy Policy Modal */}
+            <Modal visible={policyModalVisible} transparent animationType="fade">
                 <TouchableOpacity
                     style={styles.modalOverlay}
                     activeOpacity={1}
-                    onPress={() => setFeedbackModalVisible(false)}
+                    onPress={() => setPolicyModalVisible(false)}
                 >
                     <View style={styles.modalSheet}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>In-App Feedback</Text>
-                            <TouchableOpacity onPress={() => setFeedbackModalVisible(false)}>
+                            <Text style={styles.modalTitle}>{t('privacy_policy', 'Privacy Policy')}</Text>
+                            <TouchableOpacity onPress={() => setPolicyModalVisible(false)}>
                                 <X color={theme.colors.textPrimary} size={20} />
                             </TouchableOpacity>
                         </View>
 
-                        {/* Category Buttons */}
-                        <Text style={styles.modalLabel}>Category</Text>
-                        <View style={styles.categoryRow}>
-                            {(['bug_report', 'feature_request', 'general'] as const).map((cat) => (
-                                <TouchableOpacity
-                                    key={cat}
-                                    style={[
-                                        styles.categoryBtn,
-                                        feedbackCategory === cat && styles.categoryBtnSelected,
-                                    ]}
-                                    onPress={() => setFeedbackCategory(cat)}
-                                >
-                                    <Text
-                                        style={[
-                                            styles.categoryBtnText,
-                                            feedbackCategory === cat && styles.categoryBtnTextSelected,
-                                        ]}
-                                    >
-                                        {cat.replace('_', ' ').toUpperCase()}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
+                        <Text style={styles.legalBodyText}>{cleanHtml(pwaInfo?.privacy_policy)}</Text>
+                    </View>
+                </TouchableOpacity>
+            </Modal>
+
+            {/* Terms of Service Modal */}
+            <Modal visible={termsModalVisible} transparent animationType="fade">
+                <TouchableOpacity
+                    style={styles.modalOverlay}
+                    activeOpacity={1}
+                    onPress={() => setTermsModalVisible(false)}
+                >
+                    <View style={styles.modalSheet}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>{t('terms_of_service', 'Terms of Service')}</Text>
+                            <TouchableOpacity onPress={() => setTermsModalVisible(false)}>
+                                <X color={theme.colors.textPrimary} size={20} />
+                            </TouchableOpacity>
                         </View>
 
-                        {/* Star Rating */}
-                        <Text style={styles.modalLabel}>Rating</Text>
-                        <View style={styles.starsRow}>
-                            {[1, 2, 3, 4, 5].map((star) => (
-                                <TouchableOpacity key={star} onPress={() => setFeedbackRating(star)}>
-                                    <Star
-                                        color="#F59E0B"
-                                        fill={star <= feedbackRating ? '#F59E0B' : 'transparent'}
-                                        size={24}
-                                    />
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-
-                        {/* Comment Input */}
-                        <Text style={styles.modalLabel}>Comments / Details</Text>
-                        <TextInput
-                            style={styles.textArea}
-                            value={feedbackComment}
-                            onChangeText={setFeedbackComment}
-                            placeholder="Share your app feedback or report issues..."
-                            placeholderTextColor={theme.colors.textSecondary}
-                            multiline
-                            numberOfLines={4}
-                        />
-
-                        <TouchableOpacity
-                            style={styles.submitBtn}
-                            onPress={handleSubmitFeedback}
-                            disabled={isSubmittingFeedback}
-                        >
-                            {isSubmittingFeedback ? (
-                                <ActivityIndicator color="#FFFFFF" />
-                            ) : (
-                                <Text style={styles.submitBtnText}>Submit Feedback</Text>
-                            )}
-                        </TouchableOpacity>
+                        <Text style={styles.legalBodyText}>{cleanHtml(pwaInfo?.terms_of_service)}</Text>
                     </View>
                 </TouchableOpacity>
             </Modal>
@@ -413,10 +762,10 @@ const stylesheet = StyleSheet.create((theme) => ({
         paddingVertical: theme.spacing.md,
     },
     iconCircle: {
-        width: 40,
-        height: 40,
+        width: 38,
+        height: 38,
         borderRadius: theme.borderRadius.md,
-        backgroundColor: theme.colors.surfaceSubtle,
+        backgroundColor: theme.colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
@@ -435,10 +784,13 @@ const stylesheet = StyleSheet.create((theme) => ({
         paddingBottom: theme.spacing.xl,
     },
     sectionHeaderTitle: {
-        fontSize: 15,
+        fontSize: 13,
         fontWeight: '700',
-        color: theme.colors.textPrimary,
-        marginBottom: theme.spacing.sm,
+        textTransform: 'uppercase',
+        letterSpacing: 0.6,
+        color: theme.colors.textSecondary,
+        marginBottom: theme.spacing.xs + 2,
+        marginLeft: theme.spacing.xs,
         marginTop: theme.spacing.xs,
     },
     card: {
@@ -456,11 +808,25 @@ const stylesheet = StyleSheet.create((theme) => ({
         alignItems: 'center',
         paddingVertical: theme.spacing.xs + 2,
     },
+    rowColumn: {
+        flexDirection: 'column',
+        paddingVertical: theme.spacing.xs + 2,
+    },
     rowInfo: {
         flexDirection: 'row',
         alignItems: 'center',
         flex: 1,
         marginRight: theme.spacing.sm,
+    },
+    iconBox: {
+        width: 36,
+        height: 36,
+        borderRadius: theme.borderRadius.md,
+        backgroundColor: theme.colors.surfaceSubtle,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: theme.colors.border,
     },
     textFlex: {
         flex: 1,
@@ -468,38 +834,77 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     rowTitle: {
         fontSize: 14,
-        fontWeight: '700',
+        fontWeight: '600',
         color: theme.colors.textPrimary,
     },
     rowSub: {
         fontSize: 11,
+        fontWeight: '500',
         color: theme.colors.textSecondary,
-        marginTop: 2,
+        marginTop: 1,
+    },
+    optionRow: {
+        flexDirection: 'row',
+        gap: theme.spacing.xs + 4,
+        marginTop: theme.spacing.sm,
+        marginLeft: 48,
+    },
+    fontGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: theme.spacing.xs + 4,
+        marginTop: theme.spacing.sm,
+        marginLeft: 48,
+    },
+    pillBtn: {
+        paddingHorizontal: theme.spacing.md,
+        paddingVertical: theme.spacing.xs + 2,
+        borderRadius: theme.borderRadius.md,
+        backgroundColor: theme.colors.surfaceSubtle,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+    },
+    pillBtnText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: theme.colors.textSecondary,
+    },
+    pillBtnTextActive: {
+        color: theme.colors.onPrimary,
+        fontWeight: '700',
+    },
+    colorSwatchRow: {
+        flexDirection: 'row',
+        gap: theme.spacing.xs + 6,
+        marginTop: theme.spacing.sm,
+        marginLeft: 48,
+    },
+    colorSwatch: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    colorSwatchActive: {
+        borderWidth: 2,
+        borderColor: theme.colors.textPrimary,
     },
     boundBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-        paddingHorizontal: theme.spacing.sm,
-        paddingVertical: 2,
-        borderRadius: theme.borderRadius.full,
+        backgroundColor: theme.colors.status.successSubtle,
+        paddingHorizontal: theme.spacing.sm + 2,
+        paddingVertical: 3,
+        borderRadius: theme.borderRadius.sm,
+        borderWidth: 1,
+        borderColor: theme.colors.status.successBorder,
     },
     boundBadgeText: {
         fontSize: 10,
         fontWeight: '800',
         color: theme.colors.status.success,
         marginLeft: 4,
-    },
-    langBtn: {
-        backgroundColor: 'rgba(37, 99, 235, 0.1)',
-        paddingHorizontal: theme.spacing.sm + 4,
-        paddingVertical: theme.spacing.xs + 2,
-        borderRadius: theme.borderRadius.md,
-    },
-    langBtnText: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: theme.colors.primary,
     },
     divider: {
         height: 1,
@@ -511,10 +916,11 @@ const stylesheet = StyleSheet.create((theme) => ({
         justifyContent: 'center',
         alignItems: 'center',
         gap: theme.spacing.xs,
-        marginTop: theme.spacing.md,
+        marginTop: theme.spacing.xs,
     },
     footerText: {
         fontSize: 11,
+        fontWeight: '500',
         color: theme.colors.textSecondary,
     },
     modalOverlay: {
@@ -524,8 +930,8 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     modalSheet: {
         backgroundColor: theme.colors.surface,
-        borderTopLeftRadius: theme.borderRadius.lg + 4,
-        borderTopRightRadius: theme.borderRadius.lg + 4,
+        borderTopLeftRadius: theme.borderRadius.lg,
+        borderTopRightRadius: theme.borderRadius.lg,
         padding: theme.spacing.lg,
     },
     modalHeader: {
@@ -543,13 +949,13 @@ const stylesheet = StyleSheet.create((theme) => ({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingVertical: theme.spacing.md,
+        paddingVertical: theme.spacing.sm + 2,
         borderBottomWidth: 1,
         borderBottomColor: theme.colors.border,
     },
     permTitle: {
         fontSize: 14,
-        fontWeight: '700',
+        fontWeight: '600',
         color: theme.colors.textPrimary,
     },
     permSub: {
@@ -558,77 +964,22 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginTop: 2,
     },
     permActionBtn: {
-        backgroundColor: 'rgba(37, 99, 235, 0.1)',
+        backgroundColor: theme.colors.surfaceSubtle,
         paddingHorizontal: theme.spacing.md,
         paddingVertical: theme.spacing.xs + 2,
         borderRadius: theme.borderRadius.md,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
     },
     permActionText: {
         fontSize: 12,
         fontWeight: '700',
-        color: theme.colors.primary,
-    },
-    modalLabel: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: theme.colors.textSecondary,
-        textTransform: 'uppercase',
-        marginBottom: theme.spacing.xs,
-        marginTop: theme.spacing.sm,
-    },
-    categoryRow: {
-        flexDirection: 'row',
-        gap: theme.spacing.xs + 2,
-        marginBottom: theme.spacing.sm,
-    },
-    categoryBtn: {
-        flex: 1,
-        paddingVertical: theme.spacing.xs + 2,
-        alignItems: 'center',
-        backgroundColor: theme.colors.surfaceSubtle,
-        borderRadius: theme.borderRadius.md,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-    },
-    categoryBtnSelected: {
-        backgroundColor: theme.colors.primary,
-        borderColor: theme.colors.primary,
-    },
-    categoryBtnText: {
-        fontSize: 10,
-        fontWeight: '700',
-        color: theme.colors.textSecondary,
-    },
-    categoryBtnTextSelected: {
-        color: '#FFFFFF',
-    },
-    starsRow: {
-        flexDirection: 'row',
-        gap: theme.spacing.sm,
-        marginBottom: theme.spacing.sm,
-    },
-    textArea: {
-        backgroundColor: theme.colors.surfaceSubtle,
-        borderRadius: theme.borderRadius.md,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
         color: theme.colors.textPrimary,
-        padding: theme.spacing.md,
-        height: 90,
-        textAlignVertical: 'top',
-        marginBottom: theme.spacing.lg,
     },
-    submitBtn: {
-        backgroundColor: theme.colors.primary,
-        height: 48,
-        borderRadius: theme.borderRadius.md,
-        justifyContent: 'center',
-        alignItems: 'center',
-        ...theme.shadows.sm,
-    },
-    submitBtnText: {
-        color: '#FFFFFF',
-        fontWeight: '700',
-        fontSize: 15,
+    legalBodyText: {
+        fontSize: 13,
+        lineHeight: 20,
+        color: theme.colors.textSecondary,
+        paddingVertical: theme.spacing.md,
     },
 }));

@@ -138,6 +138,25 @@ export function ActivityListSkeleton() {
     );
 }
 
+export function NotificationListSkeleton() {
+    return (
+        <View style={styles.container}>
+            {[1, 2, 3, 4].map((i) => (
+                <View key={i} style={styles.cardPlaceholder}>
+                    <View style={styles.cardHeaderRow}>
+                        <Skeleton.Box width={36} height={36} borderRadius={12} />
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                            <Skeleton.Box width="65%" height={16} borderRadius={4} />
+                            <Skeleton.Box width="35%" height={10} borderRadius={4} style={{ marginTop: 6 }} />
+                        </View>
+                    </View>
+                    <Skeleton.Text lines={2} height={12} gap={6} style={{ marginTop: 12 }} />
+                </View>
+            ))}
+        </View>
+    );
+}
+
 export function AttendanceHistorySkeleton() {
     return (
         <View style={styles.container}>
@@ -154,6 +173,26 @@ export function AttendanceHistorySkeleton() {
                         <Skeleton.Box width={80} height={18} borderRadius={6} />
                         <Skeleton.Box width={95} height={14} borderRadius={4} />
                     </View>
+                </View>
+            ))}
+        </View>
+    );
+}
+
+export function QuizListSkeleton() {
+    return (
+        <View style={styles.container}>
+            {[1, 2, 3].map((i) => (
+                <View key={i} style={styles.cardPlaceholder}>
+                    <View style={styles.cardHeaderRow}>
+                        <Skeleton.Box width={40} height={40} borderRadius={16} />
+                        <View style={{ flex: 1, marginLeft: 12 }}>
+                            <Skeleton.Box width="70%" height={16} borderRadius={4} />
+                            <Skeleton.Box width="30%" height={10} borderRadius={4} style={{ marginTop: 6 }} />
+                        </View>
+                    </View>
+                    <Skeleton.Box width="100%" height={46} borderRadius={12} style={{ marginTop: 14 }} />
+                    <Skeleton.Box width="100%" height={44} borderRadius={12} style={{ marginTop: 12 }} />
                 </View>
             ))}
         </View>

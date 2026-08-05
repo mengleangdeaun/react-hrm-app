@@ -5,6 +5,7 @@ export interface NotificationItem {
     type: string;
     title: string;
     message: string;
+    announcement_id?: number | string;
     app_category?: string;
     data?: any;
     read_at?: string | null;
