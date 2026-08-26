@@ -12,6 +12,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
+import { useQueryClient } from '@tanstack/react-query';
 import { MapPin, Navigation, CheckCircle2, QrCode, ArrowLeft } from 'lucide-react-native';
 import { ENV } from '../../config/env';
 import { apiClient } from '../../api/client';
@@ -37,6 +38,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
     const { isDark } = useAppTheme();
     const { theme } = useUnistyles();
     const styles = stylesheet;
+    const queryClient = useQueryClient();
 
     const [cameraPermission, requestCameraPermission] = useCameraPermissions();
     const [locationPermission, setLocationPermission] = useState<boolean | null>(null);
@@ -143,6 +145,8 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
                 latitude: currentLocation?.coords.latitude,
                 longitude: currentLocation?.coords.longitude,
             }).catch(() => null);
+
+            await queryClient.invalidateQueries({ queryKey: ['attendanceHistory'] });
         } catch (e) {
             console.log('Clock sync handled');
         }

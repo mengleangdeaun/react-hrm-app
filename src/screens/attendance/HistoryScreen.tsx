@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import {
     View,
     Text,
@@ -10,6 +10,7 @@ import {
     Animated,
 } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '../../components/common/AppShell';
 import { AttendanceHistorySkeleton } from '../../components/common/Skeletons';
 import { attendanceApi, HistoryRecord } from '../../api/attendance';
@@ -41,14 +42,51 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     const { isDark } = useAppTheme();
     const { theme } = useUnistyles();
     const styles = stylesheet;
+    const queryClient = useQueryClient();
 
     // Applied Filters
     const currentMonthStr = format(new Date(), 'yyyy-MM');
     const [selectedQuickFilter, setSelectedQuickFilter] = useState<string>('all');
     const [selectedMonth, setSelectedMonth] = useState<string>(''); // YYYY-MM
-    const [historyLogs, setHistoryLogs] = useState<HistoryRecord[]>([]);
-    const [isLoading, setIsLoading] = useState<boolean>(true);
-    const [refreshing, setRefreshing] = useState<boolean>(false);
+
+    // 5-Minute In-Memory & Persistent Caching for Attendance History
+    const {
+        data: historyLogs = [],
+        isLoading,
+        isFetching,
+    } = useQuery<HistoryRecord[]>({
+        queryKey: ['attendanceHistory', selectedMonth, selectedQuickFilter],
+        queryFn: async () => {
+            try {
+                const params: any = {};
+                if (selectedMonth) params.month = selectedMonth;
+
+                const categoryObj = AUDIT_CATEGORIES.find((c) => c.id === selectedQuickFilter);
+                if (categoryObj && (categoryObj as any).key && (categoryObj as any).value) {
+                    params[(categoryObj as any).key] = (categoryObj as any).value;
+                }
+
+                const data = await attendanceApi.getHistory(params);
+                const records: HistoryRecord[] = Array.isArray(data)
+                    ? data
+                    : Array.isArray(data?.records)
+                    ? data.records
+                    : Array.isArray(data?.data)
+                    ? data.data
+                    : [];
+
+                return records;
+            } catch (error) {
+                console.warn('Failed to fetch attendance history:', error);
+                return [];
+            }
+        },
+        staleTime: 1000 * 60 * 5, // 5 minutes cache
+    });
+
+    const onRefresh = async () => {
+        await queryClient.invalidateQueries({ queryKey: ['attendanceHistory'] });
+    };
 
     // Advanced Filter Modal Draft State
     const [draftQuickFilter, setDraftQuickFilter] = useState<string>('all');
@@ -100,10 +138,6 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         lastScrollY.current = currentY;
     };
 
-    useEffect(() => {
-        fetchHistory();
-    }, [selectedQuickFilter, selectedMonth]);
-
     const openFilterModal = () => {
         setDraftQuickFilter(selectedQuickFilter);
         setDraftMonth(selectedMonth);
@@ -134,68 +168,6 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             months.push({ value, label });
         }
         return months;
-    };
-
-    const fetchHistory = async () => {
-        try {
-            setIsLoading(true);
-            const params: any = {};
-            if (selectedMonth) params.month = selectedMonth;
-
-            const categoryObj = AUDIT_CATEGORIES.find((c) => c.id === selectedQuickFilter);
-            if (categoryObj && (categoryObj as any).key && (categoryObj as any).value) {
-                params[(categoryObj as any).key] = (categoryObj as any).value;
-            }
-
-            const data = await attendanceApi.getHistory(params);
-            const records: HistoryRecord[] = Array.isArray(data)
-                ? data
-                : Array.isArray(data?.records)
-                ? data.records
-                : Array.isArray(data?.data)
-                ? data.data
-                : [];
-
-            setHistoryLogs(records);
-        } catch (error) {
-            console.warn('Failed to fetch attendance history:', error);
-            // Fallback mock history for visual verification
-            setHistoryLogs([
-                {
-                    id: 984,
-                    date: '2026-07-21',
-                    clock_in_time: '2026-07-21T08:00:00.000Z',
-                    session_1_out_time: '2026-07-21T12:00:00.000Z',
-                    session_2_in_time: '2026-07-21T13:00:00.000Z',
-                    clock_out_time: '2026-07-21T17:00:00.000Z',
-                    status: 'Present',
-                    in_status: 'On Time',
-                    out_status: 'On Time',
-                    late_minutes: 0,
-                    overtime_minutes: 45,
-                    working_hours: '8h 45m',
-                },
-                {
-                    id: 983,
-                    date: '2026-07-20',
-                    clock_in_time: '2026-07-20T08:18:00.000Z',
-                    clock_out_time: '2026-07-20T17:00:00.000Z',
-                    status: 'Late',
-                    in_status: 'Late',
-                    out_status: 'On Time',
-                    late_minutes: 18,
-                    working_hours: '7h 42m',
-                },
-            ]);
-        } finally {
-            setIsLoading(false);
-            setRefreshing(false);
-        }
-    };
-
-    const onRefresh = () => {
-        setRefreshing(true);
-        fetchHistory();
     };
 
     const formatTimeString = (isoOrTimeStr?: string | null) => {
@@ -433,7 +405,7 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                         onScroll={handleScroll}
                         scrollEventThrottle={16}
                         refreshControl={
-                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+                            <RefreshControl refreshing={isFetching && !isLoading} onRefresh={onRefresh} tintColor={theme.colors.primary} />
                         }
                     />
                 )}

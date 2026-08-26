@@ -10,6 +10,7 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { activityApi, OFFICIAL_ACTIVITY_TYPES } from '../../api/activity';
@@ -49,6 +50,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
     const { isDark } = useAppTheme();
     const { theme } = useUnistyles();
     const styles = stylesheet;
+    const queryClient = useQueryClient();
 
     // Wizard Step
     const [currentStep, setCurrentStep] = useState<number>(1);
@@ -169,6 +171,8 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                 location_name: location?.address,
                 attachments,
             });
+
+            await queryClient.invalidateQueries({ queryKey: ['activities'] });
 
             if (Platform.OS === 'web') {
                 window.alert('Activity Submitted: Your work log entry has been submitted.');

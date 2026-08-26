@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { format, parseISO, isValid } from 'date-fns';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { activityApi, ActivityItem, OFFICIAL_ACTIVITY_TYPES } from '../../api/activity';
 import { useAppTheme } from '../../context/ThemeContext';
 import { AppShell } from '../../components/common/AppShell';
@@ -44,10 +45,7 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
     const { width: screenWidth } = useWindowDimensions();
     const cardImageWidth = Math.max(screenWidth - 32, 280);
     const styles = stylesheet;
-
-    const [activities, setActivities] = useState<ActivityItem[]>([]);
-    const [isLoading, setIsLoading] = useState<boolean>(true);
-    const [refreshing, setRefreshing] = useState<boolean>(false);
+    const queryClient = useQueryClient();
 
     // Applied Filters
     const currentMonthStr = format(new Date(), 'yyyy-MM');
@@ -58,6 +56,28 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
     const [draftCategory, setDraftCategory] = useState<string>('all');
     const [draftMonth, setDraftMonth] = useState<string>(currentMonthStr);
     const [filterModalVisible, setFilterModalVisible] = useState<boolean>(false);
+
+    // 5-Minute In-Memory Caching for Activities
+    const {
+        data: activities = [],
+        isLoading,
+        isFetching,
+    } = useQuery<ActivityItem[]>({
+        queryKey: ['activities', selectedMonth, selectedCategory],
+        queryFn: async () => {
+            const params: any = { month: selectedMonth };
+            if (selectedCategory !== 'all') {
+                params.activity_type = selectedCategory;
+            }
+            const res = await activityApi.getActivities(params);
+            return res?.data || res?.activities || (Array.isArray(res) ? res : []);
+        },
+        staleTime: 1000 * 60 * 5, // 5 minutes cache
+    });
+
+    const onRefresh = async () => {
+        await queryClient.invalidateQueries({ queryKey: ['activities'] });
+    };
 
     // Smart Animated Tab Bar Scroll Hide/Show State
     const tabBarAnim = useRef(new Animated.Value(1)).current;
@@ -103,10 +123,6 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
 
         lastScrollY.current = currentY;
     };
-
-    useEffect(() => {
-        loadActivities();
-    }, [selectedCategory, selectedMonth]);
 
     const openFilterModal = () => {
         setDraftCategory(selectedCategory);
@@ -199,30 +215,6 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                 return `${baseUrl}/${storagePath}`;
             })
             .filter(Boolean);
-    };
-
-    const loadActivities = async () => {
-        try {
-            setIsLoading(true);
-            const params: any = { month: selectedMonth };
-            if (selectedCategory !== 'all') {
-                params.activity_type = selectedCategory;
-            }
-            const res = await activityApi.getActivities(params);
-            const list = res?.data || res?.activities || (Array.isArray(res) ? res : []);
-            setActivities(list);
-        } catch (error) {
-            console.error('Failed to load activities:', error);
-            setActivities([]);
-        } finally {
-            setIsLoading(false);
-            setRefreshing(false);
-        }
-    };
-
-    const onRefresh = () => {
-        setRefreshing(true);
-        loadActivities();
     };
 
     const formatCategoryName = (typeStr: string) => {
@@ -342,7 +334,7 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
             onBack={() => navigation.goBack()}
             headerRight={headerRight}
             subHeader={subHeader}
-            refreshing={refreshing}
+            refreshing={isFetching && !isLoading}
             onRefresh={onRefresh}
             onScroll={handleScroll}
             scrollEventThrottle={16}

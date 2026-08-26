@@ -12,6 +12,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { ArrowLeft } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
+import { OfflineBanner } from './OfflineBanner';
 
 interface AppShellProps {
     children: React.ReactNode;
@@ -52,6 +53,8 @@ export const AppShell: React.FC<AppShellProps> = ({
     return (
         <SafeAreaView {...({ style: [styles.safeArea, { backgroundColor: theme.colors.background }, style] } as any)}>
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
+
+            <OfflineBanner />
 
             {hasHeader && (
                 <View style={styles.headerRow}>
