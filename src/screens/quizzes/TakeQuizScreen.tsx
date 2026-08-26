@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import {
     View,
     ScrollView,
@@ -9,7 +9,9 @@ import {
     ActivityIndicator,
     TextInput,
     AppState,
+    Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { quizApi, QuizQuestion, QuizAnswerPayload } from '../../api/quiz';
 import { useAppTheme } from '../../context/ThemeContext';
@@ -25,6 +27,10 @@ import {
     Check,
     AlertTriangle,
     CheckCircle2,
+    ShieldAlert,
+    HelpCircle,
+    Award,
+    FileText,
 } from 'lucide-react-native';
 
 const formatTimer = (seconds: number) => {
@@ -40,6 +46,7 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
     const { isDark, primaryColor } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
+    const insets = useSafeAreaInsets();
     const styles = stylesheet;
 
     const { token, quizId } = route.params || {};
@@ -48,6 +55,8 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
     const [questions, setQuestions] = useState<QuizQuestion[]>([]);
     const [quizTitle, setQuizTitle] = useState<string>('Training Assessment');
     const [quizDuration, setQuizDuration] = useState<number>(900); // 15 mins default
+    const [passingPct, setPassingPct] = useState<number>(70);
+    const [totalPoints, setTotalPoints] = useState<number>(100);
 
     // States
     const [started, setStarted] = useState<boolean>(false);
@@ -68,6 +77,7 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
     const timerRef = useRef<NodeJS.Timeout | null>(null);
     const answersRef = useRef<QuizAnswerPayload[]>([]);
     const lastWarningTimeRef = useRef<number>(0);
+    const questionScrollRef = useRef<any>(null);
 
     useEffect(() => {
         answersRef.current = answers;
@@ -76,6 +86,16 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
     useEffect(() => {
         loadQuiz();
     }, [token, quizId]);
+
+    // Auto-scroll question selector strip when index changes
+    useEffect(() => {
+        if (questionScrollRef.current && questions.length > 0) {
+            questionScrollRef.current.scrollTo({
+                x: Math.max(0, currentIdx * 48 - 100),
+                animated: true,
+            });
+        }
+    }, [currentIdx, questions.length]);
 
     const loadQuiz = async () => {
         try {
@@ -87,10 +107,14 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
                     const qTitle = res.quiz?.title || 'Training Assessment';
                     const qDuration = res.quiz?.duration || 900;
                     const qQuestions = res.quiz?.questions || [];
+                    const qPassing = res.quiz?.passing_percentage || 70;
+                    const qPoints = res.quiz?.points || 100;
 
                     setQuizTitle(qTitle);
                     setQuizDuration(qDuration);
                     setQuestions(qQuestions);
+                    setPassingPct(qPassing);
+                    setTotalPoints(qPoints);
 
                     // Initialize answers state
                     const initial = qQuestions.map((q: any) => ({
@@ -166,10 +190,14 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
                         handleAutoSubmit('Test submitted automatically due to focus violation (left app 3 times).');
                         return next;
                     } else {
-                        Alert.alert(
-                            'Focus Lock Warning',
-                            `Focus Violation: Please do not leave the app or switch screens during the test. (Attempt ${next} of 3).`
-                        );
+                        if (Platform.OS === 'web') {
+                            window.alert(`Focus Lock Warning: Please do not leave the app or switch screens during the test. (Attempt ${next} of 3).`);
+                        } else {
+                            Alert.alert(
+                                'Focus Lock Warning',
+                                `Focus Violation: Please do not leave the app or switch screens during the test. (Attempt ${next} of 3).`
+                            );
+                        }
                         return next;
                     }
                 });
@@ -208,9 +236,9 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
                 if (qType === 'single_choice' || qType === 'single') {
                     return { ...ans, selected_options: [optionId] };
                 } else {
-                    const exists = currentSelected.includes(optionId);
+                    const exists = currentSelected.includes(optionId) || currentSelected.includes(Number(optionId));
                     const updated = exists
-                        ? currentSelected.filter((id) => id !== optionId)
+                        ? currentSelected.filter((id) => id !== optionId && id !== Number(optionId))
                         : [...currentSelected, optionId];
                     return { ...ans, selected_options: updated };
                 }
@@ -228,16 +256,29 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
         );
     };
 
+    const normalizePayloadAnswers = (rawAnswers: QuizAnswerPayload[]): QuizAnswerPayload[] => {
+        return rawAnswers.map((a) => ({
+            question_id: Number(a.question_id),
+            selected_options: (a.selected_options || []).map((opt) => (isNaN(Number(opt)) ? opt : Number(opt))),
+            text_answer: a.text_answer || '',
+        }));
+    };
+
     const handleAutoSubmit = async (reasonMessage: string) => {
         if (submitting || completed) return;
         setSubmitting(true);
         if (timerRef.current) clearInterval(timerRef.current);
 
         try {
-            const finalAnswers = answersRef.current || answers;
+            const raw = (answersRef.current && answersRef.current.length > 0) ? answersRef.current : answers;
+            const finalAnswers = normalizePayloadAnswers(raw);
             const res = await quizApi.submitQuiz(token!, finalAnswers).catch(() => null);
             setCompleted(true);
-            Alert.alert('Quiz Submitted', reasonMessage);
+            if (Platform.OS === 'web') {
+                window.alert(reasonMessage);
+            } else {
+                Alert.alert('Quiz Submitted', reasonMessage);
+            }
             navigation.navigate('QuizResult', { token, score: res?.score, passed: res?.passed, quizTitle });
         } catch (err) {
             console.warn('Auto-submit failed:', err);
@@ -248,23 +289,61 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
         }
     };
 
+    // Calculate answered status for a given question
+    const isQuestionAnswered = (qId: number, qType: string) => {
+        const ans = answers.find((a) => a.question_id === qId);
+        if (!ans) return false;
+        if (qType === 'essay' || (qType as string) === 'text') {
+            return Boolean(ans.text_answer && ans.text_answer.trim().length > 0);
+        }
+        return Boolean(ans.selected_options && ans.selected_options.length > 0);
+    };
+
+    const answeredCount = useMemo(() => {
+        return questions.filter((q) => isQuestionAnswered(q.id, q.question_type)).length;
+    }, [questions, answers]);
+
     const handleManualSubmitConfirm = () => {
+        const totalCount = questions.length;
+        const unansweredCount = totalCount - answeredCount;
+
+        const message =
+            unansweredCount > 0
+                ? t(
+                      'confirm_submit_with_unanswered',
+                      `You have answered ${answeredCount} of ${totalCount} questions (${unansweredCount} unanswered). Are you sure you want to submit?`
+                  )
+                : t(
+                      'confirm_submit_all_answered',
+                      `You have answered all ${totalCount} questions. Are you sure you want to submit your assessment?`
+                  );
+
+        if (Platform.OS === 'web') {
+            if (window.confirm(message)) {
+                submitManual();
+            }
+            return;
+        }
+
         Alert.alert(
             t('confirm_submit_title', 'Submit Assessment'),
-            t('confirm_submit_quiz', 'Are you sure you want to submit your answers?'),
+            message,
             [
                 { text: t('cancel', 'Cancel'), style: 'cancel' },
-                { text: t('submit', 'Submit Exam'), onPress: submitManual },
+                { text: t('submit', 'Submit Assessment'), onPress: submitManual },
             ]
         );
     };
 
     const submitManual = async () => {
+        if (submitting) return;
         setSubmitting(true);
         if (timerRef.current) clearInterval(timerRef.current);
 
         try {
-            const res = await quizApi.submitQuiz(token!, answers);
+            const raw = (answersRef.current && answersRef.current.length > 0) ? answersRef.current : answers;
+            const finalAnswers = normalizePayloadAnswers(raw);
+            const res = await quizApi.submitQuiz(token!, finalAnswers);
             setCompleted(true);
             navigation.navigate('QuizResult', {
                 token,
@@ -273,7 +352,16 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
                 quizTitle,
             });
         } catch (err: any) {
-            Alert.alert(t('error', 'Error'), err?.message || t('submit_failed', 'Failed to submit quiz.'));
+            const errorMsg =
+                err?.response?.data?.message ||
+                err?.message ||
+                t('submit_failed', 'Failed to submit quiz.');
+
+            if (Platform.OS === 'web') {
+                window.alert(`Error: ${errorMsg}`);
+            } else {
+                Alert.alert(t('error', 'Error'), errorMsg);
+            }
         } finally {
             setSubmitting(false);
         }
@@ -281,12 +369,24 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
 
     const handleHeaderBack = () => {
         if (started && !completed) {
+            const leaveMsg = t(
+                'leave_quiz_warning',
+                'Are you sure you want to leave? Your exam timer will continue running in the background.'
+            );
+
+            if (Platform.OS === 'web') {
+                if (window.confirm(leaveMsg)) {
+                    navigation.goBack();
+                }
+                return;
+            }
+
             Alert.alert(
                 t('leave_quiz_title', 'Leave Assessment?'),
-                t('leave_quiz_warning', 'Are you sure you want to leave? Your exam timer will continue running in the background.'),
+                leaveMsg,
                 [
-                    { text: t('cancel', 'Stay'), style: 'cancel' },
-                    { text: t('leave', 'Leave'), style: 'destructive', onPress: () => navigation.goBack() },
+                    { text: t('cancel', 'Stay in Quiz'), style: 'cancel' },
+                    { text: t('leave', 'Leave Quiz'), style: 'destructive', onPress: () => navigation.goBack() },
                 ]
             );
         } else {
@@ -297,8 +397,10 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
     if (loading && !testData) {
         return (
             <SafeAreaView style={styles.safeArea}>
+                <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={primaryColor} />
+                    <Text style={styles.loadingText}>{t('loading_quiz', 'Preparing assessment environment...')}</Text>
                 </View>
             </SafeAreaView>
         );
@@ -313,18 +415,28 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
             <SafeAreaView style={styles.safeArea}>
                 <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
+                {/* Top Navigation Bar */}
                 <View style={styles.topBar}>
-                    <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-                        <ArrowLeft color={theme.colors.textPrimary} size={19} />
+                    <TouchableOpacity
+                        style={styles.iconCircle}
+                        onPress={() => navigation.goBack()}
+                        activeOpacity={0.7}
+                    >
+                        <ArrowLeft color={theme.colors.textPrimary} size={18} />
                     </TouchableOpacity>
-                    <Text style={styles.headerTitle}>{t('assessment', 'Assessment')}</Text>
-                    <View style={{ width: 38 }} />
+                    <Text style={styles.headerTitle}>{t('assessment_overview', 'Assessment Overview')}</Text>
+                    <View style={styles.topBarSpacer} />
                 </View>
 
-                <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+                <ScrollView
+                    style={styles.container}
+                    contentContainerStyle={styles.scrollContent}
+                    showsVerticalScrollIndicator={false}
+                >
                     <View style={styles.termsWrapper}>
+                        {/* Lock Icon Box */}
                         <View style={[styles.lockIconBox, { backgroundColor: `${primaryColor}15` }]}>
-                            <Lock color={primaryColor} size={32} />
+                            <Lock color={primaryColor} size={30} />
                         </View>
 
                         <Text style={styles.termsQuizTitle}>{quizTitle}</Text>
@@ -332,53 +444,97 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
                             {t('ready_to_start', 'Assessment Test Ready')}
                         </Text>
 
-                        {/* Instructions Card */}
+                        {/* Quiz Quick Stats Grid */}
+                        <View style={styles.statsGrid}>
+                            <View style={styles.statBox}>
+                                <Clock color={primaryColor} size={16} />
+                                <Text style={styles.statValue}>
+                                    {Math.round((quizDuration || 0) / 60)} {t('mins', 'Mins')}
+                                </Text>
+                                <Text style={styles.statLabel}>{t('duration', 'Duration')}</Text>
+                            </View>
+
+                            <View style={styles.statBox}>
+                                <FileText color={primaryColor} size={16} />
+                                <Text style={styles.statValue}>{questions.length || 0}</Text>
+                                <Text style={styles.statLabel}>{t('questions', 'Questions')}</Text>
+                            </View>
+
+                            <View style={styles.statBox}>
+                                <Award color={primaryColor} size={16} />
+                                <Text style={styles.statValue}>{totalPoints} {t('pts', 'Pts')}</Text>
+                                <Text style={styles.statLabel}>{t('pass_rate', `${passingPct}% Pass`)}</Text>
+                            </View>
+                        </View>
+
+                        {/* Instructions & Proctoring Rules Card */}
                         <View style={styles.instructionsCard}>
                             <View style={styles.instructionsHeaderRow}>
-                                <Info color={primaryColor} size={16} />
+                                <ShieldAlert color={primaryColor} size={18} />
                                 <Text style={styles.instructionsHeaderTitle}>
-                                    {t('test_instructions', 'Test Instructions & Terms')}
+                                    {t('test_instructions', 'Important Test Rules & Policies')}
                                 </Text>
                             </View>
 
                             <View style={styles.ruleItem}>
                                 <View style={[styles.ruleDot, { backgroundColor: primaryColor }]} />
-                                <Text style={styles.ruleText}>
-                                    {t('duration_detail', `Total duration: ${Math.round((quizDuration || 0) / 60)} mins.`)}
-                                </Text>
+                                <View style={styles.ruleTextContainer}>
+                                    <Text style={styles.ruleTitle}>
+                                        {t('time_limit_title', 'Time Limit')}
+                                    </Text>
+                                    <Text style={styles.ruleText}>
+                                        {t('duration_detail', `You will have ${Math.round((quizDuration || 0) / 60)} minutes to complete all questions. Auto-submission occurs when time expires.`)}
+                                    </Text>
+                                </View>
                             </View>
 
                             <View style={styles.ruleItem}>
                                 <View style={[styles.ruleDot, { backgroundColor: theme.colors.status.danger }]} />
-                                <Text style={[styles.ruleText, { color: theme.colors.status.danger, fontWeight: '700' }]}>
-                                    {t('proctoring_tab_rule', 'Focus Lock: Do not leave or minimize the app. 3 violations will auto-submit the quiz.')}
-                                </Text>
+                                <View style={styles.ruleTextContainer}>
+                                    <Text style={[styles.ruleTitle, styles.ruleTitleDanger]}>
+                                        {t('focus_lock_title', 'Focus Lock (Anti-Cheat)')}
+                                    </Text>
+                                    <Text style={styles.ruleText}>
+                                        {t('proctoring_tab_rule', 'Do not minimize or switch out of the app. 3 focus violations will immediately submit your test.')}
+                                    </Text>
+                                </View>
                             </View>
 
                             <View style={styles.ruleItem}>
-                                <View style={[styles.ruleDot, { backgroundColor: '#F59E0B' }]} />
-                                <Text style={[styles.ruleText, { color: '#F59E0B', fontWeight: '700' }]}>
-                                    {t('proctoring_idle_rule', 'Inactivity Timer: If you do not touch the screen for 3 minutes, the test will submit automatically.')}
-                                </Text>
+                                <View style={[styles.ruleDot, { backgroundColor: theme.colors.status.warning }]} />
+                                <View style={styles.ruleTextContainer}>
+                                    <Text style={[styles.ruleTitle, styles.ruleTitleWarning]}>
+                                        {t('inactivity_timer_title', 'Inactivity Timer')}
+                                    </Text>
+                                    <Text style={styles.ruleText}>
+                                        {t('proctoring_idle_rule', 'If no interaction is detected for 3 minutes, the assessment will auto-submit.')}
+                                    </Text>
+                                </View>
                             </View>
 
                             <View style={styles.ruleItem}>
                                 <View style={[styles.ruleDot, { backgroundColor: primaryColor }]} />
-                                <Text style={styles.ruleText}>
-                                    {t('proctoring_interaction_rule', 'Anti-cheat policies are enforced during your assessment session.')}
-                                </Text>
+                                <View style={styles.ruleTextContainer}>
+                                    <Text style={styles.ruleTitle}>
+                                        {t('navigation_title', 'Question Navigation')}
+                                    </Text>
+                                    <Text style={styles.ruleText}>
+                                        {t('navigation_detail', 'You can freely review and jump between questions before submitting.')}
+                                    </Text>
+                                </View>
                             </View>
                         </View>
 
-                        {/* Agree & Start Action Buttons */}
+                        {/* Action Buttons */}
                         <TouchableOpacity
                             style={[styles.primaryActionBtn, { backgroundColor: primaryColor }]}
                             activeOpacity={0.85}
                             onPress={handleStartTest}
                         >
                             <Text style={styles.primaryActionBtnText}>
-                                {t('accept_and_start', 'I Agree, Start Quiz')}
+                                {t('accept_and_start', 'I Agree & Start Assessment')}
                             </Text>
+                            <ChevronRight color="#FFFFFF" size={18} />
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -394,47 +550,134 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
         );
     }
 
+    // Determine timer state styling (warning under 3 mins, critical danger under 1 min)
+    const isCriticalTime = timeLeft !== null && timeLeft <= 60;
+    const isWarningTime = timeLeft !== null && timeLeft > 60 && timeLeft <= 180;
+
     return (
         <SafeAreaView style={styles.safeArea}>
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
             {/* Exam Header */}
             <View style={styles.topBar}>
-                <TouchableOpacity style={styles.iconCircle} onPress={handleHeaderBack} activeOpacity={0.7}>
-                    <ArrowLeft color={theme.colors.textPrimary} size={19} />
+                <TouchableOpacity
+                    style={styles.iconCircle}
+                    onPress={handleHeaderBack}
+                    activeOpacity={0.7}
+                >
+                    <ArrowLeft color={theme.colors.textPrimary} size={18} />
                 </TouchableOpacity>
 
-                {/* Clock Badge */}
-                <View style={styles.timerBadge}>
-                    <Clock color="#F59E0B" size={15} />
-                    <Text style={styles.timerText}>
+                {/* Live Countdown Timer Badge */}
+                <View
+                    style={[
+                        styles.timerBadge,
+                        isCriticalTime && styles.timerBadgeCritical,
+                        isWarningTime && styles.timerBadgeWarning,
+                    ]}
+                >
+                    <Clock
+                        color={
+                            isCriticalTime
+                                ? theme.colors.status.danger
+                                : isWarningTime
+                                ? theme.colors.status.warning
+                                : primaryColor
+                        }
+                        size={14}
+                    />
+                    <Text
+                        style={[
+                            styles.timerText,
+                            isCriticalTime && styles.timerTextCritical,
+                            isWarningTime && styles.timerTextWarning,
+                        ]}
+                    >
                         {timeLeft !== null ? formatTimer(timeLeft) : '00:00'}
                     </Text>
                 </View>
 
-                {/* Violations Pill */}
+                {/* Focus Violation Indicator */}
                 {tabSwitchCount > 0 ? (
                     <View style={styles.violationBadge}>
                         <AlertTriangle color={theme.colors.status.danger} size={13} />
                         <Text style={styles.violationText}>{tabSwitchCount}/3</Text>
                     </View>
                 ) : (
-                    <View style={{ width: 38 }} />
+                    <View style={styles.answeredBadge}>
+                        <CheckCircle2 color={theme.colors.status.success} size={13} />
+                        <Text style={styles.answeredBadgeText}>
+                            {answeredCount}/{questions.length}
+                        </Text>
+                    </View>
                 )}
             </View>
+
+            {/* Horizontal Question Jump Selector Strip */}
+            {questions.length > 0 && (
+                <View style={styles.questionStripContainer}>
+                    <ScrollView
+                        ref={questionScrollRef}
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        contentContainerStyle={styles.questionStripScroll}
+                    >
+                        {questions.map((q, idx) => {
+                            const isCurrent = currentIdx === idx;
+                            const isAnswered = isQuestionAnswered(q.id, q.question_type);
+
+                            return (
+                                <TouchableOpacity
+                                    key={q.id || idx}
+                                    style={[
+                                        styles.questionPill,
+                                        isAnswered && styles.questionPillAnswered,
+                                        isCurrent && styles.questionPillActive,
+                                        isCurrent && { borderColor: primaryColor, backgroundColor: isDark ? `${primaryColor}25` : `${primaryColor}15` },
+                                    ]}
+                                    onPress={() => {
+                                        resetIdleTimer();
+                                        setCurrentIdx(idx);
+                                    }}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text
+                                        style={[
+                                            styles.questionPillText,
+                                            isAnswered && styles.questionPillTextAnswered,
+                                            isCurrent && styles.questionPillTextActive,
+                                            isCurrent && { color: primaryColor },
+                                        ]}
+                                    >
+                                        {idx + 1}
+                                    </Text>
+                                    {isAnswered && !isCurrent && (
+                                        <View style={[styles.answeredDot, { backgroundColor: theme.colors.status.success }]} />
+                                    )}
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
+                </View>
+            )}
 
             <ScrollView
                 style={styles.container}
                 contentContainerStyle={styles.scrollContent}
                 onTouchStart={resetIdleTimer}
+                showsVerticalScrollIndicator={false}
             >
                 {questions.length === 0 ? (
                     <View style={styles.emptyCard}>
+                        <HelpCircle color={theme.colors.textSecondary} size={36} />
                         <Text style={styles.emptyTitle}>{t('no_questions', 'No Questions Found')}</Text>
+                        <Text style={styles.emptySubtitle}>
+                            {t('no_questions_desc', 'This assessment does not have any questions available.')}
+                        </Text>
                     </View>
                 ) : (
                     <>
-                        {/* Progress Bar & Counter */}
+                        {/* Progress Bar & Status Meta */}
                         <View style={styles.progressSection}>
                             <View style={styles.progressTextRow}>
                                 <Text style={styles.progressCounterText}>
@@ -464,65 +707,110 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
                                 <View style={styles.qHeaderRow}>
                                     <View style={styles.typeBadge}>
                                         <Text style={styles.typeBadgeText}>
-                                            {(currentQuestion.question_type || 'single_choice').toUpperCase()}
+                                            {currentQuestion.question_type === 'multiple_choice'
+                                                ? t('multiple_choice', 'MULTIPLE CHOICE')
+                                                : (currentQuestion.question_type as string) === 'essay' || (currentQuestion.question_type as string) === 'text'
+                                                ? t('essay_text', 'SHORT ESSAY')
+                                                : t('single_choice', 'SINGLE CHOICE')}
                                         </Text>
                                     </View>
 
-                                    <Text style={styles.pointsBadgeText}>
-                                        {currentQuestion.points || 10} {t('pts', 'pts')}
-                                    </Text>
+                                    <View style={styles.pointsBadge}>
+                                        <Text style={styles.pointsBadgeText}>
+                                            {currentQuestion.points || 10} {t('pts', 'pts')}
+                                        </Text>
+                                    </View>
                                 </View>
 
                                 <Text style={styles.questionText}>{currentQuestion.question_text}</Text>
 
+                                {/* Multiple Choice Hint */}
+                                {currentQuestion.question_type === 'multiple_choice' && (
+                                    <View style={styles.multipleHintBox}>
+                                        <Info color={primaryColor} size={13} />
+                                        <Text style={[styles.multipleHintText, { color: primaryColor }]}>
+                                            {t('select_all_that_apply', 'Select all options that apply')}
+                                        </Text>
+                                    </View>
+                                )}
+
                                 {/* Options Input Area */}
-                                {(String(currentQuestion.question_type) === 'essay' || String(currentQuestion.question_type) === 'text') ? (
-                                    <TextInput
-                                        style={styles.textArea}
-                                        multiline
-                                        numberOfLines={5}
-                                        placeholder={t('type_answer_here', 'Type your essay response here...')}
-                                        placeholderTextColor={theme.colors.textSecondary}
-                                        value={currentAnsObj?.text_answer || ''}
-                                        onChangeText={(txt: string) => handleTextAnswerChange(currentQuestion.id, txt)}
-                                    />
+                                {(currentQuestion.question_type as string) === 'essay' ||
+                                (currentQuestion.question_type as string) === 'text' ? (
+                                    <View style={styles.essayWrapper}>
+                                        <TextInput
+                                            style={styles.textArea}
+                                            multiline
+                                            numberOfLines={6}
+                                            placeholder={t('type_answer_here', 'Type your response here...')}
+                                            placeholderTextColor={theme.colors.textDisabled}
+                                            value={currentAnsObj?.text_answer || ''}
+                                            onChangeText={(txt: string) =>
+                                                handleTextAnswerChange(currentQuestion.id, txt)
+                                            }
+                                        />
+                                        <Text style={styles.charCountText}>
+                                            {(currentAnsObj?.text_answer || '').length} {t('characters', 'chars')}
+                                        </Text>
+                                    </View>
                                 ) : (
                                     <View style={styles.optionsList}>
                                         {currentQuestion.options?.map((opt, idx) => {
                                             const selectedArr = currentAnsObj?.selected_options || [];
-                                            const isSelected = selectedArr.includes(opt.id) || selectedArr.includes(Number(opt.id));
+                                            const isSelected =
+                                                selectedArr.includes(opt.id) ||
+                                                selectedArr.includes(Number(opt.id)) ||
+                                                selectedArr.includes(String(opt.id));
+                                            const isMultiple =
+                                                currentQuestion.question_type === 'multiple_choice';
 
                                             return (
                                                 <TouchableOpacity
                                                     key={opt.id || idx}
                                                     style={[
                                                         styles.optionCard,
-                                                        isSelected && [
-                                                            styles.optionCardSelected,
-                                                            { borderColor: primaryColor, backgroundColor: `${primaryColor}0C` },
-                                                        ],
+                                                        isSelected && styles.optionCardSelected,
+                                                        isSelected && {
+                                                            borderColor: primaryColor,
+                                                            backgroundColor: isDark
+                                                                ? `${primaryColor}18`
+                                                                : `${primaryColor}0C`,
+                                                        },
                                                     ]}
-                                                    onPress={() => handleOptionToggle(currentQuestion.id, opt.id, currentQuestion.question_type)}
+                                                    onPress={() =>
+                                                        handleOptionToggle(
+                                                            currentQuestion.id,
+                                                            opt.id,
+                                                            currentQuestion.question_type
+                                                        )
+                                                    }
                                                     activeOpacity={0.85}
                                                 >
+                                                    {/* Letter / Checkbox Circle or Square */}
                                                     <View
                                                         style={[
-                                                            styles.optCircle,
-                                                            isSelected && { backgroundColor: primaryColor, borderColor: primaryColor },
+                                                            styles.optIndicator,
+                                                            isMultiple && styles.optIndicatorSquare,
+                                                            isSelected && {
+                                                                backgroundColor: primaryColor,
+                                                                borderColor: primaryColor,
+                                                            },
                                                         ]}
                                                     >
                                                         {isSelected ? (
-                                                            <Check color="#FFFFFF" size={12} />
+                                                            <Check color="#FFFFFF" size={13} strokeWidth={3} />
                                                         ) : (
                                                             <Text style={styles.optLetterText}>
                                                                 {String.fromCharCode(65 + idx)}
                                                             </Text>
                                                         )}
                                                     </View>
+
                                                     <Text
                                                         style={[
                                                             styles.optionText,
-                                                            isSelected && { color: primaryColor, fontWeight: '700' },
+                                                            isSelected && styles.optionTextSelected,
+                                                            isSelected && isDark && styles.optionTextSelectedDark,
                                                         ]}
                                                     >
                                                         {opt.option_text}
@@ -538,8 +826,8 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
                 )}
             </ScrollView>
 
-            {/* Navigation Footer */}
-            <View style={styles.footerBar}>
+            {/* Navigation Footer Bar */}
+            <View style={[styles.footerBar, { paddingBottom: Math.max(theme.spacing.md, insets.bottom) }]}>
                 <TouchableOpacity
                     style={[styles.navBtn, currentIdx === 0 && styles.navBtnDisabled]}
                     disabled={currentIdx === 0}
@@ -549,7 +837,10 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
                     }}
                     activeOpacity={0.7}
                 >
-                    <ChevronLeft color={currentIdx === 0 ? theme.colors.textSecondary : theme.colors.textPrimary} size={18} />
+                    <ChevronLeft
+                        color={currentIdx === 0 ? theme.colors.textDisabled : theme.colors.textPrimary}
+                        size={18}
+                    />
                     <Text style={[styles.navBtnText, currentIdx === 0 && styles.navBtnTextDisabled]}>
                         {t('previous', 'Previous')}
                     </Text>
@@ -569,13 +860,19 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
                     </TouchableOpacity>
                 ) : (
                     <TouchableOpacity
-                        style={[styles.primaryNavBtn, { backgroundColor: theme.colors.status.success }]}
+                        style={[styles.primaryNavBtn, styles.submitNavBtn]}
                         onPress={handleManualSubmitConfirm}
                         disabled={submitting}
                         activeOpacity={0.85}
                     >
-                        <CheckCircle2 color="#FFFFFF" size={18} />
-                        <Text style={styles.primaryNavBtnText}>{t('submit_quiz', 'Submit Quiz')}</Text>
+                        {submitting ? (
+                            <ActivityIndicator size="small" color="#FFFFFF" />
+                        ) : (
+                            <>
+                                <CheckCircle2 color="#FFFFFF" size={17} />
+                                <Text style={styles.primaryNavBtnText}>{t('submit_quiz', 'Submit Exam')}</Text>
+                            </>
+                        )}
                     </TouchableOpacity>
                 )}
             </View>
@@ -591,54 +888,138 @@ const stylesheet = StyleSheet.create((theme) => ({
     topBar: {
         flexDirection: 'row',
         alignItems: 'center',
+        justifyContent: 'space-between',
         paddingHorizontal: theme.spacing.md + 4,
-        paddingVertical: theme.spacing.md,
+        paddingVertical: theme.spacing.sm + 4,
+        backgroundColor: theme.colors.background,
+    },
+    topBarSpacer: {
+        width: 38,
     },
     iconCircle: {
         width: 38,
         height: 38,
         borderRadius: theme.borderRadius.md,
         backgroundColor: theme.colors.surface,
+        justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
         borderColor: theme.colors.border,
     },
     headerTitle: {
         color: theme.colors.textPrimary,
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: '700',
     },
     timerBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(245, 158, 11, 0.12)',
+        backgroundColor: theme.colors.surface,
         paddingHorizontal: theme.spacing.md,
         paddingVertical: 6,
         borderRadius: theme.borderRadius.full,
         borderWidth: 1,
-        borderColor: 'rgba(245, 158, 11, 0.3)',
+        borderColor: theme.colors.border,
         gap: 6,
+    },
+    timerBadgeWarning: {
+        backgroundColor: 'rgba(245, 158, 11, 0.12)',
+        borderColor: 'rgba(245, 158, 11, 0.35)',
+    },
+    timerBadgeCritical: {
+        backgroundColor: 'rgba(220, 38, 38, 0.12)',
+        borderColor: 'rgba(220, 38, 38, 0.4)',
     },
     timerText: {
         fontSize: 13,
         fontWeight: '800',
-        color: '#D97706',
+        color: theme.colors.textPrimary,
+    },
+    timerTextWarning: {
+        color: theme.colors.status.warning,
+    },
+    timerTextCritical: {
+        color: theme.colors.status.danger,
     },
     violationBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+        backgroundColor: theme.colors.status.dangerSubtle,
         paddingHorizontal: theme.spacing.sm + 2,
-        paddingVertical: 5,
+        paddingVertical: 6,
         borderRadius: theme.borderRadius.full,
         borderWidth: 1,
-        borderColor: 'rgba(239, 68, 68, 0.25)',
+        borderColor: theme.colors.status.dangerBorder,
         gap: 4,
     },
     violationText: {
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: '800',
-        color: '#EF4444',
+        color: theme.colors.status.danger,
+    },
+    answeredBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: theme.colors.status.successSubtle,
+        paddingHorizontal: theme.spacing.sm + 2,
+        paddingVertical: 6,
+        borderRadius: theme.borderRadius.full,
+        borderWidth: 1,
+        borderColor: theme.colors.status.successBorder,
+        gap: 4,
+    },
+    answeredBadgeText: {
+        fontSize: 12,
+        fontWeight: '800',
+        color: theme.colors.status.success,
+    },
+    questionStripContainer: {
+        backgroundColor: theme.colors.surface,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.colors.border,
+        paddingVertical: theme.spacing.sm + 2,
+    },
+    questionStripScroll: {
+        paddingHorizontal: theme.spacing.md + 4,
+        gap: theme.spacing.sm,
+        alignItems: 'center',
+    },
+    questionPill: {
+        width: 38,
+        height: 38,
+        borderRadius: theme.borderRadius.md,
+        backgroundColor: theme.colors.surfaceSubtle,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        position: 'relative',
+    },
+    questionPillActive: {
+        borderWidth: 2,
+    },
+    questionPillAnswered: {
+        backgroundColor: theme.colors.surface,
+        borderColor: theme.colors.borderStrong,
+    },
+    questionPillText: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: theme.colors.textSecondary,
+    },
+    questionPillTextAnswered: {
+        color: theme.colors.textPrimary,
+    },
+    questionPillTextActive: {
+        fontWeight: '800',
+    },
+    answeredDot: {
+        position: 'absolute',
+        top: 4,
+        right: 4,
+        width: 5,
+        height: 5,
+        borderRadius: 2.5,
     },
     container: {
         flex: 1,
@@ -650,17 +1031,26 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     loadingContainer: {
         flex: 1,
+        justifyContent: 'center',
         alignItems: 'center',
-        paddingVertical: theme.spacing.xxl,
+        paddingHorizontal: theme.spacing.lg,
+        gap: theme.spacing.md,
+    },
+    loadingText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: theme.colors.textSecondary,
+        textAlign: 'center',
     },
     termsWrapper: {
-        paddingTop: theme.spacing.md,
         alignItems: 'center',
+        paddingTop: theme.spacing.sm,
     },
     lockIconBox: {
-        width: 64,
-        height: 64,
+        width: 68,
+        height: 68,
         borderRadius: theme.borderRadius.lg,
+        justifyContent: 'center',
         alignItems: 'center',
         marginBottom: theme.spacing.md,
     },
@@ -669,15 +1059,47 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontWeight: '800',
         color: theme.colors.textPrimary,
         textAlign: 'center',
-        textTransform: 'uppercase',
+        letterSpacing: -0.3,
     },
     termsSubTitle: {
-        fontSize: 11,
+        fontSize: 12,
         fontWeight: '800',
         textTransform: 'uppercase',
         letterSpacing: 1,
-        marginTop: 4,
+        marginTop: 6,
         marginBottom: theme.spacing.lg,
+    },
+    statsGrid: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        width: '100%',
+        gap: theme.spacing.sm + 2,
+        marginBottom: theme.spacing.lg,
+    },
+    statBox: {
+        flex: 1,
+        backgroundColor: theme.colors.surface,
+        borderRadius: theme.borderRadius.md,
+        paddingVertical: theme.spacing.md,
+        paddingHorizontal: theme.spacing.sm,
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        gap: 4,
+        ...theme.shadows.sm,
+    },
+    statValue: {
+        fontSize: 14,
+        fontWeight: '800',
+        color: theme.colors.textPrimary,
+        marginTop: 2,
+    },
+    statLabel: {
+        fontSize: 10,
+        fontWeight: '700',
+        color: theme.colors.textSecondary,
+        textTransform: 'uppercase',
+        letterSpacing: 0.3,
     },
     instructionsCard: {
         backgroundColor: theme.colors.surface,
@@ -693,49 +1115,71 @@ const stylesheet = StyleSheet.create((theme) => ({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        marginBottom: theme.spacing.md,
+        marginBottom: theme.spacing.md + 2,
+        paddingBottom: theme.spacing.sm,
+        borderBottomWidth: 1,
+        borderBottomColor: theme.colors.border,
     },
     instructionsHeaderTitle: {
-        fontSize: 12,
+        fontSize: 13,
         fontWeight: '800',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-        color: theme.colors.textSecondary,
+        color: theme.colors.textPrimary,
     },
     ruleItem: {
         flexDirection: 'row',
         alignItems: 'flex-start',
-        gap: 8,
-        marginBottom: theme.spacing.sm + 4,
+        gap: 10,
+        marginBottom: theme.spacing.md,
     },
     ruleDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        marginTop: 6,
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        marginTop: 5,
+    },
+    ruleTextContainer: {
+        flex: 1,
+        gap: 2,
+    },
+    ruleTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        color: theme.colors.textPrimary,
+    },
+    ruleTitleDanger: {
+        color: theme.colors.status.danger,
+    },
+    ruleTitleWarning: {
+        color: theme.colors.status.warning,
     },
     ruleText: {
-        fontSize: 13,
-        color: theme.colors.textPrimary,
+        fontSize: 12,
+        color: theme.colors.textSecondary,
         lineHeight: 18,
-        flex: 1,
     },
     primaryActionBtn: {
         width: '100%',
         height: 50,
-        borderRadius: theme.borderRadius.lg,
+        borderRadius: theme.borderRadius.md,
+        flexDirection: 'row',
+        justifyContent: 'center',
         alignItems: 'center',
+        gap: 6,
         marginBottom: theme.spacing.sm + 4,
+        ...theme.shadows.sm,
     },
     primaryActionBtnText: {
         color: '#FFFFFF',
         fontSize: 14,
         fontWeight: '800',
+        letterSpacing: 0.2,
     },
     outlineActionBtn: {
         width: '100%',
         height: 48,
-        borderRadius: theme.borderRadius.lg,
+        borderRadius: theme.borderRadius.md,
+        flexDirection: 'row',
+        justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
         borderColor: theme.colors.border,
@@ -744,13 +1188,14 @@ const stylesheet = StyleSheet.create((theme) => ({
     outlineActionBtnText: {
         color: theme.colors.textPrimary,
         fontSize: 13,
-        fontWeight: '800',
+        fontWeight: '700',
     },
     progressSection: {
         marginBottom: theme.spacing.md,
     },
     progressTextRow: {
         flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: theme.spacing.xs + 2,
     },
@@ -777,15 +1222,21 @@ const stylesheet = StyleSheet.create((theme) => ({
     emptyCard: {
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg,
-        padding: theme.spacing.xl,
+        padding: theme.spacing.xxl,
         alignItems: 'center',
         borderWidth: 1,
         borderColor: theme.colors.border,
+        gap: theme.spacing.sm,
     },
     emptyTitle: {
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: '700',
         color: theme.colors.textPrimary,
+    },
+    emptySubtitle: {
+        fontSize: 13,
+        color: theme.colors.textSecondary,
+        textAlign: 'center',
     },
     questionCard: {
         backgroundColor: theme.colors.surface,
@@ -797,13 +1248,14 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     qHeaderRow: {
         flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
         marginBottom: theme.spacing.md,
     },
     typeBadge: {
         backgroundColor: theme.colors.surfaceSubtle,
-        paddingHorizontal: theme.spacing.sm,
-        paddingVertical: 3,
+        paddingHorizontal: theme.spacing.sm + 2,
+        paddingVertical: 4,
         borderRadius: theme.borderRadius.sm,
         borderWidth: 1,
         borderColor: theme.colors.border,
@@ -812,18 +1264,40 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontSize: 10,
         fontWeight: '800',
         color: theme.colors.textSecondary,
+        letterSpacing: 0.5,
+    },
+    pointsBadge: {
+        backgroundColor: theme.colors.surfaceSubtle,
+        paddingHorizontal: theme.spacing.sm + 2,
+        paddingVertical: 4,
+        borderRadius: theme.borderRadius.sm,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
     },
     pointsBadgeText: {
-        fontSize: 12,
+        fontSize: 11,
         fontWeight: '800',
         color: theme.colors.textSecondary,
     },
     questionText: {
         fontSize: 16,
-        fontWeight: '800',
+        fontWeight: '700',
         color: theme.colors.textPrimary,
-        lineHeight: 22,
-        marginBottom: theme.spacing.lg,
+        lineHeight: 23,
+        marginBottom: theme.spacing.md,
+    },
+    multipleHintBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: theme.spacing.md,
+    },
+    multipleHintText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    essayWrapper: {
+        gap: theme.spacing.xs + 2,
     },
     textArea: {
         backgroundColor: theme.colors.surfaceSubtle,
@@ -834,7 +1308,13 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textPrimary,
         fontSize: 14,
         textAlignVertical: 'top',
-        minHeight: 120,
+        minHeight: 130,
+    },
+    charCountText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: theme.colors.textDisabled,
+        alignSelf: 'flex-end',
     },
     optionsList: {
         gap: theme.spacing.sm + 2,
@@ -843,23 +1323,27 @@ const stylesheet = StyleSheet.create((theme) => ({
         flexDirection: 'row',
         alignItems: 'center',
         padding: theme.spacing.md,
-        borderRadius: theme.borderRadius.lg,
-        borderWidth: 1,
+        borderRadius: theme.borderRadius.md,
+        borderWidth: 1.2,
         borderColor: theme.colors.border,
         backgroundColor: theme.colors.surface,
     },
     optionCardSelected: {
         borderWidth: 1.5,
     },
-    optCircle: {
+    optIndicator: {
         width: 28,
         height: 28,
         borderRadius: 14,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderWidth: 1.5,
+        borderColor: theme.colors.borderStrong,
+        justifyContent: 'center',
         alignItems: 'center',
-        marginRight: theme.spacing.sm + 2,
+        marginRight: theme.spacing.md,
         backgroundColor: theme.colors.surfaceSubtle,
+    },
+    optIndicatorSquare: {
+        borderRadius: theme.borderRadius.sm,
     },
     optLetterText: {
         fontSize: 12,
@@ -869,30 +1353,41 @@ const stylesheet = StyleSheet.create((theme) => ({
     optionText: {
         fontSize: 14,
         fontWeight: '600',
-        color: theme.colors.textPrimary,
+        color: theme.colors.textSecondary,
         flex: 1,
+        lineHeight: 20,
+    },
+    optionTextSelected: {
+        fontWeight: '700',
+        color: theme.colors.textPrimary,
+    },
+    optionTextSelectedDark: {
+        color: '#FFFFFF',
     },
     footerBar: {
         flexDirection: 'row',
+        justifyContent: 'space-between',
         alignItems: 'center',
         backgroundColor: theme.colors.surface,
         borderTopWidth: 1,
         borderTopColor: theme.colors.border,
         paddingHorizontal: theme.spacing.md + 4,
-        paddingVertical: theme.spacing.md,
+        paddingTop: theme.spacing.md,
     },
     navBtn: {
         flexDirection: 'row',
+        justifyContent: 'center',
         alignItems: 'center',
-        gap: 4,
-        paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.sm,
+        gap: 6,
+        paddingHorizontal: theme.spacing.lg,
+        height: 46,
         borderRadius: theme.borderRadius.md,
         borderWidth: 1,
         borderColor: theme.colors.border,
+        backgroundColor: theme.colors.surface,
     },
     navBtnDisabled: {
-        opacity: 0.5,
+        opacity: 0.45,
     },
     navBtnText: {
         fontSize: 13,
@@ -900,15 +1395,19 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textPrimary,
     },
     navBtnTextDisabled: {
-        color: theme.colors.textSecondary,
+        color: theme.colors.textDisabled,
     },
     primaryNavBtn: {
         flexDirection: 'row',
+        justifyContent: 'center',
         alignItems: 'center',
         gap: 6,
-        paddingHorizontal: theme.spacing.lg,
-        paddingVertical: theme.spacing.sm + 2,
+        paddingHorizontal: theme.spacing.xl,
+        height: 46,
         borderRadius: theme.borderRadius.md,
+    },
+    submitNavBtn: {
+        backgroundColor: theme.colors.status.success,
     },
     primaryNavBtnText: {
         fontSize: 13,
