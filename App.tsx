@@ -30,9 +30,14 @@ function AppInner({ onReady }: { onReady?: () => void }) {
 
 export default function App() {
     const [fontsLoaded] = useFonts({
-        'Google Sans': require('./assets/fonts/GoogleSans-Regular.ttf'),
-        'Krasar': require('./assets/fonts/Krasar-regular.ttf'),
-        'Kantumruy Pro': require('./assets/fonts/KantumruyPro-Regular.ttf'),
+        'Inter-Regular': require('./assets/fonts/Inter_18pt-Regular.ttf'),
+        'Inter-Medium': require('./assets/fonts/Inter_18pt-Medium.ttf'),
+        'Inter-SemiBold': require('./assets/fonts/Inter_18pt-SemiBold.ttf'),
+        'Inter-Bold': require('./assets/fonts/Inter_18pt-Bold.ttf'),
+        'InterKhmerLooped-Regular': require('./assets/fonts/InterKhmerLooped-Regular.ttf'),
+        'InterKhmerLooped-Medium': require('./assets/fonts/InterKhmerLooped-Medium.ttf'),
+        'InterKhmerLooped-SemiBold': require('./assets/fonts/InterKhmerLooped-SemiBold.ttf'),
+        'InterKhmerLooped-Bold': require('./assets/fonts/InterKhmerLooped-Bold.ttf'),
     });
 
     const handleReady = useCallback(async () => {

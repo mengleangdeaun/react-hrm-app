@@ -1,92 +1,134 @@
 import React, { useState } from 'react';
 import {
     View,
-    Text,
     StyleSheet,
-    TextInput,
-    TouchableOpacity,
-    SafeAreaView,
-    StatusBar,
     Alert,
-    ScrollView,
 } from 'react-native';
-import { ArrowLeft, RefreshCw, Calendar } from 'lucide-react-native';
+import { AppText as Text } from '../../components/AppText';
+import { format } from 'date-fns';
+import { RefreshCw, Calendar, Users, FileText } from 'lucide-react-native';
+import { useAppTheme } from '../../context/ThemeContext';
+import { lightTheme, darkTheme } from '../../styles/theme';
+import { AppShell } from '../../components/common/AppShell';
+import { AppCard } from '../../components/common/AppCard';
+import { AppInput } from '../../components/common/AppInput';
+import { AppButton } from '../../components/common/AppButton';
+import { NativeDatePickerField } from '../../components/common/NativeDatePickerField';
 
 export const DayOffScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-    const [targetDate, setTargetDate] = useState('2026-08-05');
+    const { isDark } = useAppTheme();
+    const theme = isDark ? darkTheme : lightTheme;
+
+    const [targetDate, setTargetDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
     const [swapEmployee, setSwapEmployee] = useState('');
     const [reason, setReason] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = () => {
-        if (!reason) {
+        if (!reason.trim()) {
             Alert.alert('Required', 'Please enter a reason for off-day / shift swap request.');
             return;
         }
-        Alert.alert('Request Sent', 'Off-day request has been sent for manager review.', [
-            { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
+
+        setIsSubmitting(true);
+        setTimeout(() => {
+            setIsSubmitting(false);
+            Alert.alert(
+                'Request Sent! 🎉',
+                'Your off-day / shift swap request has been submitted for supervisor review.',
+                [{ text: 'OK', onPress: () => navigation.goBack() }]
+            );
+        }, 600);
     };
 
     return (
-        <SafeAreaView style={styles.safeArea}>
-            <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
-            <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-                <View style={styles.topBar}>
-                    <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()}>
-                        <ArrowLeft color="#F8FAFC" size={20} />
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Off-Day & Shift Swap</Text>
-                    <View style={{ width: 40 }} />
+        <AppShell title="Off-Day & Shift Swap" onBack={() => navigation.goBack()}>
+            <AppCard variant="surface" style={styles.card}>
+                <View style={styles.headerInfoRow}>
+                    <View style={[styles.iconBadge, { backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}>
+                        <Calendar color="#EF4444" size={20} />
+                    </View>
+                    <View style={styles.headerTextWrapper}>
+                        <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
+                            Request Rest Day Swap
+                        </Text>
+                        <Text style={[styles.cardSub, { color: theme.colors.textSecondary }]}>
+                            Adjust your assigned rest day or arrange a swap with a teammate.
+                        </Text>
+                    </View>
                 </View>
 
-                <Text style={styles.label}>Target Off-Day Date</Text>
-                <TextInput
-                    style={styles.input}
+                {/* Target Date Picker */}
+                <NativeDatePickerField
+                    label="Target Off-Day Date"
                     value={targetDate}
-                    onChangeText={setTargetDate}
-                    placeholder="YYYY-MM-DD"
-                    placeholderTextColor="#64748B"
+                    onChange={setTargetDate}
                 />
 
-                <Text style={styles.label}>Substitute Colleague (Shift Swap Optional)</Text>
-                <TextInput
-                    style={styles.input}
+                {/* Substitute Colleague */}
+                <AppInput
+                    label="Substitute Colleague (Shift Swap Optional)"
                     value={swapEmployee}
                     onChangeText={setSwapEmployee}
-                    placeholder="Enter colleague name or code"
-                    placeholderTextColor="#64748B"
+                    placeholder="Enter colleague name or code (optional)"
+                    icon={<Users color={theme.colors.textSecondary} size={18} />}
                 />
 
-                <Text style={styles.label}>Reason</Text>
-                <TextInput
-                    style={[styles.input, styles.textArea]}
+                {/* Reason Input */}
+                <AppInput
+                    label="Reason for Request"
                     value={reason}
                     onChangeText={setReason}
-                    placeholder="Explain why you are requesting off-day / shift swap..."
-                    placeholderTextColor="#64748B"
+                    placeholder="Explain why you are requesting this off-day / shift swap..."
                     multiline
                     numberOfLines={4}
+                    icon={<FileText color={theme.colors.textSecondary} size={18} />}
                 />
 
-                <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
-                    <RefreshCw color="#FFFFFF" size={18} />
-                    <Text style={styles.submitBtnText}>Submit Swap Request</Text>
-                </TouchableOpacity>
-            </ScrollView>
-        </SafeAreaView>
+                {/* Submit Action */}
+                <View style={styles.submitWrapper}>
+                    <AppButton
+                        title="Submit Swap Request"
+                        onPress={handleSubmit}
+                        loading={isSubmitting}
+                        icon={<RefreshCw color="#FFFFFF" size={18} />}
+                    />
+                </View>
+            </AppCard>
+        </AppShell>
     );
 };
 
 const styles = StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: '#0F172A' },
-    container: { flex: 1 },
-    content: { padding: 20 },
-    topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    iconCircle: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#1E293B', justifyContent: 'center', alignItems: 'center' },
-    headerTitle: { color: '#F8FAFC', fontSize: 18, fontWeight: '700' },
-    label: { color: '#94A3B8', fontSize: 13, fontWeight: '600', marginBottom: 8, marginTop: 14 },
-    input: { backgroundColor: '#1E293B', borderRadius: 12, borderWidth: 1, borderColor: '#334155', color: '#F8FAFC', paddingHorizontal: 14, height: 48, fontSize: 14 },
-    textArea: { height: 100, textAlignVertical: 'top', paddingTop: 12 },
-    submitBtn: { flexDirection: 'row', gap: 8, backgroundColor: '#2563EB', height: 52, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginTop: 28 },
-    submitBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+    card: {
+        marginTop: 6,
+    },
+    headerInfoRow: {
+        flexDirection: 'row',
+        gap: 12,
+        alignItems: 'center',
+        marginBottom: 18,
+    },
+    iconBadge: {
+        width: 44,
+        height: 44,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    headerTextWrapper: {
+        flex: 1,
+    },
+    cardTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    cardSub: {
+        fontSize: 12,
+        marginTop: 2,
+        lineHeight: 16,
+    },
+    submitWrapper: {
+        marginTop: 12,
+    },
 });

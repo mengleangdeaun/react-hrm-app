@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
     View,
-    Text,
     TextInput,
     TouchableOpacity,
     Alert,
@@ -9,12 +8,16 @@ import {
     ScrollView,
     Platform,
 } from 'react-native';
+import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import * as DocumentPicker from 'expo-document-picker';
 import { leaveApi, LeaveBalance } from '../../api/leave';
 import { useAppTheme } from '../../context/ThemeContext';
 import { AppShell } from '../../components/common/AppShell';
+import { HeaderIconButton } from '../../components/common/AppHeader';
 import { CreateLeaveSkeleton } from '../../components/common/Skeletons';
+import { NativeDatePickerField } from '../../components/common/NativeDatePickerField';
+import { NativeTimePickerField } from '../../components/common/NativeTimePickerField';
 import {
     Calendar,
     Paperclip,
@@ -143,14 +146,11 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
     };
 
     const headerRight = (
-        <TouchableOpacity
-            style={styles.headerIconBtnSubtle}
+        <HeaderIconButton
+            icon={<History color={theme.colors.brand} size={20} />}
             onPress={() => navigation.navigate('LeaveList')}
-            activeOpacity={0.8}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-            <History color={theme.colors.primary} size={20} />
-        </TouchableOpacity>
+            accessibilityLabel="Leave applications history"
+        />
     );
 
     return (
@@ -236,50 +236,39 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
 
                 <View style={styles.dateRow}>
                     <View style={styles.dateField}>
-                        <Text style={styles.inputLabel}>Start Date</Text>
-                        <TextInput
-                            style={styles.input}
+                        <NativeDatePickerField
+                            label="Start Date"
                             value={startDate}
-                            onChangeText={setStartDate}
-                            placeholder="YYYY-MM-DD"
-                            placeholderTextColor={theme.colors.textSecondary}
+                            onChange={setStartDate}
                         />
                     </View>
 
                     {durationType === 'multi_day' && (
                         <View style={styles.dateField}>
-                            <Text style={styles.inputLabel}>End Date</Text>
-                            <TextInput
-                                style={styles.input}
+                            <NativeDatePickerField
+                                label="End Date"
                                 value={endDate}
-                                onChangeText={setEndDate}
-                                placeholder="YYYY-MM-DD"
-                                placeholderTextColor={theme.colors.textSecondary}
+                                onChange={setEndDate}
+                                minDate={startDate}
                             />
                         </View>
                     )}
                 </View>
 
                 {durationType === 'custom_time' && (
-                    <View style={[styles.dateRow, { marginTop: 10 }]}>
+                    <View style={[styles.dateRow, { marginTop: 4 }]}>
                         <View style={styles.dateField}>
-                            <Text style={styles.inputLabel}>Start Time</Text>
-                            <TextInput
-                                style={styles.input}
+                            <NativeTimePickerField
+                                label="Start Time"
                                 value={startTime}
-                                onChangeText={setStartTime}
-                                placeholder="HH:mm"
-                                placeholderTextColor={theme.colors.textSecondary}
+                                onChange={setStartTime}
                             />
                         </View>
                         <View style={styles.dateField}>
-                            <Text style={styles.inputLabel}>End Time</Text>
-                            <TextInput
-                                style={styles.input}
+                            <NativeTimePickerField
+                                label="End Time"
                                 value={endTime}
-                                onChangeText={setEndTime}
-                                placeholder="HH:mm"
-                                placeholderTextColor={theme.colors.textSecondary}
+                                onChange={setEndTime}
                             />
                         </View>
                     </View>

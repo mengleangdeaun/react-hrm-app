@@ -1,94 +1,129 @@
 import React, { useState } from 'react';
 import {
     View,
-    Text,
     StyleSheet,
-    TextInput,
     TouchableOpacity,
-    SafeAreaView,
-    StatusBar,
     Alert,
-    ScrollView,
 } from 'react-native';
-import { ArrowLeft, Gift, Heart, Send } from 'lucide-react-native';
+import { AppText as Text } from '../../components/AppText';
+import { Gift, Heart, Send } from 'lucide-react-native';
+import { useAppTheme } from '../../context/ThemeContext';
+import { lightTheme, darkTheme } from '../../styles/theme';
+import { AppShell } from '../../components/common/AppShell';
+import { AppCard } from '../../components/common/AppCard';
+import { AppInput } from '../../components/common/AppInput';
+import { AppButton } from '../../components/common/AppButton';
 
 export const CelebrationWishScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+    const { isDark } = useAppTheme();
+    const theme = isDark ? darkTheme : lightTheme;
+
     const [wishText, setWishText] = useState('');
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSend = () => {
-        if (!wishText) {
+        if (!wishText.trim()) {
             Alert.alert('Required', 'Please write a wish message.');
             return;
         }
-        Alert.alert('Wish Sent! 🎉', 'Your birthday wish has been delivered to Sarah Jenkins.', [
-            { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
+
+        setIsSubmitting(true);
+        setTimeout(() => {
+            setIsSubmitting(false);
+            Alert.alert(
+                'Wish Sent! 🎉',
+                'Your celebratory wish has been delivered to your colleague.',
+                [{ text: 'OK', onPress: () => navigation.goBack() }]
+            );
+        }, 500);
     };
 
     return (
-        <SafeAreaView style={styles.safeArea}>
-            <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
-            <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-                <View style={styles.topBar}>
-                    <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()}>
-                        <ArrowLeft color="#F8FAFC" size={20} />
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Send Celebration Wish</Text>
-                    <View style={{ width: 40 }} />
+        <AppShell title="Send Celebration Wish" onBack={() => navigation.goBack()}>
+            <AppCard variant="surface" style={styles.heroCard}>
+                <View style={[styles.giftIconCircle, { backgroundColor: 'rgba(236, 72, 153, 0.12)' }]}>
+                    <Gift color="#EC4899" size={32} />
                 </View>
+                <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
+                    Happy Celebration! 🎂
+                </Text>
+                <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+                    Send your colleague warm birthday or milestone wishes today.
+                </Text>
+            </AppCard>
 
-                <View style={styles.cardHeader}>
-                    <View style={styles.giftIconCircle}>
-                        <Gift color="#EC4899" size={36} />
-                    </View>
-                    <Text style={styles.title}>Happy Birthday, Sarah! 🎂</Text>
-                    <Text style={styles.subtitle}>Send your colleague warm birthday wishes today.</Text>
-                </View>
-
-                <Text style={styles.label}>Your Wish Message</Text>
-                <TextInput
-                    style={[styles.input, styles.textArea]}
+            <AppCard variant="surface">
+                <AppInput
+                    label="Your Wish Message"
                     value={wishText}
                     onChangeText={setWishText}
-                    placeholder="Wishing you a wonderful birthday filled with joy and success! 🎉"
-                    placeholderTextColor="#64748B"
+                    placeholder="Wishing you a wonderful celebration filled with joy and success! 🎉"
                     multiline
                     numberOfLines={4}
                 />
 
-                <TouchableOpacity style={styles.submitBtn} onPress={handleSend}>
-                    <Send color="#FFFFFF" size={18} />
-                    <Text style={styles.submitBtnText}>Send Wish</Text>
-                </TouchableOpacity>
+                <View style={styles.btnWrapper}>
+                    <AppButton
+                        title="Send Wish"
+                        onPress={handleSend}
+                        loading={isSubmitting}
+                        icon={<Send color="#FFFFFF" size={18} />}
+                    />
+                </View>
 
                 <TouchableOpacity
                     style={styles.inboxBtn}
                     onPress={() => navigation.navigate('WishesInbox')}
+                    activeOpacity={0.75}
                 >
-                    <Heart color="#EC4899" size={18} />
+                    <Heart color="#EC4899" size={16} />
                     <Text style={styles.inboxBtnText}>View My Received Wishes Inbox</Text>
                 </TouchableOpacity>
-            </ScrollView>
-        </SafeAreaView>
+            </AppCard>
+        </AppShell>
     );
 };
 
 const styles = StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: '#0F172A' },
-    container: { flex: 1 },
-    content: { padding: 20 },
-    topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    iconCircle: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#1E293B', justifyContent: 'center', alignItems: 'center' },
-    headerTitle: { color: '#F8FAFC', fontSize: 18, fontWeight: '700' },
-    cardHeader: { alignItems: 'center', backgroundColor: '#1E293B', borderRadius: 24, padding: 24, marginBottom: 24, borderWidth: 1, borderColor: '#334155' },
-    giftIconCircle: { width: 70, height: 70, borderRadius: 24, backgroundColor: '#EC489920', justifyContent: 'center', alignItems: 'center', marginBottom: 16 },
-    title: { color: '#F8FAFC', fontSize: 20, fontWeight: '800', textAlign: 'center' },
-    subtitle: { color: '#94A3B8', fontSize: 13, textAlign: 'center', marginTop: 6 },
-    label: { color: '#94A3B8', fontSize: 13, fontWeight: '600', marginBottom: 8 },
-    input: { backgroundColor: '#1E293B', borderRadius: 12, borderWidth: 1, borderColor: '#334155', color: '#F8FAFC', paddingHorizontal: 14, fontSize: 14 },
-    textArea: { height: 110, textAlignVertical: 'top', paddingTop: 12 },
-    submitBtn: { flexDirection: 'row', gap: 8, backgroundColor: '#EC4899', height: 52, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginTop: 24 },
-    submitBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-    inboxBtn: { flexDirection: 'row', gap: 8, justifyContent: 'center', alignItems: 'center', marginTop: 20, padding: 12 },
-    inboxBtnText: { color: '#EC4899', fontSize: 14, fontWeight: '600' },
+    heroCard: {
+        alignItems: 'center',
+        paddingVertical: 24,
+        paddingHorizontal: 16,
+        marginBottom: 14,
+    },
+    giftIconCircle: {
+        width: 64,
+        height: 64,
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    title: {
+        fontSize: 18,
+        fontWeight: '800',
+        textAlign: 'center',
+    },
+    subtitle: {
+        fontSize: 13,
+        textAlign: 'center',
+        marginTop: 4,
+        lineHeight: 18,
+    },
+    btnWrapper: {
+        marginTop: 8,
+    },
+    inboxBtn: {
+        flexDirection: 'row',
+        gap: 6,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 16,
+        paddingVertical: 8,
+    },
+    inboxBtnText: {
+        color: '#EC4899',
+        fontSize: 13,
+        fontWeight: '700',
+    },
 });

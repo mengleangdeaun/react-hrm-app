@@ -1,10 +1,19 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { AppText as Text } from '../components/AppText';
 import { createBottomTabNavigator, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import {
+    Home,
+    CalendarDays,
+    QrCode,
+    Bell,
+    User,
+} from 'lucide-react-native';
+
 import { useAppTheme } from '../context/ThemeContext';
 import { lightTheme, darkTheme } from '../styles/theme';
 
@@ -62,12 +71,6 @@ function NotificationStack() {
         <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="NotificationList" component={NotificationListScreen} />
             <Stack.Screen name="AnnouncementDetail" component={AnnouncementDetailScreen} />
-            <Stack.Screen name="LeaveList" component={LeaveListScreen} />
-            <Stack.Screen name="CelebrationWish" component={CelebrationWishScreen} />
-            <Stack.Screen name="WishesInbox" component={WishesInboxScreen} />
-            <Stack.Screen name="QuizList" component={QuizListScreen} />
-            <Stack.Screen name="TakeQuiz" component={TakeQuizScreen} />
-            <Stack.Screen name="QuizResult" component={QuizResultScreen} />
         </Stack.Navigator>
     );
 }
@@ -77,17 +80,33 @@ function ProfileStack() {
         <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="ProfileMain" component={ProfileScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
-            <Stack.Screen name="AppTour" component={OnboardingScreen} />
+            <Stack.Screen name="OnboardingTour" component={OnboardingScreen} />
         </Stack.Navigator>
     );
 }
 
-const TAB_CONFIGS: Record<string, { label: string; icon: keyof typeof Ionicons.glyphMap; focusedIcon: keyof typeof Ionicons.glyphMap }> = {
-    HomeTab: { label: 'Home', icon: 'home-outline', focusedIcon: 'home' },
-    CalendarTab: { label: 'Calendar', icon: 'calendar-outline', focusedIcon: 'calendar' },
-    ScanTab: { label: 'Scan', icon: 'qr-code-outline', focusedIcon: 'qr-code' },
-    NotiTab: { label: 'Noti', icon: 'notifications-outline', focusedIcon: 'notifications' },
-    ProfileTab: { label: 'Profile', icon: 'person-outline', focusedIcon: 'person' },
+const TAB_CONFIGS: Record<string, { label: string; icon: any; isHero?: boolean }> = {
+    HomeTab: {
+        label: 'Home',
+        icon: Home,
+    },
+    CalendarTab: {
+        label: 'Calendar',
+        icon: CalendarDays,
+    },
+    ScanTab: {
+        label: 'Scan',
+        icon: QrCode,
+        isHero: true,
+    },
+    NotiTab: {
+        label: 'Notices',
+        icon: Bell,
+    },
+    ProfileTab: {
+        label: 'Profile',
+        icon: User,
+    },
 };
 
 function CustomTabBar({ state, descriptors, navigation }: any) {
@@ -96,12 +115,12 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
     const theme = isDark ? darkTheme : lightTheme;
 
     const backgroundColor = theme.colors.surface;
-    const borderTopColor = theme.colors.border;
-    const activeColor = theme.colors.primary;
+    const borderTopColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
+    const activeColor = theme.colors.brand;
     const inactiveColor = theme.colors.textSecondary;
 
-    const bottomPadding = insets.bottom > 0 ? insets.bottom : 6;
-    const containerHeight = 54 + bottomPadding;
+    const bottomPadding = insets.bottom > 0 ? insets.bottom : 8;
+    const containerHeight = 56 + bottomPadding;
 
     const activeRoute = state.routes[state.index];
     const activeSubRouteName = getFocusedRouteNameFromRoute(activeRoute);
@@ -114,6 +133,10 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         'ProfileMain',
     ];
     const isSubScreenActive = activeSubRouteName ? !mainTabScreens.includes(activeSubRouteName) : false;
+
+    if (isSubScreenActive) {
+        return null;
+    }
 
     return (
         <View
@@ -128,14 +151,15 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
             ]}
         >
             {state.routes.map((route: any, index: number) => {
-                const isFocused = state.index === index && !isSubScreenActive;
+                const isFocused = state.index === index;
                 const config = TAB_CONFIGS[route.name] || {
                     label: route.name,
-                    icon: 'square-outline',
-                    focusedIcon: 'square',
+                    icon: Home,
                 };
+                const IconComponent = config.icon;
 
                 const onPress = () => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                     const event = navigation.emit({
                         type: 'tabPress',
                         target: route.key,
@@ -154,6 +178,43 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                     });
                 };
 
+                // Elevated Hero Button for Center Scan Tab
+                if (config.isHero) {
+                    return (
+                        <TouchableOpacity
+                            key={route.key}
+                            accessibilityRole="button"
+                            accessibilityState={isFocused ? { selected: true } : {}}
+                            onPress={onPress}
+                            onLongPress={onLongPress}
+                            style={styles.heroTabButton}
+                            activeOpacity={0.85}
+                        >
+                            <View
+                                style={[
+                                    styles.heroIconCircle,
+                                    {
+                                        backgroundColor: activeColor,
+                                        shadowColor: activeColor,
+                                    },
+                                ]}
+                            >
+                                <IconComponent color="#FFFFFF" size={22} strokeWidth={2.4} />
+                            </View>
+                            <Text
+                                variant="nav"
+                                weight="bold"
+                                style={[
+                                    styles.heroTabLabel,
+                                    { color: isFocused ? activeColor : inactiveColor },
+                                ]}
+                            >
+                                {config.label}
+                            </Text>
+                        </TouchableOpacity>
+                    );
+                }
+
                 return (
                     <TouchableOpacity
                         key={route.key}
@@ -164,27 +225,26 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                         style={styles.tabButton}
                         activeOpacity={0.7}
                     >
-                        {/* Red Active Indicator Bar Flush at Top (y = 0) */}
-                        {isFocused && (
-                            <View style={[styles.activeIndicator, { backgroundColor: activeColor }]} />
-                        )}
-
-                        <View style={styles.tabContent}>
-                            <Ionicons
-                                name={isFocused ? config.focusedIcon : config.icon}
-                                size={22}
+                        <View style={styles.tabIconWrapper}>
+                            <IconComponent
+                                size={21}
                                 color={isFocused ? activeColor : inactiveColor}
+                                strokeWidth={isFocused ? 2.3 : 1.8}
                             />
-                            <Text
-                                style={[
-                                    styles.tabLabel,
-                                    { color: isFocused ? activeColor : inactiveColor },
-                                ]}
-                                numberOfLines={1}
-                            >
-                                {config.label}
-                            </Text>
                         </View>
+                        <Text
+                            variant="nav"
+                            weight={isFocused ? 'bold' : 'medium'}
+                            style={[
+                                styles.tabLabel,
+                                {
+                                    color: isFocused ? activeColor : inactiveColor,
+                                },
+                            ]}
+                            numberOfLines={1}
+                        >
+                            {config.label}
+                        </Text>
                     </TouchableOpacity>
                 );
             })}
@@ -212,32 +272,49 @@ export function MainTabNavigator() {
 const styles = StyleSheet.create({
     tabBarContainer: {
         flexDirection: 'row',
-        borderTopWidth: 1,
-        elevation: 0,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        elevation: 8,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 6,
+        alignItems: 'center',
     },
     tabButton: {
         flex: 1,
         alignItems: 'center',
-        justifyContent: 'flex-start',
-        position: 'relative',
-        height: '100%',
-    },
-    activeIndicator: {
-        position: 'absolute',
-        top: 0,
-        width: 32,
-        height: 3,
-        borderRadius: 0,
-        zIndex: 10,
-    },
-    tabContent: {
-        alignItems: 'center',
         justifyContent: 'center',
-        paddingTop: 8,
+        height: '100%',
+        paddingTop: 4,
+    },
+    tabIconWrapper: {
+        height: 26,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     tabLabel: {
-        fontSize: 11,
-        fontWeight: '600',
+        fontSize: 10,
+        marginTop: 2,
+    },
+    heroTabButton: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: -16,
+    },
+    heroIconCircle: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.35,
+        shadowRadius: 8,
+        elevation: 6,
+    },
+    heroTabLabel: {
+        fontSize: 10,
         marginTop: 4,
     },
 });

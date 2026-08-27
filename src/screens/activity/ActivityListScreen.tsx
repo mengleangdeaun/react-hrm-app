@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
-    Text,
     ScrollView,
     TouchableOpacity,
     Image,
@@ -12,12 +11,14 @@ import {
     Animated,
     useWindowDimensions,
 } from 'react-native';
+import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { format, parseISO, isValid } from 'date-fns';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { activityApi, ActivityItem, OFFICIAL_ACTIVITY_TYPES } from '../../api/activity';
 import { useAppTheme } from '../../context/ThemeContext';
 import { AppShell } from '../../components/common/AppShell';
+import { HeaderIconButton } from '../../components/common/AppHeader';
 import { ActivityListSkeleton } from '../../components/common/Skeletons';
 import { ENV } from '../../config/env';
 import {
@@ -253,23 +254,27 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
 
     const headerRight = (
         <View style={styles.headerRightGroup}>
-            <TouchableOpacity
-                style={styles.headerIconBtnSubtle}
+            <HeaderIconButton
+                icon={
+                    <Filter
+                        color={
+                            selectedCategory !== 'all' || selectedMonth !== currentMonthStr
+                                ? theme.colors.brand
+                                : theme.colors.textPrimary
+                        }
+                        size={18}
+                    />
+                }
                 onPress={openFilterModal}
-                activeOpacity={0.8}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-                <Filter color={(selectedCategory !== 'all' || selectedMonth !== currentMonthStr) ? theme.colors.primary : theme.colors.textPrimary} size={18} />
-            </TouchableOpacity>
+                accessibilityLabel="Filter activities"
+            />
 
-            <TouchableOpacity
-                style={styles.headerIconBtn}
+            <HeaderIconButton
+                icon={<Plus color={theme.colors.brand} size={20} />}
                 onPress={() => navigation.navigate('CreateActivity')}
-                activeOpacity={0.8}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            >
-                <Plus color="#FFFFFF" size={20} />
-            </TouchableOpacity>
+                accessibilityLabel="Create activity"
+                style={{ marginLeft: 8 }}
+            />
         </View>
     );
 

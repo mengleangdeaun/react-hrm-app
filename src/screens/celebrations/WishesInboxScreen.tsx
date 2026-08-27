@@ -1,14 +1,14 @@
 import React from 'react';
 import {
     View,
-    Text,
     StyleSheet,
-    ScrollView,
-    TouchableOpacity,
-    SafeAreaView,
-    StatusBar,
 } from 'react-native';
-import { ArrowLeft, Heart } from 'lucide-react-native';
+import { AppText as Text } from '../../components/AppText';
+import { Heart, Gift } from 'lucide-react-native';
+import { useAppTheme } from '../../context/ThemeContext';
+import { lightTheme, darkTheme } from '../../styles/theme';
+import { AppShell } from '../../components/common/AppShell';
+import { AppCard } from '../../components/common/AppCard';
 
 const MOCK_WISHES = [
     {
@@ -26,43 +26,66 @@ const MOCK_WISHES = [
 ];
 
 export const WishesInboxScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-    return (
-        <SafeAreaView style={styles.safeArea}>
-            <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
-            <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-                <View style={styles.topBar}>
-                    <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()}>
-                        <ArrowLeft color="#F8FAFC" size={20} />
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Received Celebration Wishes</Text>
-                    <View style={{ width: 40 }} />
-                </View>
+    const { isDark } = useAppTheme();
+    const theme = isDark ? darkTheme : lightTheme;
 
-                {MOCK_WISHES.map((item) => (
-                    <View key={item.id} style={styles.card}>
-                        <View style={styles.cardHeader}>
-                            <Heart color="#EC4899" size={18} />
-                            <Text style={styles.senderName}>{item.sender_name}</Text>
+    return (
+        <AppShell title="Celebration Wishes" onBack={() => navigation.goBack()}>
+            {MOCK_WISHES.map((item) => (
+                <AppCard key={item.id} variant="surface" style={styles.card}>
+                    <View style={styles.cardHeader}>
+                        <View style={[styles.heartBadge, { backgroundColor: 'rgba(236, 72, 153, 0.12)' }]}>
+                            <Heart color="#EC4899" size={16} />
                         </View>
-                        <Text style={styles.messageText}>{item.message}</Text>
-                        <Text style={styles.dateText}>{item.date}</Text>
+                        <View style={styles.senderWrapper}>
+                            <Text style={[styles.senderName, { color: theme.colors.textPrimary }]}>
+                                {item.sender_name}
+                            </Text>
+                            <Text style={[styles.dateText, { color: theme.colors.textSecondary }]}>
+                                {item.date}
+                            </Text>
+                        </View>
                     </View>
-                ))}
-            </ScrollView>
-        </SafeAreaView>
+                    <Text style={[styles.messageText, { color: theme.colors.textPrimary }]}>
+                        "{item.message}"
+                    </Text>
+                </AppCard>
+            ))}
+        </AppShell>
     );
 };
 
 const styles = StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: '#0F172A' },
-    container: { flex: 1 },
-    content: { padding: 20 },
-    topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    iconCircle: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#1E293B', justifyContent: 'center', alignItems: 'center' },
-    headerTitle: { color: '#F8FAFC', fontSize: 18, fontWeight: '700' },
-    card: { backgroundColor: '#1E293B', borderRadius: 18, padding: 16, marginBottom: 12, borderWidth: 1, borderColor: '#334155' },
-    cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-    senderName: { color: '#F8FAFC', fontSize: 15, fontWeight: '700' },
-    messageText: { color: '#94A3B8', fontSize: 13, lineHeight: 18, marginBottom: 10 },
-    dateText: { color: '#64748B', fontSize: 11 },
+    card: {
+        marginBottom: 10,
+    },
+    cardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 8,
+    },
+    heartBadge: {
+        width: 32,
+        height: 32,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    senderWrapper: {
+        flex: 1,
+    },
+    senderName: {
+        fontSize: 14,
+        fontWeight: '700',
+    },
+    dateText: {
+        fontSize: 11,
+        marginTop: 1,
+    },
+    messageText: {
+        fontSize: 13,
+        lineHeight: 18,
+        fontStyle: 'italic',
+    },
 });

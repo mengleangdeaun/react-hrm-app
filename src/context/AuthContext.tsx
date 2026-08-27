@@ -4,6 +4,7 @@ import { User } from '../types';
 import { AUTH_TOKEN_KEY, USER_DATA_KEY, apiClient } from '../api/client';
 import { storage, getOnboardingCompleted, setOnboardingCompleted, resetOnboarding } from '../utils/storage';
 import { getDeviceId } from '../utils/device';
+import { extractEmployeeQrPayload } from '../utils/qrPayload';
 
 export interface AuthApiError extends Error {
     code?: 'DEVICE_MISMATCH' | 'DEVICE_TAKEN' | string;
@@ -145,15 +146,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
-    const loginWithQr = async (qrPayload: string, force: boolean = false) => {
+    const loginWithQr = async (rawQrInput: string, force: boolean = false) => {
         setIsLoading(true);
         const isForce = force === true;
         try {
+            const parsed = extractEmployeeQrPayload(rawQrInput);
+            if (!parsed.isValid || !parsed.payload) {
+                const parseErr = new Error(parsed.error || 'Invalid Employee QR code.') as AuthApiError;
+                throw parseErr;
+            }
+
             const deviceId = await getDeviceId();
             let responseData: any;
             try {
                 const response = await apiClient.post('/attendance/employee-login', {
-                    payload: qrPayload,
+                    payload: parsed.payload,
                     device_id: deviceId,
                     force: isForce,
                 });
@@ -162,18 +169,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 if (err.response) {
                     handleApiError(err);
                 }
-                console.warn('QR API login unavailable, using demo credentials:', err.message);
-                responseData = {
-                    auth_token: 'demo_qr_token_' + Date.now(),
-                    employee: {
-                        id: 1,
-                        name: 'John Doe',
-                        email: 'employee@scool.com',
-                        code: 'EMP-001',
-                        department: 'Software Engineering',
-                        position: 'Senior Mobile Engineer',
-                    }
-                };
+                console.error('QR Login connection error:', err.message);
+                throw new Error(err?.message || 'Could not connect to the backend server. Please check your network connection.');
             }
 
             const { newToken, newUser } = parseUserResponse(responseData);

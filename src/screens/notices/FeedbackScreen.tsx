@@ -1,98 +1,180 @@
 import React, { useState } from 'react';
 import {
     View,
-    Text,
     StyleSheet,
-    TextInput,
     TouchableOpacity,
-    SafeAreaView,
-    StatusBar,
     Alert,
-    ScrollView,
 } from 'react-native';
-import { ArrowLeft, MessageSquare, Send } from 'lucide-react-native';
+import { AppText as Text } from '../../components/AppText';
+import { Send, MessageSquare, ShieldCheck, Check } from 'lucide-react-native';
+import { useAppTheme } from '../../context/ThemeContext';
+import { lightTheme, darkTheme } from '../../styles/theme';
+import { AppShell } from '../../components/common/AppShell';
+import { AppCard } from '../../components/common/AppCard';
+import { AppInput } from '../../components/common/AppInput';
+import { AppButton } from '../../components/common/AppButton';
 
 export const FeedbackScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+    const { isDark } = useAppTheme();
+    const theme = isDark ? darkTheme : lightTheme;
+
     const [subject, setSubject] = useState('');
     const [message, setMessage] = useState('');
     const [isAnonymous, setIsAnonymous] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
 
     const handleSubmit = () => {
-        if (!message) {
-            Alert.alert('Required', 'Please enter feedback details.');
+        if (!subject.trim() || !message.trim()) {
+            Alert.alert('Required', 'Please enter a subject and your feedback details.');
             return;
         }
-        Alert.alert('Feedback Submitted', 'Thank you for your feedback! HR management will review it.', [
-            { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
+
+        setIsSubmitting(true);
+        setTimeout(() => {
+            setIsSubmitting(false);
+            Alert.alert(
+                'Feedback Submitted! 🙏',
+                'Thank you for your valuable feedback. HR management will review it shortly.',
+                [{ text: 'OK', onPress: () => navigation.goBack() }]
+            );
+        }, 600);
     };
 
     return (
-        <SafeAreaView style={styles.safeArea}>
-            <StatusBar barStyle="light-content" backgroundColor="#0F172A" />
-            <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-                <View style={styles.topBar}>
-                    <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()}>
-                        <ArrowLeft color="#F8FAFC" size={20} />
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>Suggestion & Feedback</Text>
-                    <View style={{ width: 40 }} />
+        <AppShell title="Suggestion & Feedback" onBack={() => navigation.goBack()}>
+            <AppCard variant="surface" style={styles.card}>
+                <View style={styles.headerInfoRow}>
+                    <View style={[styles.iconBadge, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]}>
+                        <MessageSquare color="#2563EB" size={20} />
+                    </View>
+                    <View style={styles.headerTextWrapper}>
+                        <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
+                            Share Your Thoughts
+                        </Text>
+                        <Text style={[styles.cardSub, { color: theme.colors.textSecondary }]}>
+                            Help us improve our workplace and operations.
+                        </Text>
+                    </View>
                 </View>
 
-                <Text style={styles.label}>Subject</Text>
-                <TextInput
-                    style={styles.input}
+                {/* Subject Input */}
+                <AppInput
+                    label="Topic / Subject"
                     value={subject}
                     onChangeText={setSubject}
-                    placeholder="e.g., Office cafeteria menu improvement"
-                    placeholderTextColor="#64748B"
+                    placeholder="e.g., Office cafeteria menu suggestion"
                 />
 
-                <Text style={styles.label}>Detailed Feedback</Text>
-                <TextInput
-                    style={[styles.input, styles.textArea]}
+                {/* Detailed Feedback */}
+                <AppInput
+                    label="Detailed Feedback"
                     value={message}
                     onChangeText={setMessage}
-                    placeholder="Provide your thoughts or suggestions..."
-                    placeholderTextColor="#64748B"
+                    placeholder="Provide your constructive feedback or suggestions..."
                     multiline
-                    numberOfLines={4}
+                    numberOfLines={5}
                 />
 
+                {/* Anonymous Toggle */}
                 <TouchableOpacity
-                    style={styles.checkboxRow}
+                    style={[styles.checkboxRow, { backgroundColor: theme.colors.surfaceSubtle }]}
                     onPress={() => setIsAnonymous(!isAnonymous)}
+                    activeOpacity={0.8}
                 >
-                    <View style={[styles.checkbox, isAnonymous && styles.checkboxActive]}>
-                        {isAnonymous && <Text style={styles.checkmark}>✓</Text>}
+                    <View
+                        style={[
+                            styles.checkbox,
+                            {
+                                borderColor: isAnonymous ? theme.colors.primary : theme.colors.border,
+                                backgroundColor: isAnonymous ? theme.colors.primary : 'transparent',
+                            },
+                        ]}
+                    >
+                        {isAnonymous && <Check color="#FFFFFF" size={12} />}
                     </View>
-                    <Text style={styles.checkboxLabel}>Submit Anonymously</Text>
+                    <View style={styles.checkboxLabelWrapper}>
+                        <Text style={[styles.checkboxLabel, { color: theme.colors.textPrimary }]}>
+                            Submit Anonymously
+                        </Text>
+                        <Text style={[styles.checkboxSub, { color: theme.colors.textSecondary }]}>
+                            Your name and employee ID will not be attached to this submission.
+                        </Text>
+                    </View>
                 </TouchableOpacity>
 
-                <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
-                    <Send color="#FFFFFF" size={18} />
-                    <Text style={styles.submitBtnText}>Submit Feedback</Text>
-                </TouchableOpacity>
-            </ScrollView>
-        </SafeAreaView>
+                {/* Submit Action */}
+                <View style={styles.submitWrapper}>
+                    <AppButton
+                        title="Submit Feedback"
+                        onPress={handleSubmit}
+                        loading={isSubmitting}
+                        icon={<Send color="#FFFFFF" size={18} />}
+                    />
+                </View>
+            </AppCard>
+        </AppShell>
     );
 };
 
 const styles = StyleSheet.create({
-    safeArea: { flex: 1, backgroundColor: '#0F172A' },
-    container: { flex: 1 },
-    content: { padding: 20 },
-    topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 },
-    iconCircle: { width: 40, height: 40, borderRadius: 12, backgroundColor: '#1E293B', justifyContent: 'center', alignItems: 'center' },
-    headerTitle: { color: '#F8FAFC', fontSize: 18, fontWeight: '700' },
-    label: { color: '#94A3B8', fontSize: 13, fontWeight: '600', marginBottom: 8, marginTop: 14 },
-    input: { backgroundColor: '#1E293B', borderRadius: 12, borderWidth: 1, borderColor: '#334155', color: '#F8FAFC', paddingHorizontal: 14, height: 48, fontSize: 14 },
-    textArea: { height: 100, textAlignVertical: 'top', paddingTop: 12 },
-    checkboxRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18 },
-    checkbox: { width: 22, height: 22, borderRadius: 6, borderWidth: 2, borderColor: '#64748B', justifyContent: 'center', alignItems: 'center' },
-    checkboxActive: { backgroundColor: '#2563EB', borderColor: '#2563EB' },
-    checkmark: { color: '#FFFFFF', fontWeight: '800', fontSize: 12 },
-    checkboxLabel: { color: '#F8FAFC', fontSize: 14, fontWeight: '600' },
-    submitBtn: { flexDirection: 'row', gap: 8, backgroundColor: '#2563EB', height: 52, borderRadius: 14, justifyContent: 'center', alignItems: 'center', marginTop: 28 },
-    submitBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
+    card: {
+        marginTop: 6,
+    },
+    headerInfoRow: {
+        flexDirection: 'row',
+        gap: 12,
+        alignItems: 'center',
+        marginBottom: 18,
+    },
+    iconBadge: {
+        width: 44,
+        height: 44,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    headerTextWrapper: {
+        flex: 1,
+    },
+    cardTitle: {
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    cardSub: {
+        fontSize: 12,
+        marginTop: 2,
+        lineHeight: 16,
+    },
+    checkboxRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        padding: 12,
+        borderRadius: 12,
+        marginTop: 4,
+        marginBottom: 16,
+        gap: 12,
+    },
+    checkbox: {
+        width: 22,
+        height: 22,
+        borderRadius: 6,
+        borderWidth: 2,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    checkboxLabelWrapper: {
+        flex: 1,
+    },
+    checkboxLabel: {
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    checkboxSub: {
+        fontSize: 11,
+        marginTop: 1,
+        lineHeight: 14,
+    },
+    submitWrapper: {
+        marginTop: 6,
+    },
 });

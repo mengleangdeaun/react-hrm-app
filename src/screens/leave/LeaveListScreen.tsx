@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
     View,
-    Text,
     ScrollView,
     TouchableOpacity,
     StatusBar,
@@ -11,10 +10,12 @@ import {
     Modal,
     TextInput,
 } from 'react-native';
+import { AppText as Text } from '../../components/AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { format, parseISO } from 'date-fns';
 import { AppShell } from '../../components/common/AppShell';
+import { HeaderIconButton } from '../../components/common/AppHeader';
 import { LeaveListSkeleton } from '../../components/common/Skeletons';
 import { leaveApi, LeaveBalance, LeaveRequest } from '../../api/leave';
 import { useAppTheme } from '../../context/ThemeContext';
@@ -204,14 +205,11 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     };
 
     const headerRight = (
-        <TouchableOpacity
-            style={styles.headerIconBtn}
+        <HeaderIconButton
+            icon={<Plus color={theme.colors.brand} size={20} />}
             onPress={() => navigation.navigate('CreateLeave')}
-            activeOpacity={0.8}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-            <Plus color="#FFFFFF" size={20} />
-        </TouchableOpacity>
+            accessibilityLabel="Create leave request"
+        />
     );
 
     return (
@@ -567,6 +565,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: theme.borderRadius.lg,
         padding: theme.spacing.xl,
         alignItems: 'center',
+        
     },
     emptyTitle: {
         fontSize: 16,

@@ -3,25 +3,27 @@ import {
     View,
     ScrollView,
     TouchableOpacity,
-    SafeAreaView,
     StatusBar,
     Switch,
     Alert,
     Modal,
     RefreshControl,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import * as Camera from 'expo-camera';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '../../context/AuthContext';
-import { useAppTheme, ColorThemeId, FontSizeScaleId, THEME_FONTS, isFontMatching } from '../../context/ThemeContext';
+import { useAppTheme, FontSizeScaleId } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { getDeviceId } from '../../utils/device';
 import { profileApi, UserPreferences, PwaInfo } from '../../api/profile';
 import { AppText as Text } from '../../components/AppText';
 import { AppFeedbackSheet } from '../../components/AppFeedbackSheet';
+import { LegalDocumentSheet } from '../../components/common/LegalDocumentSheet';
+import { AppHeader } from '../../components/common/AppHeader';
 import {
     ArrowLeft,
     Globe,
@@ -38,21 +40,11 @@ import {
     CheckCircle2,
     X,
     Bell,
-    Palette,
     Type,
     FileText,
     Lock,
     Sparkles,
 } from 'lucide-react-native';
-
-const COLOR_THEMES = [
-    { id: 'default', name: 'Default', hex: '#DF0000' },
-    { id: 'sky', name: 'Sky', hex: '#0284C7' },
-    { id: 'emerald', name: 'Emerald', hex: '#059669' },
-    { id: 'violet', name: 'Violet', hex: '#7C3AED' },
-    { id: 'rose', name: 'Rose', hex: '#E11D48' },
-    { id: 'amber', name: 'Amber', hex: '#D97706' },
-] as const;
 
 const FONT_SIZES = [
     { id: 'small', labelKey: 'small', fallback: 'Small' },
@@ -60,13 +52,9 @@ const FONT_SIZES = [
     { id: 'large', labelKey: 'large', fallback: 'Large' },
 ] as const;
 
-const cleanHtml = (html?: string) => {
-    if (!html) return 'Formal documentation is on the way!';
-    return html.replace(/<[^>]*>?/gm, '').trim() || 'Formal documentation is on the way!';
-};
-
 export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-    const { isDark, toggleTheme, primaryColor, setAccentTheme, setFontScale, setFontFamily, colorTheme, fontSizeId, fontFamily } = useAppTheme();
+    const insets = useSafeAreaInsets();
+    const { isDark, toggleTheme, primaryColor, setFontScale, fontSizeId } = useAppTheme();
     const { locale, setLocale, t } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
@@ -143,14 +131,8 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             if (prefs.locale && (prefs.locale === 'en' || prefs.locale === 'kh') && prefs.locale !== locale) {
                 setLocale(prefs.locale as any);
             }
-            if (prefs.color_theme && prefs.color_theme !== colorTheme) {
-                setAccentTheme(prefs.color_theme as ColorThemeId);
-            }
             if (prefs.font_size && prefs.font_size !== fontSizeId) {
                 setFontScale(prefs.font_size as FontSizeScaleId);
-            }
-            if (prefs.font_family && prefs.font_family !== fontFamily) {
-                setFontFamily(prefs.font_family);
             }
         }
     }, [prefs]);
@@ -187,16 +169,6 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         updatePrefMutation.mutate({ font_size: size });
     };
 
-    const handleSelectFontFamily = (family: string) => {
-        setFontFamily(family);
-        updatePrefMutation.mutate({ font_family: family });
-    };
-
-    const handleSelectColorTheme = (themeId: ColorThemeId) => {
-        setAccentTheme(themeId);
-        updatePrefMutation.mutate({ color_theme: themeId, accent_color: themeId });
-    };
-
     const handleToggleNotifications = async (val: boolean) => {
         if (val) {
             const res = await Notifications.requestPermissionsAsync();
@@ -223,17 +195,21 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         updatePrefMutation.mutate({ notifications_enabled: res.granted });
     };
 
-    const handleClearCache = () => {
+    const handleClearStorageCache = () => {
         Alert.alert(
-            t('clear_offline_storage', 'Clear Offline Storage'),
-            t('decouple_warning', 'Purge offline cache and temporary data files?'),
+            t('clear_cache_title', 'Clear Offline Cache'),
+            t('clear_cache_desc', 'This will clear cached attendance records, query caches, and local images. You will stay logged in.'),
             [
                 {
-                    text: t('confirm_delete', 'Confirm'),
+                    text: t('clear', 'Clear Now'),
                     style: 'destructive',
-                    onPress: () => {
-                        queryClient.clear();
-                        Alert.alert(t('success', 'Success!'), t('everything_up_to_date', 'Local offline storage purged successfully.'));
+                    onPress: async () => {
+                        try {
+                            await queryClient.clear();
+                            Alert.alert(t('cleared', 'Cache Cleared'), t('cache_cleared_msg', 'Application storage cache has been wiped successfully.'));
+                        } catch (err) {
+                            console.warn('Failed to clear offline cache:', err);
+                        }
                     },
                 },
                 { text: t('cancel', 'Cancel'), style: 'cancel' },
@@ -241,30 +217,28 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         );
     };
 
+    const handleClearCache = handleClearStorageCache;
+
     const currentLanguage = locale;
     const currentFontSize = fontSizeId;
-    const currentFontFamily = prefs?.font_family || fontFamily;
-    const currentColorTheme = colorTheme;
     const isDarkModeActive = prefs?.dark_mode !== undefined ? prefs.dark_mode : isDark;
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <View style={[styles.safeArea, { paddingTop: insets.top }]}>
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-            {/* Top Navigation Bar */}
-            <View style={styles.topBar}>
-                <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-                    <ArrowLeft color={theme.colors.textPrimary} size={19} />
-                </TouchableOpacity>
-
-                <Text style={styles.headerTitle}>{t('settings', 'App Settings')}</Text>
-
-                <View style={{ width: 38 }} />
-            </View>
+            {/* Standard Native Header Bar */}
+            <AppHeader
+                title={t('settings', 'App Settings')}
+                onBack={() => navigation.goBack()}
+            />
 
             <ScrollView
                 style={styles.container}
                 contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                keyboardShouldPersistTaps="handled"
+                nestedScrollEnabled={true}
                 refreshControl={
                     <RefreshControl
                         refreshing={isFetchingPrefs}
@@ -350,45 +324,6 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
                     <View style={styles.divider} />
 
-                    {/* Font Family Selection */}
-                    <View style={styles.rowColumn}>
-                        <View style={styles.rowInfo}>
-                            <View style={styles.iconBox}>
-                                <Type color={theme.colors.textSecondary} size={18} />
-                            </View>
-                            <View style={styles.textFlex}>
-                                <Text style={styles.rowTitle}>{t('font_family', 'Font Family')}</Text>
-                                <Text style={styles.rowSub}>Select typography font family</Text>
-                            </View>
-                        </View>
-                        <View style={styles.fontGrid}>
-                            {THEME_FONTS.map((f) => {
-                                const isActive = isFontMatching(currentFontFamily, f.value);
-                                return (
-                                    <TouchableOpacity
-                                        key={f.label}
-                                        style={[
-                                            styles.pillBtn,
-                                            isActive && { backgroundColor: primaryColor, borderColor: primaryColor },
-                                        ]}
-                                        onPress={() => handleSelectFontFamily(f.value)}
-                                    >
-                                        <Text
-                                            style={[
-                                                styles.pillBtnText,
-                                                isActive && styles.pillBtnTextActive,
-                                            ]}
-                                        >
-                                            {f.label}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
-                    </View>
-
-                    <View style={styles.divider} />
-
                     {/* Typography Font Size */}
                     <View style={styles.rowColumn}>
                         <View style={styles.rowInfo}>
@@ -402,7 +337,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                         </View>
                         <View style={styles.optionRow}>
                             {FONT_SIZES.map((f) => {
-                                const isActive = currentFontSize === f.id || (f.id === 'medium' && currentFontSize === 'normal');
+                                const isActive = currentFontSize === f.id;
                                 return (
                                     <TouchableOpacity
                                         key={f.id}
@@ -423,38 +358,6 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                                     </TouchableOpacity>
                                 );
                             })}
-                        </View>
-                    </View>
-
-                    <View style={styles.divider} />
-
-                    {/* Accent Color Theme */}
-                    <View style={styles.rowColumn}>
-                        <View style={styles.rowInfo}>
-                            <View style={styles.iconBox}>
-                                <Palette color={theme.colors.textSecondary} size={18} />
-                            </View>
-                            <View style={styles.textFlex}>
-                                <Text style={styles.rowTitle}>{t('accent_colors', 'Accent Color Theme')}</Text>
-                                <Text style={styles.rowSub}>{t('accent_hint', 'Personalize theme highlight hue')}</Text>
-                            </View>
-                        </View>
-                        <View style={styles.colorSwatchRow}>
-                            {COLOR_THEMES.map((c) => (
-                                <TouchableOpacity
-                                    key={c.id}
-                                    style={[
-                                        styles.colorSwatch,
-                                        { backgroundColor: c.hex },
-                                        currentColorTheme === c.id && styles.colorSwatchActive,
-                                    ]}
-                                    onPress={() => handleSelectColorTheme(c.id as ColorThemeId)}
-                                >
-                                    {currentColorTheme === c.id && (
-                                        <CheckCircle2 color={theme.colors.onPrimary} size={14} />
-                                    )}
-                                </TouchableOpacity>
-                            ))}
                         </View>
                     </View>
                 </View>
@@ -655,117 +558,95 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             />
 
             {/* System Permissions Sheet Modal */}
-            <Modal visible={permissionsModalVisible} transparent animationType="fade">
-                <TouchableOpacity
-                    style={styles.modalOverlay}
-                    activeOpacity={1}
-                    onPress={() => setPermissionsModalVisible(false)}
-                >
-                    <View style={styles.modalSheet}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>{t('system_access_grants', 'System Access Grants')}</Text>
-                            <TouchableOpacity onPress={() => setPermissionsModalVisible(false)}>
-                                <X color={theme.colors.textPrimary} size={20} />
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Camera Permission */}
-                        <View style={styles.permRow}>
-                            <View style={styles.rowInfo}>
-                                <View style={styles.iconBox}>
-                                    <CameraIcon color={theme.colors.textSecondary} size={18} />
-                                </View>
-                                <View style={styles.textFlex}>
-                                    <Text style={styles.permTitle}>{t('camera_access', 'Camera Access')}</Text>
-                                    <Text style={styles.permSub}>{t('align_qr_within_frame', 'Required for QR attendance clock-in')}</Text>
-                                </View>
+            {permissionsModalVisible && (
+                <Modal visible={permissionsModalVisible} transparent animationType="fade">
+                    <TouchableOpacity
+                        style={styles.modalOverlay}
+                        activeOpacity={1}
+                        onPress={() => setPermissionsModalVisible(false)}
+                    >
+                        <View style={styles.modalSheet}>
+                            <View style={styles.modalHeader}>
+                                <Text style={styles.modalTitle}>{t('system_access_grants', 'System Access Grants')}</Text>
+                                <TouchableOpacity onPress={() => setPermissionsModalVisible(false)}>
+                                    <X color={theme.colors.textPrimary} size={20} />
+                                </TouchableOpacity>
                             </View>
-                            <TouchableOpacity style={styles.permActionBtn} onPress={handleRequestCamera}>
-                                <Text style={styles.permActionText}>
-                                    {cameraPermissionGranted ? t('granted', 'Granted') : t('grant', 'Grant')}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
 
-                        {/* GPS Location Permission */}
-                        <View style={styles.permRow}>
-                            <View style={styles.rowInfo}>
-                                <View style={styles.iconBox}>
-                                    <MapPin color={theme.colors.textSecondary} size={18} />
+                            {/* Camera Permission */}
+                            <View style={styles.permRow}>
+                                <View style={styles.rowInfo}>
+                                    <View style={styles.iconBox}>
+                                        <CameraIcon color={theme.colors.textSecondary} size={18} />
+                                    </View>
+                                    <View style={styles.textFlex}>
+                                        <Text style={styles.permTitle}>{t('camera_access', 'Camera Access')}</Text>
+                                        <Text style={styles.permSub}>{t('align_qr_within_frame', 'Required for QR attendance clock-in')}</Text>
+                                    </View>
                                 </View>
-                                <View style={styles.textFlex}>
-                                    <Text style={styles.permTitle}>{t('gps_geofence_location', 'GPS Geofence Location')}</Text>
-                                    <Text style={styles.permSub}>{t('enable_gps_desc', 'Required to verify office clock-in radius')}</Text>
-                                </View>
+                                <TouchableOpacity style={styles.permActionBtn} onPress={handleRequestCamera}>
+                                    <Text style={styles.permActionText}>
+                                        {cameraPermissionGranted ? t('granted', 'Granted') : t('grant', 'Grant')}
+                                    </Text>
+                                </TouchableOpacity>
                             </View>
-                            <TouchableOpacity style={styles.permActionBtn} onPress={handleRequestLocation}>
-                                <Text style={styles.permActionText}>
-                                    {locationPermissionGranted ? t('granted', 'Granted') : t('grant', 'Grant')}
-                                </Text>
-                            </TouchableOpacity>
-                        </View>
 
-                        {/* Notifications Permission */}
-                        <View style={styles.permRow}>
-                            <View style={styles.rowInfo}>
-                                <View style={styles.iconBox}>
-                                    <Bell color={theme.colors.textSecondary} size={18} />
+                            {/* GPS Location Permission */}
+                            <View style={styles.permRow}>
+                                <View style={styles.rowInfo}>
+                                    <View style={styles.iconBox}>
+                                        <MapPin color={theme.colors.textSecondary} size={18} />
+                                    </View>
+                                    <View style={styles.textFlex}>
+                                        <Text style={styles.permTitle}>{t('gps_geofence_location', 'GPS Geofence Location')}</Text>
+                                        <Text style={styles.permSub}>{t('enable_gps_desc', 'Required to verify office clock-in radius')}</Text>
+                                    </View>
                                 </View>
-                                <View style={styles.textFlex}>
-                                    <Text style={styles.permTitle}>{t('push_notifications', 'Push Notifications')}</Text>
-                                    <Text style={styles.permSub}>{t('activity_attendance_alerts', 'Receive attendance reminders & announcements')}</Text>
-                                </View>
+                                <TouchableOpacity style={styles.permActionBtn} onPress={handleRequestLocation}>
+                                    <Text style={styles.permActionText}>
+                                        {locationPermissionGranted ? t('granted', 'Granted') : t('grant', 'Grant')}
+                                    </Text>
+                                </TouchableOpacity>
                             </View>
-                            <TouchableOpacity style={styles.permActionBtn} onPress={handleRequestNotifications}>
-                                <Text style={styles.permActionText}>
-                                    {notificationsPermissionGranted ? t('granted', 'Granted') : t('grant', 'Grant')}
-                                </Text>
-                            </TouchableOpacity>
+
+                            {/* Notifications Permission */}
+                            <View style={styles.permRow}>
+                                <View style={styles.rowInfo}>
+                                    <View style={styles.iconBox}>
+                                        <Bell color={theme.colors.textSecondary} size={18} />
+                                    </View>
+                                    <View style={styles.textFlex}>
+                                        <Text style={styles.permTitle}>{t('push_notifications', 'Push Notifications')}</Text>
+                                        <Text style={styles.permSub}>{t('activity_attendance_alerts', 'Receive attendance reminders & announcements')}</Text>
+                                    </View>
+                                </View>
+                                <TouchableOpacity style={styles.permActionBtn} onPress={handleRequestNotifications}>
+                                    <Text style={styles.permActionText}>
+                                        {notificationsPermissionGranted ? t('granted', 'Granted') : t('grant', 'Grant')}
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
                         </View>
-                    </View>
-                </TouchableOpacity>
-            </Modal>
+                    </TouchableOpacity>
+                </Modal>
+            )}
 
-            {/* Privacy Policy Modal */}
-            <Modal visible={policyModalVisible} transparent animationType="fade">
-                <TouchableOpacity
-                    style={styles.modalOverlay}
-                    activeOpacity={1}
-                    onPress={() => setPolicyModalVisible(false)}
-                >
-                    <View style={styles.modalSheet}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>{t('privacy_policy', 'Privacy Policy')}</Text>
-                            <TouchableOpacity onPress={() => setPolicyModalVisible(false)}>
-                                <X color={theme.colors.textPrimary} size={20} />
-                            </TouchableOpacity>
-                        </View>
+            {/* Native Privacy Policy Bottom Sheet */}
+            <LegalDocumentSheet
+                visible={policyModalVisible}
+                onClose={() => setPolicyModalVisible(false)}
+                type="privacy"
+                customContent={pwaInfo?.privacy_policy}
+            />
 
-                        <Text style={styles.legalBodyText}>{cleanHtml(pwaInfo?.privacy_policy)}</Text>
-                    </View>
-                </TouchableOpacity>
-            </Modal>
-
-            {/* Terms of Service Modal */}
-            <Modal visible={termsModalVisible} transparent animationType="fade">
-                <TouchableOpacity
-                    style={styles.modalOverlay}
-                    activeOpacity={1}
-                    onPress={() => setTermsModalVisible(false)}
-                >
-                    <View style={styles.modalSheet}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>{t('terms_of_service', 'Terms of Service')}</Text>
-                            <TouchableOpacity onPress={() => setTermsModalVisible(false)}>
-                                <X color={theme.colors.textPrimary} size={20} />
-                            </TouchableOpacity>
-                        </View>
-
-                        <Text style={styles.legalBodyText}>{cleanHtml(pwaInfo?.terms_of_service)}</Text>
-                    </View>
-                </TouchableOpacity>
-            </Modal>
-        </SafeAreaView>
+            {/* Native Terms of Service Bottom Sheet */}
+            <LegalDocumentSheet
+                visible={termsModalVisible}
+                onClose={() => setTermsModalVisible(false)}
+                type="terms"
+                customContent={pwaInfo?.terms_of_service}
+            />
+        </View>
     );
 };
 
@@ -800,8 +681,9 @@ const stylesheet = StyleSheet.create((theme) => ({
         flex: 1,
     },
     scrollContent: {
+        flexGrow: 1,
         paddingHorizontal: theme.spacing.md + 4,
-        paddingBottom: theme.spacing.xl,
+        paddingBottom: theme.spacing.xl + 40,
     },
     sectionHeaderTitle: {
         fontSize: 13,

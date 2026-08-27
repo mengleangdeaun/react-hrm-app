@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import {
     View,
-    Text,
     TextInput,
     TouchableOpacity,
     ActivityIndicator,
@@ -10,6 +9,8 @@ import {
     Platform,
     ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useAuth } from '../../context/AuthContext';
 import { useAppTheme } from '../../context/ThemeContext';
@@ -89,13 +90,14 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     };
 
     return (
-        <KeyboardAvoidingView
-            style={styles.keyboardContainer}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        >
-            <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-                {/* Header Actions */}
-                <View style={styles.headerRow}>
+        <SafeAreaView {...({ edges: ['top', 'bottom'], style: { flex: 1, backgroundColor: theme.colors.background } } as any)}>
+            <KeyboardAvoidingView
+                style={styles.keyboardContainer}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            >
+                <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+                    {/* Header Actions */}
+                    <View style={styles.headerRow}>
                     <TouchableOpacity
                         onPress={toggleTheme}
                         style={styles.themeIconButton}
@@ -225,7 +227,8 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                     </View>
                 </View>
             </ScrollView>
-        </KeyboardAvoidingView>
+            </KeyboardAvoidingView>
+        </SafeAreaView>
     );
 };
 

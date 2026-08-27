@@ -3,10 +3,10 @@ import {
     View,
     ScrollView,
     TouchableOpacity,
-    SafeAreaView,
     StatusBar,
     RefreshControl,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO, isValid } from 'date-fns';
@@ -14,6 +14,7 @@ import { quizApi, QuizItem } from '../../api/quiz';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { AppText as Text } from '../../components/AppText';
+import { AppHeader } from '../../components/common/AppHeader';
 import { QuizListSkeleton } from '../../components/common/Skeletons';
 import {
     Award,
@@ -42,6 +43,7 @@ const formatQuizDate = (rawStr?: string) => {
 };
 
 export const QuizListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+    const insets = useSafeAreaInsets();
     const { isDark, primaryColor } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
@@ -72,19 +74,14 @@ export const QuizListScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     const historyQuizzes = quizzes.filter((q) => q.status === 'completed' || q.status === 'timed_out' || q.status === 'passed' || q.status === 'failed');
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <View style={[styles.safeArea, { paddingTop: insets.top }]}>
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-            {/* Navigation Header Bar */}
-            <View style={styles.topBar}>
-                <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-                    <ArrowLeft color={theme.colors.textPrimary} size={19} />
-                </TouchableOpacity>
-
-                <Text style={styles.headerTitle}>{t('quizzes', 'Quizzes')}</Text>
-
-                <View style={{ width: 38 }} />
-            </View>
+            {/* Standard Native Header Bar */}
+            <AppHeader
+                title={t('quizzes', 'Quizzes')}
+                onBack={() => navigation.goBack()}
+            />
 
             {/* Sub-Header Category Segmented Underlined Tab Bar */}
             <View style={styles.tabBarContainer}>
@@ -101,7 +98,7 @@ export const QuizListScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                             >
                                 <Text
                                     style={[
-                                        styles.tabItemText,
+                                        styles.tabText,
                                         isActive && { color: primaryColor, fontWeight: '800' },
                                     ]}
                                 >
@@ -260,7 +257,7 @@ export const QuizListScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                     )
                 )}
             </ScrollView>
-        </SafeAreaView>
+        </View>
     );
 };
 
@@ -295,29 +292,30 @@ const stylesheet = StyleSheet.create((theme) => ({
         backgroundColor: theme.colors.surface,
         borderBottomWidth: 1,
         borderBottomColor: theme.colors.border,
+        paddingHorizontal: theme.spacing.md + 4,
     },
     tabBarRow: {
         flexDirection: 'row',
-        paddingHorizontal: theme.spacing.md,
+        gap: theme.spacing.lg,
     },
     tabItem: {
-        paddingHorizontal: theme.spacing.md + 4,
-        paddingVertical: theme.spacing.sm + 4,
+        paddingVertical: theme.spacing.md,
         position: 'relative',
     },
-    tabItemText: {
-        fontSize: 12,
-        fontWeight: '700',
+    tabText: {
+        fontSize: 14,
         color: theme.colors.textSecondary,
-        textTransform: 'uppercase',
-        letterSpacing: 0.4,
+    },
+    tabTextActive: {
+        color: theme.colors.brand,
     },
     tabIndicator: {
         position: 'absolute',
         bottom: 0,
-        left: 16,
-        right: 16,
+        left: 0,
+        right: 0,
         height: 3,
+        backgroundColor: theme.colors.brand,
         borderTopLeftRadius: 3,
         borderTopRightRadius: 3,
     },
@@ -325,9 +323,10 @@ const stylesheet = StyleSheet.create((theme) => ({
         flex: 1,
     },
     scrollContent: {
+        flexGrow: 1,
         paddingHorizontal: theme.spacing.md + 4,
         paddingTop: theme.spacing.md,
-        paddingBottom: theme.spacing.xl,
+        paddingBottom: theme.spacing.xl + 40,
     },
     emptyCard: {
         backgroundColor: theme.colors.surface,

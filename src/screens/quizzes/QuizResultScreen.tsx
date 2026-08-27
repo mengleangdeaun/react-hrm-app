@@ -3,10 +3,10 @@ import {
     View,
     ScrollView,
     TouchableOpacity,
-    SafeAreaView,
     StatusBar,
     ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useQuery } from '@tanstack/react-query';
 import { format, parseISO, isValid } from 'date-fns';
@@ -14,6 +14,7 @@ import { quizApi } from '../../api/quiz';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { AppText as Text } from '../../components/AppText';
+import { AppHeader } from '../../components/common/AppHeader';
 import {
     ArrowLeft,
     Check,
@@ -35,6 +36,7 @@ export const QuizResultScreen: React.FC<{ route: any; navigation: any }> = ({
     route,
     navigation,
 }) => {
+    const insets = useSafeAreaInsets();
     const { isDark, primaryColor } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
@@ -71,23 +73,14 @@ export const QuizResultScreen: React.FC<{ route: any; navigation: any }> = ({
     const completedDate = formatResultDate(test?.completed_at || test?.created_at || paramQuizData?.completed_at);
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <View style={[styles.safeArea, { paddingTop: insets.top }]}>
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-            {/* Top Navigation Header */}
-            <View style={styles.topBar}>
-                <TouchableOpacity
-                    style={styles.iconCircle}
-                    onPress={() => navigation.navigate('QuizList')}
-                    activeOpacity={0.7}
-                >
-                    <ArrowLeft color={theme.colors.textPrimary} size={19} />
-                </TouchableOpacity>
-
-                <Text style={styles.headerTitle}>{t('quiz_result', 'Quiz Result')}</Text>
-
-                <View style={{ width: 38 }} />
-            </View>
+            {/* Standard Native Header Bar */}
+            <AppHeader
+                title={t('quiz_result', 'Quiz Result')}
+                onBack={() => navigation.navigate('QuizList')}
+            />
 
             <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
                 {isLoading && !resultData ? (
@@ -284,7 +277,7 @@ export const QuizResultScreen: React.FC<{ route: any; navigation: any }> = ({
                     </>
                 )}
             </ScrollView>
-        </SafeAreaView>
+        </View>
     );
 };
 
@@ -319,9 +312,10 @@ const stylesheet = StyleSheet.create((theme) => ({
         flex: 1,
     },
     scrollContent: {
+        flexGrow: 1,
         paddingHorizontal: theme.spacing.md + 4,
         paddingTop: theme.spacing.md,
-        paddingBottom: theme.spacing.xl,
+        paddingBottom: theme.spacing.xl + 40,
     },
     loadingContainer: {
         paddingVertical: theme.spacing.xxl,

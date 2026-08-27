@@ -1,23 +1,23 @@
 import React from 'react';
 import {
     View,
-    Text,
     ScrollView,
-    TouchableOpacity,
     StatusBar,
     StyleSheet,
     RefreshControl,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { ArrowLeft } from 'lucide-react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../context/ThemeContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
 import { OfflineBanner } from './OfflineBanner';
+import { AppHeader } from './AppHeader';
 
 interface AppShellProps {
     children: React.ReactNode;
     title?: string;
+    subtitle?: string;
     onBack?: () => void;
+    onClose?: () => void;
     headerRight?: React.ReactNode;
     subHeader?: React.ReactNode;
     scrollable?: boolean;
@@ -33,7 +33,9 @@ interface AppShellProps {
 export const AppShell: React.FC<AppShellProps> = ({
     children,
     title,
+    subtitle,
     onBack,
+    onClose,
     headerRight,
     subHeader,
     scrollable = true,
@@ -45,36 +47,30 @@ export const AppShell: React.FC<AppShellProps> = ({
     onScroll,
     scrollEventThrottle = 16,
 }) => {
+    const insets = useSafeAreaInsets();
     const { isDark } = useAppTheme();
     const theme = isDark ? darkTheme : lightTheme;
 
-    const hasHeader = showHeader && (title || onBack || headerRight);
+    const hasHeader = showHeader && (title || onBack || onClose || headerRight);
 
     return (
-        <SafeAreaView {...({ style: [styles.safeArea, { backgroundColor: theme.colors.background }, style] } as any)}>
+        <View style={[styles.safeArea, { paddingTop: insets.top, backgroundColor: theme.colors.background }, style]}>
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
 
             <OfflineBanner />
 
             {hasHeader && (
-                <View style={styles.headerRow}>
-                    <View style={styles.headerLeft}>
-                        {onBack && (
-                            <TouchableOpacity
-                                style={[styles.backButton, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}
-                                onPress={onBack}
-                                activeOpacity={0.7}
-                            >
-                                <ArrowLeft color={theme.colors.textPrimary} size={18} />
-                            </TouchableOpacity>
-                        )}
-                        {title && (
-                            <Text style={[styles.headerTitle, { color: theme.colors.textPrimary }]} numberOfLines={1}>
-                                {title}
-                            </Text>
-                        )}
-                    </View>
-                    {headerRight && <View style={styles.headerRight}>{headerRight}</View>}
+                <View style={styles.headerWrapper}>
+                    {title || onBack || onClose ? (
+                        <AppHeader
+                            title={title || ''}
+                            subtitle={subtitle}
+                            onBack={onBack}
+                            onClose={onClose}
+                            rightActions={[]}
+                        />
+                    ) : null}
+                    {headerRight && <View style={styles.customHeaderRight}>{headerRight}</View>}
                 </View>
             )}
 
@@ -88,7 +84,7 @@ export const AppShell: React.FC<AppShellProps> = ({
                     scrollEventThrottle={scrollEventThrottle}
                     refreshControl={
                         onRefresh ? (
-                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.brand} />
                         ) : undefined
                     }
                 >
@@ -97,7 +93,7 @@ export const AppShell: React.FC<AppShellProps> = ({
             ) : (
                 <View style={[styles.fixedContainer, contentContainerStyle]}>{children}</View>
             )}
-        </SafeAreaView>
+        </View>
     );
 };
 
@@ -105,35 +101,14 @@ const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
     },
-    headerRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+    headerWrapper: {
+        position: 'relative',
     },
-    headerLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
-    backButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 50,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-        borderWidth: 1,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        flex: 1,
-    },
-    headerRight: {
-        flexDirection: 'row',
-        alignItems: 'center',
+    customHeaderRight: {
+        position: 'absolute',
+        right: 16,
+        top: 7,
+        zIndex: 20,
     },
     subHeaderContainer: {
         zIndex: 10,
@@ -142,8 +117,10 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     scrollContent: {
+        flexGrow: 1,
         paddingHorizontal: 16,
-        paddingBottom: 24,
+        paddingTop: 12,
+        paddingBottom: 32,
     },
     fixedContainer: {
         flex: 1,

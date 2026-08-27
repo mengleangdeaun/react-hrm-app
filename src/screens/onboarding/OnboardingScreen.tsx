@@ -30,6 +30,7 @@ import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 import { AppText } from '../../components/AppText';
+import { HeaderIconButton } from '../../components/common/AppHeader';
 
 interface SlideItem {
     id: string;
@@ -227,19 +228,11 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
             {/* Top Navigation Bar */}
             <View style={styles.topBar}>
                 {isReviewMode ? (
-                    <TouchableOpacity
-                        style={[
-                            styles.closeButton,
-                            {
-                                backgroundColor: theme.colors.surface,
-                                borderColor: theme.colors.border,
-                            },
-                        ]}
+                    <HeaderIconButton
+                        icon={<X size={18} color={theme.colors.textPrimary} />}
                         onPress={() => navigation.goBack()}
-                        activeOpacity={0.7}
-                    >
-                        <X size={18} color={theme.colors.textPrimary} />
-                    </TouchableOpacity>
+                        accessibilityLabel="Close tour"
+                    />
                 ) : (
                     <View style={styles.stepIndicator}>
                         <AppText style={[styles.stepText, { color: theme.colors.textSecondary }]}>

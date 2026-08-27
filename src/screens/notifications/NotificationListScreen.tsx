@@ -3,11 +3,12 @@ import {
     View,
     ScrollView,
     TouchableOpacity,
-    SafeAreaView,
     StatusBar,
     RefreshControl,
     Alert,
+    SafeAreaView,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { isToday, isYesterday, isThisWeek, parseISO, isValid, format } from 'date-fns';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -15,6 +16,7 @@ import { notificationApi, NotificationItem, CelebrantItem } from '../../api/noti
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { AppText as Text } from '../../components/AppText';
+import { AppHeader } from '../../components/common/AppHeader';
 import { NotificationListSkeleton } from '../../components/common/Skeletons';
 import {
     Bell,
@@ -22,16 +24,17 @@ import {
     ArrowLeft,
     CheckCheck,
     Trash2,
-    Gift,
     Calendar,
+    Gift,
     AlertTriangle,
+    Info,
     PartyPopper,
 } from 'lucide-react-native';
 
 const CATEGORY_FILTERS = [
-    { id: 'all', labelKey: 'tab_all', fallback: 'All Alerts' },
-    { id: 'announcement', labelKey: 'tab_announcement', fallback: 'Announcements' },
-    { id: 'leave', labelKey: 'tab_leave', fallback: 'Leave Updates' },
+    { id: 'all', labelKey: 'tab_all', fallback: 'All' },
+    { id: 'leave', labelKey: 'tab_leave', fallback: 'Leave' },
+    { id: 'system', labelKey: 'tab_system', fallback: 'System' },
     { id: 'celebration', labelKey: 'tab_birthday', fallback: 'Celebrations' },
     { id: 'others', labelKey: 'tab_other', fallback: 'Others' },
 ];
@@ -54,34 +57,33 @@ export const groupNotificationsByDate = (items: NotificationItem[]): GroupedNoti
             return;
         }
         try {
-            const dateObj = parseISO(item.created_at);
-            if (!isValid(dateObj)) {
+            const d = parseISO(item.created_at);
+            if (!isValid(d)) {
+                olderItems.push(item);
+            } else if (isToday(d)) {
                 todayItems.push(item);
-            } else if (isToday(dateObj)) {
-                todayItems.push(item);
-            } else if (isYesterday(dateObj)) {
+            } else if (isYesterday(d)) {
                 yesterdayItems.push(item);
-            } else if (isThisWeek(dateObj)) {
+            } else if (isThisWeek(d, { weekStartsOn: 1 })) {
                 thisWeekItems.push(item);
             } else {
                 olderItems.push(item);
             }
         } catch {
-            todayItems.push(item);
+            olderItems.push(item);
         }
     });
 
-    const result: GroupedNotifications[] = [];
-    if (todayItems.length > 0) result.push({ titleKey: 'today', fallbackTitle: 'TODAY', data: todayItems });
-    if (yesterdayItems.length > 0) result.push({ titleKey: 'yesterday', fallbackTitle: 'YESTERDAY', data: yesterdayItems });
-    if (thisWeekItems.length > 0) result.push({ titleKey: 'this_week', fallbackTitle: 'THIS WEEK', data: thisWeekItems });
-    if (olderItems.length > 0) result.push({ titleKey: 'earlier', fallbackTitle: 'EARLIER', data: olderItems });
-
-    return result;
+    const groups: GroupedNotifications[] = [];
+    if (todayItems.length > 0) groups.push({ titleKey: 'today', fallbackTitle: 'Today', data: todayItems });
+    if (yesterdayItems.length > 0) groups.push({ titleKey: 'yesterday', fallbackTitle: 'Yesterday', data: yesterdayItems });
+    if (thisWeekItems.length > 0) groups.push({ titleKey: 'this_week', fallbackTitle: 'This Week', data: thisWeekItems });
+    if (olderItems.length > 0) groups.push({ titleKey: 'earlier', fallbackTitle: 'Earlier', data: olderItems });
+    return groups;
 };
 
-const formatNotificationTime = (rawStr?: string) => {
-    if (!rawStr) return 'Recent';
+const formatNotificationTime = (rawStr: string | null | undefined): string => {
+    if (!rawStr) return '';
     try {
         const d = parseISO(rawStr);
         if (!isValid(d)) return rawStr;
@@ -92,6 +94,7 @@ const formatNotificationTime = (rawStr?: string) => {
 };
 
 export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+    const insets = useSafeAreaInsets();
     const { isDark, primaryColor } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
@@ -278,27 +281,26 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
     };
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <View style={[styles.safeArea, { paddingTop: insets.top }]}>
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-            {/* Top Navigation Header Bar */}
-            <View style={styles.topBar}>
-                <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-                    <ArrowLeft color={theme.colors.textPrimary} size={19} />
-                </TouchableOpacity>
-
-                <Text style={styles.headerTitle}>{t('noti', 'Notifications Center')}</Text>
-
-                <View style={styles.headerActions}>
-                    <TouchableOpacity style={styles.iconCircle} onPress={handleMarkAllRead} activeOpacity={0.7}>
-                        <CheckCheck color={primaryColor} size={18} />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.iconCircle} onPress={handleClearAll} activeOpacity={0.7}>
-                        <Trash2 color={theme.colors.status.danger} size={18} />
-                    </TouchableOpacity>
-                </View>
-            </View>
+            {/* Standard Native Header Bar */}
+            <AppHeader
+                title={t('noti', 'Notifications Center')}
+                onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
+                rightActions={[
+                    {
+                        icon: <CheckCheck color={theme.colors.brand} size={18} />,
+                        onPress: handleMarkAllRead,
+                        accessibilityLabel: 'Mark all read',
+                    },
+                    {
+                        icon: <Trash2 color={theme.colors.status.danger} size={18} />,
+                        onPress: handleClearAll,
+                        accessibilityLabel: 'Clear all notifications',
+                    },
+                ]}
+            />
 
             {/* Sub-Header Category Segmented Underlined Tab Bar */}
             <View style={styles.tabBarContainer}>
@@ -318,7 +320,7 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
                             >
                                 <Text
                                     style={[
-                                        styles.tabItemText,
+                                        styles.tabLabel,
                                         isActive && { color: primaryColor, fontWeight: '800' },
                                     ]}
                                 >
@@ -433,7 +435,7 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
                     ))
                 )}
             </ScrollView>
-        </SafeAreaView>
+        </View>
     );
 };
 
@@ -483,10 +485,11 @@ const stylesheet = StyleSheet.create((theme) => ({
     tabItem: {
         paddingHorizontal: theme.spacing.md,
         paddingVertical: theme.spacing.sm + 4,
+        alignItems: 'center',
         position: 'relative',
     },
-    tabItemText: {
-        fontSize: 12,
+    tabLabel: {
+        fontSize: 13,
         fontWeight: '700',
         color: theme.colors.textSecondary,
         textTransform: 'uppercase',
@@ -505,9 +508,10 @@ const stylesheet = StyleSheet.create((theme) => ({
         flex: 1,
     },
     scrollContent: {
+        flexGrow: 1,
         paddingHorizontal: theme.spacing.md + 4,
         paddingTop: theme.spacing.md,
-        paddingBottom: theme.spacing.xl,
+        paddingBottom: theme.spacing.xl + 40,
     },
     celebrationBanner: {
         backgroundColor: 'rgba(236, 72, 153, 0.1)',

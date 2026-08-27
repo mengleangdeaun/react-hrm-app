@@ -28,7 +28,41 @@ export interface HistoryFilterParams {
     out_status?: string;
 }
 
+export interface AttendanceClockInPayload {
+    branch_code?: string;
+    payload?: string;
+    signature?: string;
+    user_lat: number;
+    user_lng: number;
+    device_id: string;
+    reason?: string;
+    scanned_at?: string;
+}
+
+export interface AttendanceClockInResponse {
+    message?: string;
+    time?: string;
+    action?: 'success' | 'warning' | string;
+    require_reason?: boolean;
+    type?: 'late' | 'early_departure' | 'warning' | string;
+    minutes?: number;
+    code?: string;
+    distance?: number;
+    is_duplicate?: boolean;
+}
+
 export const attendanceApi = {
+    /**
+     * Submit an employee attendance punch (clock in / clock out / break)
+     */
+    clockIn: async (payload: AttendanceClockInPayload): Promise<AttendanceClockInResponse> => {
+        const response = await apiClient.post<AttendanceClockInResponse>(
+            '/employee-app/attendance/clock-in',
+            payload
+        );
+        return response.data;
+    },
+
     /**
      * Fetch attendance history records for employee
      */

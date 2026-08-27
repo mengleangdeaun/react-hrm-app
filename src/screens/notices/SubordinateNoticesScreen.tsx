@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
     View,
-    Text,
     ScrollView,
     TouchableOpacity,
-    SafeAreaView,
     StatusBar,
     ActivityIndicator,
     RefreshControl,
@@ -13,9 +11,13 @@ import {
     TextInput,
     Image,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { noticeApi, Subordinate, SubordinateNotice } from '../../api/notice';
 import { useAppTheme } from '../../context/ThemeContext';
+import { NativeDatePickerField } from '../../components/common/NativeDatePickerField';
+import { AppHeader } from '../../components/common/AppHeader';
 import {
     ArrowLeft,
     Plus,
@@ -40,6 +42,7 @@ const CATEGORY_FILTERS = [
 ];
 
 export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+    const insets = useSafeAreaInsets();
     const { isDark } = useAppTheme();
     const { theme } = useUnistyles();
     const styles = stylesheet;
@@ -181,30 +184,26 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
     };
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <View style={[styles.safeArea, { paddingTop: insets.top }]}>
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-            {/* Navigation Header */}
-            <View style={styles.topBar}>
-                <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-                    <ArrowLeft color={theme.colors.textPrimary} size={20} />
-                </TouchableOpacity>
-
-                <Text style={styles.headerTitle}>Team Subordinate Notices</Text>
-
-                <TouchableOpacity
-                    style={styles.addBtn}
-                    onPress={() => {
-                        if (subordinates.length > 0 && !formSubordinateId) {
-                            setFormSubordinateId(subordinates[0].id);
-                        }
-                        setCreateModalVisible(true);
-                    }}
-                    activeOpacity={0.85}
-                >
-                    <Plus color="#FFFFFF" size={18} />
-                </TouchableOpacity>
-            </View>
+            {/* Standard Native Header Bar */}
+            <AppHeader
+                title="Team Subordinate Notices"
+                onBack={() => navigation.goBack()}
+                rightActions={[
+                    {
+                        icon: <Plus color={theme.colors.brand} size={20} />,
+                        onPress: () => {
+                            if (subordinates.length > 0 && !formSubordinateId) {
+                                setFormSubordinateId(subordinates[0].id);
+                            }
+                            setCreateModalVisible(true);
+                        },
+                        accessibilityLabel: 'Create notice',
+                    },
+                ]}
+            />
 
             <ScrollView
                 style={styles.container}
@@ -406,6 +405,13 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
                             })}
                         </View>
 
+                        {/* Incident / Notice Date */}
+                        <NativeDatePickerField
+                            label="Notice / Incident Date"
+                            value={formDate}
+                            onChange={setFormDate}
+                        />
+
                         {/* Notice Comment */}
                         <Text style={styles.inputLabel}>Notice Details / Comments</Text>
                         <TextInput
@@ -432,7 +438,7 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
                     </View>
                 </TouchableOpacity>
             </Modal>
-        </SafeAreaView>
+        </View>
     );
 };
 
@@ -476,8 +482,9 @@ const stylesheet = StyleSheet.create((theme) => ({
         flex: 1,
     },
     scrollContent: {
+        flexGrow: 1,
         paddingHorizontal: theme.spacing.md + 4,
-        paddingBottom: theme.spacing.xl,
+        paddingBottom: theme.spacing.xl + 40,
     },
     subordinateSection: {
         marginBottom: theme.spacing.md,

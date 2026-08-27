@@ -1,60 +1,99 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
-    Text,
+    StyleSheet,
     TouchableOpacity,
     Alert,
     ActivityIndicator,
     Modal,
-    SafeAreaView,
+    Platform,
 } from 'react-native';
-import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
+import Animated, {
+    useSharedValue,
+    useAnimatedStyle,
+    withRepeat,
+    withTiming,
+    Easing,
+} from 'react-native-reanimated';
 import { useQueryClient } from '@tanstack/react-query';
-import { MapPin, Navigation, CheckCircle2, QrCode, ArrowLeft } from 'lucide-react-native';
-import { ENV } from '../../config/env';
-import { apiClient } from '../../api/client';
+import {
+    MapPin,
+    Navigation,
+    CheckCircle2,
+    QrCode,
+    ArrowLeft,
+    Zap,
+    ZapOff,
+    RefreshCw,
+    ShieldAlert,
+} from 'lucide-react-native';
+import { attendanceApi, AttendanceClockInResponse } from '../../api/attendance';
 import { useAppTheme } from '../../context/ThemeContext';
-
-// Geofence Distance Calculator (Haversine formula in meters)
-function getDistanceMeters(lat1: number, lon1: number, lat2: number, lon2: number) {
-    const R = 6371e3; // metres
-    const φ1 = (lat1 * Math.PI) / 180;
-    const φ2 = (lat2 * Math.PI) / 180;
-    const Δφ = ((lat2 - lat1) * Math.PI) / 180;
-    const Δλ = ((lon2 - lon1) * Math.PI) / 180;
-
-    const a =
-        Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-        Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return Math.round(R * c);
-}
+import { AppText } from '../../components/AppText';
+import { extractBranchQrPayload, BranchQrParseResult } from '../../utils/qrPayload';
+import { getDeviceId } from '../../utils/device';
+import { AttendanceReasonModal } from '../../components/attendance/AttendanceReasonModal';
 
 export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark } = useAppTheme();
-    const { theme } = useUnistyles();
-    const styles = stylesheet;
     const queryClient = useQueryClient();
 
+    // Camera & Location Permissions
     const [cameraPermission, requestCameraPermission] = useCameraPermissions();
     const [locationPermission, setLocationPermission] = useState<boolean | null>(null);
+
+    // Live GPS State
     const [currentLocation, setCurrentLocation] = useState<any>(null);
-    const [distance, setDistance] = useState<number | null>(null);
-    const [isWithinGeofence, setIsWithinGeofence] = useState<boolean>(false);
-    const [scanned, setScanned] = useState<boolean>(false);
-    const [successModalVisible, setSuccessModalVisible] = useState<boolean>(false);
-    const [punchDetails, setPunchDetails] = useState<{ time: string; type: string } | null>(null);
     const [loadingLocation, setLoadingLocation] = useState<boolean>(true);
 
+    // Scanner UI States
+    const [scanned, setScanned] = useState<boolean>(false);
+    const [torch, setTorch] = useState<boolean>(false);
+    const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+    // Reason Modal State
+    const [reasonModalVisible, setReasonModalVisible] = useState<boolean>(false);
+    const [reasonType, setReasonType] = useState<'late' | 'early_departure'>('late');
+    const [delayMinutes, setDelayMinutes] = useState<number>(0);
+    const [pendingQrResult, setPendingQrResult] = useState<BranchQrParseResult | null>(null);
+
+    // Success Punch Confirmation State
+    const [successModalVisible, setSuccessModalVisible] = useState<boolean>(false);
+    const [punchResult, setPunchResult] = useState<{
+        time: string;
+        message: string;
+        action?: string;
+    } | null>(null);
+
+    // Anti-race condition lock
+    const isProcessingRef = useRef<boolean>(false);
+
+    // Laser scan animation
+    const translateY = useSharedValue(0);
+
     useEffect(() => {
-        setupLocation();
+        translateY.value = withRepeat(
+            withTiming(230, { duration: 2500, easing: Easing.inOut(Easing.quad) }),
+            -1,
+            true
+        );
     }, []);
 
-    const setupLocation = async () => {
+    const laserAnimatedStyle = useAnimatedStyle(() => {
+        return {
+            transform: [{ translateY: translateY.value }],
+        };
+    });
+
+    useEffect(() => {
+        acquireLocation();
+    }, []);
+
+    const acquireLocation = async () => {
         setLoadingLocation(true);
         try {
             const { status } = await Location.requestForegroundPermissionsAsync();
@@ -65,45 +104,167 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
             }
             setLocationPermission(true);
 
+            // Fetch live high-accuracy GPS coordinates concurrently
             const loc = await Location.getCurrentPositionAsync({
                 accuracy: Location.Accuracy.High,
             });
             setCurrentLocation(loc);
-
-            const dist = getDistanceMeters(
-                loc.coords.latitude,
-                loc.coords.longitude,
-                ENV.DEFAULT_LATITUDE,
-                ENV.DEFAULT_LONGITUDE
-            );
-            setDistance(dist);
-            setIsWithinGeofence(dist <= ENV.GEOFENCE_RADIUS_METERS);
         } catch (e) {
-            console.error('Location Error', e);
+            console.warn('Failed to acquire GPS location:', e);
         } finally {
             setLoadingLocation(false);
         }
     };
 
+    const resetScanState = () => {
+        isProcessingRef.current = false;
+        setScanned(false);
+        setIsSubmitting(false);
+        setPendingQrResult(null);
+        setReasonModalVisible(false);
+    };
+
+    // Execute attendance punch against authoritative backend
+    const executePunch = async (
+        qrResult: BranchQrParseResult,
+        reason?: string
+    ) => {
+        setIsSubmitting(true);
+
+        try {
+            // Re-check live location if missing
+            let loc = currentLocation;
+            if (!loc) {
+                loc = await Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.High,
+                });
+                setCurrentLocation(loc);
+            }
+
+            if (!loc?.coords) {
+                throw new Error('Unable to retrieve GPS coordinates. Please ensure Location services are turned on.');
+            }
+
+            const deviceId = await getDeviceId();
+
+            const response: AttendanceClockInResponse = await attendanceApi.clockIn({
+                branch_code: qrResult.branchCode || undefined,
+                payload: qrResult.payload || undefined,
+                signature: qrResult.signature || 'STATIC',
+                user_lat: loc.coords.latitude,
+                user_lng: loc.coords.longitude,
+                device_id: deviceId,
+                reason: reason || undefined,
+                scanned_at: new Date().toISOString(),
+            });
+
+            // If the server requires a mandatory reason for late arrival or early departure
+            if (response.require_reason && !reason) {
+                setPendingQrResult(qrResult);
+                setReasonType(response.type === 'early_departure' ? 'early_departure' : 'late');
+                setDelayMinutes(response.minutes || 0);
+                setIsSubmitting(false);
+                setReasonModalVisible(true);
+                return;
+            }
+
+            // Attendance punch successful!
+            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+            // Invalidate React Query caches for instant dashboard & history sync
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['dashboardBootstrap'] }),
+                queryClient.invalidateQueries({ queryKey: ['attendanceHistory'] }),
+                queryClient.invalidateQueries({ queryKey: ['shiftToday'] }),
+            ]);
+
+            setPunchResult({
+                time: response.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                message: response.message || 'Attendance Recorded Successfully',
+                action: response.action || 'success',
+            });
+
+            setReasonModalVisible(false);
+            setSuccessModalVisible(true);
+        } catch (error: any) {
+            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+
+            const resData = error?.response?.data;
+            const message = resData?.message || error?.message || 'Attendance recording failed.';
+
+            if (resData?.distance) {
+                Alert.alert(
+                    'Outside Branch Geofence',
+                    `You are ${Math.round(resData.distance)}m away from this branch. Please scan while inside the office premises.`,
+                    [{ text: 'Try Again', onPress: resetScanState }]
+                );
+            } else if (resData?.code === 'BRANCH_NOT_FOUND_QR') {
+                Alert.alert('Invalid QR Code', 'Branch not found. Please scan an authorized branch QR code.', [
+                    { text: 'Try Again', onPress: resetScanState },
+                ]);
+            } else if (resData?.code === 'ATTENDANCE_ALREADY_COMPLETED') {
+                Alert.alert('Attendance Completed', 'All attendance sessions for today have already been completed.', [
+                    { text: 'OK', onPress: () => navigation.navigate('HomeTab') },
+                ]);
+            } else if (resData?.code === 'DEVICE_TAKEN') {
+                Alert.alert('Security Error', 'This device is bound to another employee account.', [
+                    { text: 'Try Again', onPress: resetScanState },
+                ]);
+            } else {
+                Alert.alert('Attendance Error', message, [
+                    { text: 'Try Again', onPress: resetScanState },
+                ]);
+            }
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    const handleBarCodeScanned = async ({ data }: { data: string }) => {
+        if (isProcessingRef.current || scanned || isSubmitting) return;
+        isProcessingRef.current = true;
+        setScanned(true);
+
+        const parseResult = extractBranchQrPayload(data);
+
+        if (!parseResult.isValid) {
+            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+            Alert.alert(
+                'Invalid QR Code',
+                parseResult.error || 'Please scan a valid physical Branch Attendance QR code.',
+                [{ text: 'Try Again', onPress: resetScanState }]
+            );
+            return;
+        }
+
+        await executePunch(parseResult);
+    };
+
     if (!cameraPermission || locationPermission === null || loadingLocation) {
         return (
-            <SafeAreaView style={styles.centerContainer}>
-                <ActivityIndicator size="large" color={theme.colors.primary} />
-                <Text style={styles.loadingText}>Verifying GPS & Camera Permissions...</Text>
+            <SafeAreaView {...({ style: styles.centerContainer } as any)}>
+                <ActivityIndicator size="large" color="#2563EB" />
+                <AppText style={styles.loadingText}>Initializing GPS & Camera Sensor...</AppText>
             </SafeAreaView>
         );
     }
 
     if (!cameraPermission.granted) {
         return (
-            <SafeAreaView style={styles.centerContainer}>
-                <QrCode color={theme.colors.textSecondary} size={60} />
-                <Text style={styles.permTitle}>Camera Permission Required</Text>
-                <Text style={styles.permDesc}>
-                    Please allow camera access to scan Attendance QR code.
-                </Text>
-                <TouchableOpacity style={styles.btnPrimary} onPress={requestCameraPermission}>
-                    <Text style={styles.btnText}>Enable Camera</Text>
+            <SafeAreaView {...({ style: styles.centerContainer } as any)}>
+                <View style={styles.permIconCircle}>
+                    <QrCode color="#2563EB" size={48} />
+                </View>
+                <AppText style={styles.permTitle}>Camera Permission Required</AppText>
+                <AppText style={styles.permDesc}>
+                    Camera access is required to scan physical branch QR codes for attendance.
+                </AppText>
+                <TouchableOpacity
+                    style={styles.permButton}
+                    onPress={requestCameraPermission}
+                    activeOpacity={0.85}
+                >
+                    <AppText style={styles.permBtnText}>Enable Camera</AppText>
                 </TouchableOpacity>
             </SafeAreaView>
         );
@@ -111,122 +272,154 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
 
     if (!locationPermission) {
         return (
-            <SafeAreaView style={styles.centerContainer}>
-                <MapPin color={theme.colors.status.danger} size={60} />
-                <Text style={styles.permTitle}>Location Access Required</Text>
-                <Text style={styles.permDesc}>
-                    High-accuracy GPS location is required to verify office geofence clock-in.
-                </Text>
-                <TouchableOpacity style={styles.btnPrimary} onPress={setupLocation}>
-                    <Text style={styles.btnText}>Grant Location Access</Text>
+            <SafeAreaView {...({ style: styles.centerContainer } as any)}>
+                <View style={[styles.permIconCircle, { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}>
+                    <MapPin color="#EF4444" size={48} />
+                </View>
+                <AppText style={styles.permTitle}>GPS Location Required</AppText>
+                <AppText style={styles.permDesc}>
+                    High-accuracy GPS location is required to verify physical branch presence.
+                </AppText>
+                <TouchableOpacity
+                    style={[styles.permButton, { backgroundColor: '#EF4444' }]}
+                    onPress={acquireLocation}
+                    activeOpacity={0.85}
+                >
+                    <AppText style={styles.permBtnText}>Grant Location Access</AppText>
                 </TouchableOpacity>
             </SafeAreaView>
         );
     }
 
-    const handleBarCodeScanned = async ({ data }: { data: string }) => {
-        if (scanned) return;
-
-        if (!isWithinGeofence) {
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-            Alert.alert(
-                'Outside Office Geofence',
-                `You are currently ${distance}m away from office (allowed radius: ${ENV.GEOFENCE_RADIUS_METERS}m). Please move closer to clock in.`
-            );
-            return;
-        }
-
-        setScanned(true);
-        await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-        try {
-            await apiClient.post('/attendance/scan/clock', {
-                qr_data: data,
-                latitude: currentLocation?.coords.latitude,
-                longitude: currentLocation?.coords.longitude,
-            }).catch(() => null);
-
-            await queryClient.invalidateQueries({ queryKey: ['attendanceHistory'] });
-        } catch (e) {
-            console.log('Clock sync handled');
-        }
-
-        const now = new Date();
-        const formattedTime = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        setPunchDetails({ time: formattedTime, type: 'Clock In' });
-        setSuccessModalVisible(true);
-    };
-
     return (
         <View style={styles.container}>
-            {/* Header Controls */}
-            <SafeAreaView style={styles.headerSafeArea}>
-                <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()}>
-                    <ArrowLeft color="#FFFFFF" size={20} />
-                </TouchableOpacity>
-                <Text style={styles.headerTitle}>Attendance Scanner</Text>
-                <View style={{ width: 40 }} />
+            {/* Top Bar Controls */}
+            <SafeAreaView {...({ edges: ['top'], style: styles.topControlsSafeArea } as any)}>
+                <View style={styles.topControls}>
+                    <TouchableOpacity
+                        style={styles.iconCircleButton}
+                        onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                            if (navigation.canGoBack()) {
+                                navigation.goBack();
+                            } else {
+                                navigation.navigate('HomeTab');
+                            }
+                        }}
+                        activeOpacity={0.7}
+                        accessibilityLabel="Go back"
+                    >
+                        <ArrowLeft color="#FFFFFF" size={19} />
+                    </TouchableOpacity>
+
+                    {/* GPS Status Chip */}
+                    <View style={styles.gpsChip}>
+                        <Navigation color="#10B981" size={14} />
+                        <AppText style={styles.gpsChipText}>
+                            {currentLocation ? 'GPS Calibrated' : 'Acquiring GPS...'}
+                        </AppText>
+                    </View>
+
+                    <TouchableOpacity
+                        style={[
+                            styles.iconCircleButton,
+                            torch && { backgroundColor: 'rgba(251, 191, 36, 0.35)', borderColor: '#FBBF24' },
+                        ]}
+                        onPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                            setTorch((prev) => !prev);
+                        }}
+                        activeOpacity={0.7}
+                        accessibilityLabel="Toggle torch"
+                    >
+                        {torch ? <Zap size={18} color="#FBBF24" /> : <ZapOff size={18} color="#FFFFFF" />}
+                    </TouchableOpacity>
+                </View>
             </SafeAreaView>
 
-            {/* Radar & Geofence Verification Card */}
-            <View style={styles.radarCard}>
-                <View style={styles.radarRow}>
-                    <Navigation
-                        color={isWithinGeofence ? theme.colors.status.success : theme.colors.status.danger}
-                        size={22}
-                    />
-                    <View style={styles.radarInfo}>
-                        <Text style={styles.radarTitle}>
-                            {isWithinGeofence ? 'Office Location Verified' : 'Out of Radius'}
-                        </Text>
-                        <Text style={styles.radarSub}>
-                            Distance: {distance !== null ? `${distance}m` : 'Calculating...'} (Max: {ENV.GEOFENCE_RADIUS_METERS}m)
-                        </Text>
-                    </View>
-                    <View style={[styles.badge, isWithinGeofence ? styles.badgeSuccess : styles.badgeError]}>
-                        <Text style={styles.badgeText}>{isWithinGeofence ? 'INSIDE' : 'OUTSIDE'}</Text>
-                    </View>
-                </View>
-            </View>
-
-            {/* Camera View */}
+            {/* Live Camera View */}
             <CameraView
                 style={StyleSheet.absoluteFill}
+                enableTorch={torch}
                 barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
                 onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
             />
 
-            {/* Scanner Frame */}
+            {/* Overlay Viewfinder */}
             <View style={styles.overlay}>
-                <View style={styles.scanSquare}>
-                    <View style={[styles.corner, styles.tl, { borderColor: theme.colors.primary }]} />
-                    <View style={[styles.corner, styles.tr, { borderColor: theme.colors.primary }]} />
-                    <View style={[styles.corner, styles.bl, { borderColor: theme.colors.primary }]} />
-                    <View style={[styles.corner, styles.br, { borderColor: theme.colors.primary }]} />
+                <View style={styles.scannerFrame}>
+                    <View style={[styles.corner, styles.topLeft]} />
+                    <View style={[styles.corner, styles.topRight]} />
+                    <View style={[styles.corner, styles.bottomLeft]} />
+                    <View style={[styles.corner, styles.bottomRight]} />
+
+                    {/* Animated Laser Beam */}
+                    {!scanned && <Animated.View style={[styles.laserBeam, laserAnimatedStyle]} />}
+
+                    {isSubmitting && (
+                        <View style={styles.loadingOverlay}>
+                            <ActivityIndicator size="large" color="#3B82F6" />
+                            <AppText style={styles.recordingText}>Verifying Geofence & Punch...</AppText>
+                        </View>
+                    )}
                 </View>
-                <Text style={styles.scanPrompt}>
-                    Align Office QR Code to record Attendance
-                </Text>
+
+                <AppText style={styles.instructionText}>
+                    Align Office Branch QR Code to Record Attendance
+                </AppText>
+
+                {scanned && !isSubmitting && (
+                    <TouchableOpacity
+                        style={styles.rescanBtn}
+                        onPress={resetScanState}
+                        activeOpacity={0.8}
+                    >
+                        <RefreshCw size={16} color="#FFFFFF" />
+                        <AppText style={styles.rescanBtnText}>Tap to Rescan</AppText>
+                    </TouchableOpacity>
+                )}
             </View>
+
+            {/* Reason Modal for Late / Early Departure */}
+            <AttendanceReasonModal
+                visible={reasonModalVisible}
+                reasonType={reasonType}
+                delayMinutes={delayMinutes}
+                isLoading={isSubmitting}
+                onProceed={(reason) => {
+                    if (pendingQrResult) {
+                        executePunch(pendingQrResult, reason);
+                    }
+                }}
+                onCancel={resetScanState}
+            />
 
             {/* Success Confirmation Modal */}
             <Modal visible={successModalVisible} transparent animationType="slide">
                 <View style={styles.modalBackdrop}>
-                    <View style={styles.modalContent}>
-                        <CheckCircle2 color={theme.colors.status.success} size={64} />
-                        <Text style={styles.modalTitle}>Attendance Recorded!</Text>
-                        <Text style={styles.modalSub}>
-                            Successfully recorded {punchDetails?.type} at {punchDetails?.time}
-                        </Text>
+                    <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
+                        <View style={styles.successIconCircle}>
+                            <CheckCircle2 color="#10B981" size={56} />
+                        </View>
+                        <AppText style={[styles.modalTitle, isDark && styles.textLight]}>
+                            Attendance Recorded!
+                        </AppText>
+                        <AppText style={styles.modalSub}>
+                            {punchResult?.message}
+                        </AppText>
 
-                        <View style={styles.modalDetails}>
+                        <View style={[styles.modalDetailsCard, isDark && styles.modalDetailsCardDark]}>
                             <View style={styles.detailRow}>
-                                <Text style={styles.detailLabel}>Location Status:</Text>
-                                <Text style={styles.detailVal}>Geofence Verified ({distance}m)</Text>
+                                <AppText style={styles.detailLabel}>Timestamp</AppText>
+                                <AppText style={[styles.detailVal, isDark && styles.textLight]}>
+                                    {punchResult?.time}
+                                </AppText>
                             </View>
                             <View style={styles.detailRow}>
-                                <Text style={styles.detailLabel}>Timestamp:</Text>
-                                <Text style={styles.detailVal}>{punchDetails?.time}</Text>
+                                <AppText style={styles.detailLabel}>Status</AppText>
+                                <AppText style={[styles.detailVal, { color: '#10B981' }]}>
+                                    Verified & Saved
+                                </AppText>
                             </View>
                         </View>
 
@@ -234,12 +427,12 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
                             style={styles.modalBtn}
                             onPress={() => {
                                 setSuccessModalVisible(false);
-                                setScanned(false);
+                                resetScanState();
                                 navigation.navigate('HomeTab');
                             }}
                             activeOpacity={0.85}
                         >
-                            <Text style={styles.modalBtnText}>Done</Text>
+                            <AppText style={styles.modalBtnText}>Done</AppText>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -248,146 +441,288 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
     );
 };
 
-const stylesheet = StyleSheet.create((theme) => ({
+const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#000000',
     },
-    centerContainer: {
-        flex: 1,
-        backgroundColor: theme.colors.background,
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: theme.spacing.lg,
-    },
-    loadingText: {
-        color: theme.colors.textSecondary,
-        fontSize: 14,
-        marginTop: theme.spacing.md,
-    },
-    headerSafeArea: {
+    topControlsSafeArea: {
         position: 'absolute',
-        top: theme.spacing.xl,
-        left: theme.spacing.md,
-        right: theme.spacing.md,
+        top: 0,
+        left: 0,
+        right: 0,
         zIndex: 20,
+    },
+    topControls: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingTop: Platform.OS === 'android' ? 36 : 10,
     },
-    iconCircle: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    iconCircleButton: {
+        width: 38,
+        height: 38,
+        borderRadius: 12,
+        backgroundColor: 'rgba(15, 23, 42, 0.75)',
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.2)',
         justifyContent: 'center',
         alignItems: 'center',
     },
-    headerTitle: {
-        color: '#FFFFFF',
-        fontWeight: '700',
-        fontSize: 17,
-    },
-    radarCard: {
-        position: 'absolute',
-        top: 96,
-        left: theme.spacing.md,
-        right: theme.spacing.md,
-        zIndex: 20,
-        backgroundColor: theme.colors.surface,
-        borderRadius: theme.borderRadius.lg,
-        padding: theme.spacing.md,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        ...theme.shadows.md,
-    },
-    radarRow: {
+    gpsChip: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: theme.spacing.sm + 4,
+        gap: 6,
+        backgroundColor: 'rgba(15, 23, 42, 0.8)',
+        paddingHorizontal: 14,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+        borderColor: 'rgba(16, 185, 129, 0.3)',
     },
-    radarInfo: {
-        flex: 1,
-    },
-    radarTitle: {
-        color: theme.colors.textPrimary,
-        fontSize: 14,
-        fontWeight: '700',
-    },
-    radarSub: {
-        color: theme.colors.textSecondary,
+    gpsChipText: {
+        color: '#F8FAFC',
         fontSize: 12,
-        marginTop: 2,
+        fontWeight: '600',
     },
-    badge: {
-        paddingHorizontal: theme.spacing.sm,
-        paddingVertical: 4,
-        borderRadius: theme.borderRadius.sm,
+    centerContainer: {
+        flex: 1,
+        backgroundColor: '#0F172A',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
     },
-    badgeSuccess: { backgroundColor: theme.colors.surfaceSubtle },
-    badgeError: { backgroundColor: theme.colors.surfaceSubtle },
-    badgeText: { color: theme.colors.textPrimary, fontSize: 10, fontWeight: '800' },
+    loadingText: {
+        color: '#94A3B8',
+        fontSize: 14,
+        marginTop: 16,
+        fontWeight: '500',
+    },
+    permIconCircle: {
+        width: 88,
+        height: 88,
+        borderRadius: 44,
+        backgroundColor: 'rgba(37, 99, 235, 0.15)',
+        borderWidth: 1,
+        borderColor: 'rgba(37, 99, 235, 0.3)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    permTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#F8FAFC',
+        marginTop: 8,
+        textAlign: 'center',
+    },
+    permDesc: {
+        fontSize: 14,
+        color: '#94A3B8',
+        textAlign: 'center',
+        marginTop: 8,
+        marginBottom: 24,
+        lineHeight: 20,
+        paddingHorizontal: 16,
+    },
+    permButton: {
+        backgroundColor: '#2563EB',
+        paddingHorizontal: 28,
+        paddingVertical: 14,
+        borderRadius: 14,
+    },
+    permBtnText: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+        fontSize: 15,
+    },
     overlay: {
         ...StyleSheet.absoluteFillObject,
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: 'rgba(0, 0, 0, 0.45)',
     },
-    scanSquare: {
-        width: 240,
-        height: 240,
-        borderRadius: 20,
+    scannerFrame: {
+        width: 250,
+        height: 250,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+        borderRadius: 24,
         position: 'relative',
+        overflow: 'hidden',
     },
     corner: {
         position: 'absolute',
-        width: 28,
-        height: 28,
+        width: 32,
+        height: 32,
+        borderColor: '#2563EB',
     },
-    tl: { top: 0, left: 0, borderTopWidth: 4, borderLeftWidth: 4, borderTopLeftRadius: 12 },
-    tr: { top: 0, right: 0, borderTopWidth: 4, borderRightWidth: 4, borderTopRightRadius: 12 },
-    bl: { bottom: 0, left: 0, borderBottomWidth: 4, borderLeftWidth: 4, borderBottomLeftRadius: 12 },
-    br: { bottom: 0, right: 0, borderBottomWidth: 4, borderRightWidth: 4, borderBottomRightRadius: 12 },
-    scanPrompt: {
-        color: '#FFFFFF',
-        fontSize: 14,
+    topLeft: {
+        top: -1,
+        left: -1,
+        borderTopWidth: 4,
+        borderLeftWidth: 4,
+        borderTopLeftRadius: 20,
+    },
+    topRight: {
+        top: -1,
+        right: -1,
+        borderTopWidth: 4,
+        borderRightWidth: 4,
+        borderTopRightRadius: 20,
+    },
+    bottomLeft: {
+        bottom: -1,
+        left: -1,
+        borderBottomWidth: 4,
+        borderLeftWidth: 4,
+        borderBottomLeftRadius: 20,
+    },
+    bottomRight: {
+        bottom: -1,
+        right: -1,
+        borderBottomWidth: 4,
+        borderRightWidth: 4,
+        borderBottomRightRadius: 20,
+    },
+    laserBeam: {
+        position: 'absolute',
+        left: 8,
+        right: 8,
+        top: 8,
+        height: 2,
+        backgroundColor: '#60A5FA',
+        shadowColor: '#2563EB',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.9,
+        shadowRadius: 8,
+        elevation: 4,
+    },
+    loadingOverlay: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: 'rgba(15, 23, 42, 0.88)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 16,
+    },
+    recordingText: {
+        color: '#F8FAFC',
+        fontSize: 13,
         fontWeight: '600',
-        marginTop: theme.spacing.lg,
+        marginTop: 12,
     },
-    permTitle: { fontSize: 20, fontWeight: '700', color: theme.colors.textPrimary, marginTop: theme.spacing.md },
-    permDesc: { fontSize: 14, color: theme.colors.textSecondary, textAlign: 'center', marginVertical: theme.spacing.sm },
-    btnPrimary: { backgroundColor: theme.colors.primary, paddingHorizontal: theme.spacing.lg, paddingVertical: theme.spacing.sm + 4, borderRadius: theme.borderRadius.md },
-    btnText: { color: '#FFFFFF', fontWeight: '700' },
+    instructionText: {
+        color: '#F8FAFC',
+        fontSize: 14,
+        textAlign: 'center',
+        marginTop: 28,
+        paddingHorizontal: 40,
+        fontWeight: '500',
+        lineHeight: 20,
+    },
+    rescanBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginTop: 24,
+        backgroundColor: '#2563EB',
+        paddingHorizontal: 22,
+        paddingVertical: 12,
+        borderRadius: 14,
+    },
+    rescanBtnText: {
+        color: '#FFFFFF',
+        fontWeight: '700',
+        fontSize: 14,
+    },
     modalBackdrop: {
         flex: 1,
         backgroundColor: 'rgba(0, 0, 0, 0.65)',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: theme.spacing.lg,
+        padding: 24,
     },
     modalContent: {
-        backgroundColor: theme.colors.surface,
-        borderRadius: theme.borderRadius.lg + 4,
-        padding: theme.spacing.lg,
+        backgroundColor: '#FFFFFF',
+        borderRadius: 24,
+        padding: 24,
+        width: '100%',
+        maxWidth: 380,
         alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.2,
+        shadowRadius: 20,
+        elevation: 10,
+    },
+    modalContentDark: {
+        backgroundColor: '#0F172A',
+    },
+    successIconCircle: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        backgroundColor: 'rgba(16, 185, 129, 0.12)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 16,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: '#0F172A',
+        textAlign: 'center',
+    },
+    modalSub: {
+        fontSize: 14,
+        color: '#64748B',
+        textAlign: 'center',
+        marginTop: 6,
+        marginBottom: 20,
+    },
+    textLight: {
+        color: '#F8FAFC',
+    },
+    modalDetailsCard: {
         width: '100%',
+        backgroundColor: '#F8FAFC',
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 20,
         borderWidth: 1,
-        borderColor: theme.colors.border,
-        ...theme.shadows.md,
+        borderColor: '#E2E8F0',
+        gap: 10,
     },
-    modalTitle: { fontSize: 22, fontWeight: '800', color: theme.colors.textPrimary, marginTop: theme.spacing.md },
-    modalSub: { fontSize: 14, color: theme.colors.textSecondary, textAlign: 'center', marginTop: 6, marginBottom: theme.spacing.md },
-    modalDetails: {
+    modalDetailsCardDark: {
+        backgroundColor: 'rgba(30, 41, 59, 0.5)',
+        borderColor: '#334155',
+    },
+    detailRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+    },
+    detailLabel: {
+        fontSize: 13,
+        color: '#64748B',
+        fontWeight: '500',
+    },
+    detailVal: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#0F172A',
+    },
+    modalBtn: {
         width: '100%',
-        backgroundColor: theme.colors.surfaceSubtle,
-        borderRadius: theme.borderRadius.md,
-        padding: theme.spacing.md,
-        marginBottom: theme.spacing.md,
-        gap: 8,
+        backgroundColor: '#2563EB',
+        borderRadius: 16,
+        paddingVertical: 14,
+        alignItems: 'center',
     },
-    detailRow: { flexDirection: 'row', justifyContent: 'space-between' },
-    detailLabel: { color: theme.colors.textSecondary, fontSize: 13 },
-    detailVal: { color: theme.colors.textPrimary, fontSize: 13, fontWeight: '600' },
-    modalBtn: { backgroundColor: theme.colors.primary, width: '100%', height: 48, borderRadius: theme.borderRadius.md, justifyContent: 'center', alignItems: 'center', ...theme.shadows.sm },
-    modalBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
-}));
+    modalBtnText: {
+        color: '#FFFFFF',
+        fontSize: 15,
+        fontWeight: '700',
+    },
+});

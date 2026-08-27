@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
     View,
-    Text,
     ScrollView,
     TouchableOpacity,
     SafeAreaView,
@@ -9,8 +9,10 @@ import {
     RefreshControl,
     Image,
 } from 'react-native';
+import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { AppShell } from '../../components/common/AppShell';
+import { HeaderIconButton } from '../../components/common/AppHeader';
 import { DashboardSkeleton } from '../../components/common/Skeletons';
 import { useAuth } from '../../context/AuthContext';
 import { useAppTheme } from '../../context/ThemeContext';
@@ -18,6 +20,7 @@ import { apiClient } from '../../api/client';
 import {
     QrCode,
     Calendar,
+    CalendarOff,
     FileText,
     Activity,
     Bell,
@@ -58,15 +61,18 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     const [isClockedIn, setIsClockedIn] = useState(false);
     const [clockInTime, setClockInTime] = useState<string | null>(null);
     const [clockOutTime, setClockOutTime] = useState<string | null>(null);
+    const [avatarLoadError, setAvatarLoadError] = useState(false);
 
     useEffect(() => {
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
         return () => clearInterval(timer);
     }, []);
 
-    useEffect(() => {
-        fetchDashboardData();
-    }, []);
+    useFocusEffect(
+        useCallback(() => {
+            fetchDashboardData();
+        }, [])
+    );
 
     const fetchDashboardData = async () => {
         try {
@@ -139,10 +145,88 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
     const displayName = employeeInfo?.full_name || user?.name || 'Employee';
     const displayRole = employeeInfo?.designation || user?.position || 'Staff';
+
+    const rawAvatarUrl = employeeInfo?.profile_image_url || user?.avatar;
+    const avatarUrl = typeof rawAvatarUrl === 'string' && rawAvatarUrl.trim().length > 0 && rawAvatarUrl !== 'null' && rawAvatarUrl !== 'undefined'
+        ? rawAvatarUrl.trim()
+        : null;
+    const showAvatarImage = !!avatarUrl && !avatarLoadError;
+
     const shiftName = shiftData?.name || 'Standard Shift';
     const shiftSchedule = shiftData?.start_time && shiftData?.end_time
         ? `${shiftData.start_time.substring(0, 5)} - ${shiftData.end_time.substring(0, 5)}`
         : '08:00 - 17:00';
+
+    // ── Dynamic Quick Actions with 100% PWA parity ────────────────────────────
+    const quickActions = [
+        {
+            id: 'attendance',
+            title: 'Attendance Log',
+            subtitle: 'Past Punch Records',
+            icon: History,
+            iconColor: '#10B981',
+            bgColor: 'rgba(16, 185, 129, 0.12)',
+            route: 'History',
+        },
+        {
+            id: 'activity',
+            title: 'Activity Log',
+            subtitle: 'Log Daily Tasks',
+            icon: Activity,
+            iconColor: '#F97316',
+            bgColor: 'rgba(249, 115, 22, 0.12)',
+            route: 'CreateActivity',
+        },
+        {
+            id: 'leave',
+            title: 'Leave Requests',
+            subtitle: 'Apply & Balances',
+            icon: Calendar,
+            iconColor: '#8B5CF6',
+            bgColor: 'rgba(139, 92, 246, 0.12)',
+            route: 'CreateLeave',
+        },
+        {
+            id: 'day_off',
+            title: 'Day Off',
+            subtitle: 'Rest Schedule',
+            icon: CalendarOff,
+            iconColor: '#EF4444',
+            bgColor: 'rgba(239, 68, 68, 0.12)',
+            route: 'DayOff',
+        },
+        {
+            id: 'calendar',
+            title: 'Schedule Calendar',
+            subtitle: 'Shifts & Holidays',
+            icon: Calendar,
+            iconColor: '#0EA5E9',
+            bgColor: 'rgba(14, 165, 233, 0.12)',
+            route: 'CalendarTab',
+        },
+        {
+            id: 'quizzes',
+            title: 'Quizzes',
+            subtitle: 'Training & Tests',
+            icon: Award,
+            iconColor: '#6366F1',
+            bgColor: 'rgba(99, 102, 241, 0.12)',
+            route: 'QuizList',
+        },
+    ];
+
+    // Conditionally render Staff Notices for Managers / Top Management
+    if (employeeInfo?.is_top_management || (employeeInfo?.subordinates_count ?? 0) > 0) {
+        quickActions.push({
+            id: 'subordinate_notices',
+            title: 'Staff Notices',
+            subtitle: 'Subordinate Feed',
+            icon: FileText,
+            iconColor: '#D946EF',
+            bgColor: 'rgba(217, 70, 239, 0.12)',
+            route: 'SubordinateNotices',
+        });
+    }
 
     return (
         <AppShell showHeader={false} refreshing={refreshing} onRefresh={onRefresh}>
@@ -170,51 +254,43 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 {/* User Greeting & Header Actions */}
                 <View style={styles.headerRow}>
                     <View style={styles.userProfileGroup}>
-                        {employeeInfo?.profile_image_url || user?.avatar ? (
+                        {showAvatarImage ? (
                             <Image
-                                source={{ uri: employeeInfo?.profile_image_url || user?.avatar }}
+                                source={{ uri: avatarUrl! }}
                                 style={styles.avatarImage}
+                                onError={() => setAvatarLoadError(true)}
                             />
                         ) : (
                             <View style={styles.avatarFallback}>
                                 <Text style={styles.avatarText}>
-                                    {displayName.charAt(0).toUpperCase()}
+                                    {displayName ? displayName.charAt(0).toUpperCase() : 'U'}
                                 </Text>
                             </View>
                         )}
                         <View style={styles.greetingTextContainer}>
-                            <Text style={styles.greetingSubtitle}>
+                            <Text style={styles.greetingSubtitle} numberOfLines={1}>
                                 {getGreeting()}
                             </Text>
-                            <Text style={styles.greetingTitle} numberOfLines={1}>
+                            <Text variant="h2" style={styles.greetingTitle} numberOfLines={1}>
                                 {displayName}
                             </Text>
                         </View>
                     </View>
 
                     <View style={styles.headerActionsGroup}>
-                        <TouchableOpacity
+                        <HeaderIconButton
+                            icon={isDark ? <Sun color="#F59E0B" size={18} /> : <Moon color="#2563EB" size={18} />}
                             onPress={toggleTheme}
-                            style={styles.iconButton}
-                            activeOpacity={0.7}
-                        >
-                            {isDark ? <Sun color="#F59E0B" size={20} /> : <Moon color="#2563EB" size={20} />}
-                        </TouchableOpacity>
+                            accessibilityLabel="Toggle theme"
+                        />
 
-                        <TouchableOpacity
-                            style={styles.iconButton}
+                        <HeaderIconButton
+                            icon={<Bell color={theme.colors.textPrimary} size={18} />}
                             onPress={() => navigation.navigate('Notifications')}
-                            activeOpacity={0.7}
-                        >
-                            <Bell color={theme.colors.textPrimary} size={20} />
-                            {unreadNotifications > 0 && (
-                                <View style={styles.notificationBadge}>
-                                    <Text style={styles.notificationBadgeText}>
-                                        {unreadNotifications > 9 ? '9+' : unreadNotifications}
-                                    </Text>
-                                </View>
-                            )}
-                        </TouchableOpacity>
+                            accessibilityLabel="Notifications"
+                            badge={unreadNotifications > 0 ? (unreadNotifications > 9 ? '9+' : unreadNotifications) : undefined}
+                            style={{ marginLeft: 8 }}
+                        />
                     </View>
                 </View>
 
@@ -304,104 +380,26 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                     </TouchableOpacity>
                 </View>
 
-                {/* 8-Tile Quick Access Menu */}
+                {/* Dynamic Quick Access Menu matching PWA parity */}
                 <Text style={styles.sectionTitle}>Quick Actions</Text>
                 <View style={styles.quickGrid}>
-                    <TouchableOpacity
-                        style={styles.gridTile}
-                        onPress={() => navigation.navigate('CreateLeave')}
-                        activeOpacity={0.8}
-                    >
-                        <View style={[styles.tileIconContainer, { backgroundColor: 'rgba(37, 99, 235, 0.1)' }]}>
-                            <Calendar color="#2563EB" size={22} />
-                        </View>
-                        <Text style={styles.tileTitle}>Leave Requests</Text>
-                        <Text style={styles.tileSubtitle}>Apply & Balances</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.gridTile}
-                        onPress={() => navigation.navigate('CreateActivity')}
-                        activeOpacity={0.8}
-                    >
-                        <View style={[styles.tileIconContainer, { backgroundColor: 'rgba(16, 185, 129, 0.1)' }]}>
-                            <Activity color="#10B981" size={22} />
-                        </View>
-                        <Text style={styles.tileTitle}>Activity Log</Text>
-                        <Text style={styles.tileSubtitle}>Log Daily Tasks</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.gridTile}
-                        onPress={() => navigation.navigate('History')}
-                        activeOpacity={0.8}
-                    >
-                        <View style={[styles.tileIconContainer, { backgroundColor: theme.colors.surfaceSubtle }]}>
-                            <History color={theme.colors.primary} size={22} />
-                        </View>
-                        <Text style={styles.tileTitle}>Attendance Log</Text>
-                        <Text style={styles.tileSubtitle}>Past Punch Records</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.gridTile}
-                        onPress={() => navigation.navigate('CalendarTab')}
-                        activeOpacity={0.8}
-                    >
-                        <View style={[styles.tileIconContainer, { backgroundColor: 'rgba(99, 102, 241, 0.1)' }]}>
-                            <Calendar color="#6366F1" size={22} />
-                        </View>
-                        <Text style={styles.tileTitle}>Schedule Calendar</Text>
-                        <Text style={styles.tileSubtitle}>Shifts & Holidays</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.gridTile}
-                        onPress={() => navigation.navigate('SubordinateNotices')}
-                        activeOpacity={0.8}
-                    >
-                        <View style={[styles.tileIconContainer, { backgroundColor: 'rgba(245, 158, 11, 0.1)' }]}>
-                            <FileText color="#F59E0B" size={22} />
-                        </View>
-                        <Text style={styles.tileTitle}>Team Notices</Text>
-                        <Text style={styles.tileSubtitle}>Subordinate Feed</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.gridTile}
-                        onPress={() => navigation.navigate('QuizList')}
-                        activeOpacity={0.8}
-                    >
-                        <View style={[styles.tileIconContainer, { backgroundColor: 'rgba(139, 92, 246, 0.1)' }]}>
-                            <Award color="#8B5CF6" size={22} />
-                        </View>
-                        <Text style={styles.tileTitle}>Quizzes</Text>
-                        <Text style={styles.tileSubtitle}>Training & Tests</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.gridTile}
-                        onPress={() => navigation.navigate('WishesInbox')}
-                        activeOpacity={0.8}
-                    >
-                        <View style={[styles.tileIconContainer, { backgroundColor: 'rgba(236, 72, 153, 0.1)' }]}>
-                            <Gift color="#EC4899" size={22} />
-                        </View>
-                        <Text style={styles.tileTitle}>Celebrations</Text>
-                        <Text style={styles.tileSubtitle}>Wishes & Milestones</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.gridTile}
-                        onPress={() => navigation.navigate('Settings')}
-                        activeOpacity={0.8}
-                    >
-                        <View style={[styles.tileIconContainer, { backgroundColor: 'rgba(100, 116, 139, 0.1)' }]}>
-                            <Settings color="#64748B" size={22} />
-                        </View>
-                        <Text style={styles.tileTitle}>App Settings</Text>
-                        <Text style={styles.tileSubtitle}>Theme & Account</Text>
-                    </TouchableOpacity>
+                    {quickActions.map((action) => {
+                        const IconComponent = action.icon;
+                        return (
+                            <TouchableOpacity
+                                key={action.id}
+                                style={styles.gridTile}
+                                onPress={() => navigation.navigate(action.route)}
+                                activeOpacity={0.8}
+                            >
+                                <View style={[styles.tileIconContainer, { backgroundColor: action.bgColor }]}>
+                                    <IconComponent color={action.iconColor} size={22} />
+                                </View>
+                                <Text style={styles.tileTitle}>{action.title}</Text>
+                                <Text style={styles.tileSubtitle}>{action.subtitle}</Text>
+                            </TouchableOpacity>
+                        );
+                    })}
                 </View>
 
                 {/* Company Announcements Feed */}
@@ -513,6 +511,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        paddingTop: theme.spacing.xs,
         marginBottom: theme.spacing.lg,
     },
     userProfileGroup: {
@@ -545,16 +544,20 @@ const stylesheet = StyleSheet.create((theme) => ({
     greetingTextContainer: {
         marginLeft: theme.spacing.sm + 4,
         flex: 1,
+        justifyContent: 'center',
     },
     greetingSubtitle: {
         fontSize: 12,
         color: theme.colors.textSecondary,
         fontWeight: '500',
+        marginBottom: 2,
     },
     greetingTitle: {
         fontSize: 18,
+        lineHeight: 26,
         fontWeight: '700',
         color: theme.colors.textPrimary,
+        paddingBottom: 2,
     },
     greetingRoleText: {
         fontSize: 12,

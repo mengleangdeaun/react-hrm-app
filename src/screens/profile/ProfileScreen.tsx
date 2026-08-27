@@ -1,15 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
     View,
     ScrollView,
     TouchableOpacity,
-    SafeAreaView,
     StatusBar,
     Alert,
     ActivityIndicator,
     Image,
     RefreshControl,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import * as ImagePicker from 'expo-image-picker';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -18,6 +18,7 @@ import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { profileApi, ProfileData } from '../../api/profile';
 import { AppText as Text } from '../../components/AppText';
+import { AppHeader } from '../../components/common/AppHeader';
 import {
     Mail,
     Phone,
@@ -35,15 +36,15 @@ import {
     Cake,
 } from 'lucide-react-native';
 
-const formatDate = (dateStr?: string) => {
+const formatDate = (dateStr: string | null | undefined): string => {
     if (!dateStr) return 'N/A';
     try {
         const d = new Date(dateStr);
         if (isNaN(d.getTime())) return dateStr;
-        return d.toLocaleDateString('en-GB', {
-            day: '2-digit',
-            month: 'short',
+        return d.toLocaleDateString('en-US', {
             year: 'numeric',
+            month: 'short',
+            day: 'numeric',
         });
     } catch {
         return dateStr;
@@ -51,12 +52,14 @@ const formatDate = (dateStr?: string) => {
 };
 
 export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+    const insets = useSafeAreaInsets();
     const { user, logout } = useAuth();
     const { isDark, toggleTheme, primaryColor } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
     const queryClient = useQueryClient();
+    const [avatarLoadError, setAvatarLoadError] = useState(false);
 
     // Query with 10-minute cache & robust response unwrapping
     const { data: profileData, isFetching, refetch } = useQuery<ProfileData>({
@@ -146,40 +149,43 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             ? (emp?.line_manager?.name || emp?.line_manager?.full_name || 'HR Supervisor')
             : String(emp?.line_manager || 'HR Supervisor');
 
-    const avatarUrl = emp?.profile_image_url || emp?.profile_image || emp?.avatar;
+    const rawAvatarUrl = emp?.profile_image_url || emp?.profile_image || emp?.avatar;
+    const avatarUrl = typeof rawAvatarUrl === 'string' && rawAvatarUrl.trim().length > 0 && rawAvatarUrl !== 'null' && rawAvatarUrl !== 'undefined'
+        ? rawAvatarUrl.trim()
+        : null;
+    const showAvatarImage = !!avatarUrl && !avatarLoadError;
     const isUploadingAvatar = uploadAvatarMutation.isPending;
 
     const handleRefresh = async () => {
+        setAvatarLoadError(false);
         await queryClient.invalidateQueries({ queryKey: ['profile'] });
         refetch();
     };
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <View style={[styles.safeArea, { paddingTop: insets.top }]}>
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-            {/* Navigation Header */}
-            <View style={styles.topBar}>
-                <Text style={styles.headerTitle}>{t('my_profile', 'My Profile')}</Text>
-
-                <View style={styles.headerActions}>
-                    <TouchableOpacity onPress={toggleTheme} style={styles.iconCircle} activeOpacity={0.7}>
-                        {isDark ? (
+            {/* Standard Native Header Bar */}
+            <AppHeader
+                title={t('my_profile', 'My Profile')}
+                rightActions={[
+                    {
+                        icon: isDark ? (
                             <Sun color={theme.colors.textSecondary} size={18} />
                         ) : (
                             <Moon color={theme.colors.textSecondary} size={18} />
-                        )}
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.iconCircle}
-                        onPress={() => navigation.navigate('Settings')}
-                        activeOpacity={0.7}
-                    >
-                        <Settings color={theme.colors.textSecondary} size={18} />
-                    </TouchableOpacity>
-                </View>
-            </View>
+                        ),
+                        onPress: toggleTheme,
+                        accessibilityLabel: 'Toggle theme',
+                    },
+                    {
+                        icon: <Settings color={theme.colors.textSecondary} size={18} />,
+                        onPress: () => navigation.navigate('Settings'),
+                        accessibilityLabel: 'App Settings',
+                    },
+                ]}
+            />
 
             <ScrollView
                 style={styles.container}
@@ -196,11 +202,17 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 {/* Hero Profile Card */}
                 <View style={styles.heroCard}>
                     <View style={styles.avatarWrapper}>
-                        {avatarUrl ? (
-                            <Image source={{ uri: avatarUrl }} style={styles.avatarImg} />
+                        {showAvatarImage ? (
+                            <Image
+                                source={{ uri: avatarUrl! }}
+                                style={styles.avatarImg}
+                                onError={() => setAvatarLoadError(true)}
+                            />
                         ) : (
                             <View style={styles.avatarFallback}>
-                                <Text style={styles.avatarFallbackText}>{displayName.charAt(0).toUpperCase()}</Text>
+                                <Text style={styles.avatarFallbackText}>
+                                    {displayName ? displayName.charAt(0).toUpperCase() : 'U'}
+                                </Text>
                             </View>
                         )}
 
@@ -218,7 +230,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                         </TouchableOpacity>
                     </View>
 
-                    <Text style={styles.displayName}>{displayName}</Text>
+                    <Text variant="h1" style={styles.displayName}>{displayName}</Text>
                     <Text style={styles.designationText}>{designationName}</Text>
 
                     <View style={styles.badgeRow}>
@@ -357,7 +369,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                     <Text style={styles.logoutBtnText}>{t('sign_out_account', 'Sign Out of Account')}</Text>
                 </TouchableOpacity>
             </ScrollView>
-        </SafeAreaView>
+        </View>
     );
 };
 
@@ -398,8 +410,9 @@ const stylesheet = StyleSheet.create((theme) => ({
         flex: 1,
     },
     scrollContent: {
+        flexGrow: 1,
         paddingHorizontal: theme.spacing.md + 4,
-        paddingBottom: theme.spacing.xl,
+        paddingBottom: theme.spacing.xl + 40,
     },
     heroCard: {
         backgroundColor: theme.colors.surface,
@@ -451,10 +464,12 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     displayName: {
         fontSize: 20,
+        lineHeight: 28,
         fontWeight: '800',
         color: theme.colors.textPrimary,
         textAlign: 'center',
         letterSpacing: -0.2,
+        paddingBottom: 2,
     },
     designationText: {
         fontSize: 13,

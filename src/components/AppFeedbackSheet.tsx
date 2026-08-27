@@ -8,15 +8,18 @@ import {
     Alert,
     Platform,
     Dimensions,
-    KeyboardAvoidingView,
     ScrollView,
     Animated,
     Easing,
+    PanResponder,
+    Keyboard,
+    StyleSheet,
 } from 'react-native';
-import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import * as Haptics from 'expo-haptics';
 import { MessageSquare, Send, Smartphone, X } from 'lucide-react-native';
 import { useAppTheme } from '../context/ThemeContext';
 import { useTranslation } from '../context/LanguageContext';
+import { lightTheme, darkTheme } from '../styles/theme';
 import { profileApi } from '../api/profile';
 import { getDeviceId } from '../utils/device';
 import { AppText as Text } from './AppText';
@@ -29,21 +32,55 @@ interface AppFeedbackSheetProps {
 }
 
 export const AppFeedbackSheet: React.FC<AppFeedbackSheetProps> = ({ visible, onClose }) => {
-    const { primaryColor } = useAppTheme();
+    const { isDark, primaryColor } = useAppTheme();
+    const theme = isDark ? darkTheme : lightTheme;
     const { t } = useTranslation();
-    const { theme } = useUnistyles();
-    const styles = stylesheet;
 
     const [message, setMessage] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [modalVisible, setModalVisible] = useState(visible);
+    const [isScrolledToTop, setIsScrolledToTop] = useState(true);
 
     const backdropAnim = useRef(new Animated.Value(0)).current;
     const sheetAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+    const panY = useRef(new Animated.Value(0)).current;
+    const keyboardOffsetAnim = useRef(new Animated.Value(0)).current;
 
+    // Track keyboard show/hide to lift the sheet above keyboard
+    useEffect(() => {
+        const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+        const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+        const showSub = Keyboard.addListener(showEvent, (e: any) => {
+            Animated.timing(keyboardOffsetAnim, {
+                toValue: e.endCoordinates.height,
+                duration: Platform.OS === 'ios' ? (e.duration || 250) : 200,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: false,
+            }).start();
+        });
+
+        const hideSub = Keyboard.addListener(hideEvent, (e: any) => {
+            Animated.timing(keyboardOffsetAnim, {
+                toValue: 0,
+                duration: Platform.OS === 'ios' ? (e.duration || 200) : 200,
+                easing: Easing.out(Easing.cubic),
+                useNativeDriver: false,
+            }).start();
+        });
+
+        return () => {
+            showSub.remove();
+            hideSub.remove();
+        };
+    }, []);
+
+    // Open/Close Animation Lifecycle
     useEffect(() => {
         if (visible) {
             setModalVisible(true);
+            panY.setValue(0);
+            sheetAnim.setValue(SCREEN_HEIGHT);
             Animated.parallel([
                 Animated.timing(backdropAnim, {
                     toValue: 1,
@@ -53,7 +90,7 @@ export const AppFeedbackSheet: React.FC<AppFeedbackSheetProps> = ({ visible, onC
                 }),
                 Animated.spring(sheetAnim, {
                     toValue: 0,
-                    tension: 65,
+                    tension: 70,
                     friction: 11,
                     useNativeDriver: true,
                 }),
@@ -64,6 +101,7 @@ export const AppFeedbackSheet: React.FC<AppFeedbackSheetProps> = ({ visible, onC
     }, [visible]);
 
     const handleDismiss = () => {
+        Keyboard.dismiss();
         Animated.parallel([
             Animated.timing(backdropAnim, {
                 toValue: 0,
@@ -79,9 +117,51 @@ export const AppFeedbackSheet: React.FC<AppFeedbackSheetProps> = ({ visible, onC
             }),
         ]).start(() => {
             setModalVisible(false);
+            panY.setValue(0);
             onClose();
         });
     };
+
+    // Native PanResponder for interactive swipe-down-to-dismiss gesture
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: (_: any, gestureState: any) => {
+                // Respond if user drags downwards and scroll is at top
+                return gestureState.dy > 6 && isScrolledToTop;
+            },
+            onPanResponderGrant: () => {
+                panY.setValue(0);
+            },
+            onPanResponderMove: (_: any, gestureState: any) => {
+                if (gestureState.dy > 0) {
+                    panY.setValue(gestureState.dy);
+                    const opacity = Math.max(0, 1 - gestureState.dy / 320);
+                    backdropAnim.setValue(opacity);
+                }
+            },
+            onPanResponderRelease: (_: any, gestureState: any) => {
+                if (gestureState.dy > 110 || gestureState.vy > 0.6) {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                    handleDismiss();
+                } else {
+                    Animated.parallel([
+                        Animated.spring(panY, {
+                            toValue: 0,
+                            tension: 80,
+                            friction: 10,
+                            useNativeDriver: true,
+                        }),
+                        Animated.timing(backdropAnim, {
+                            toValue: 1,
+                            duration: 150,
+                            useNativeDriver: true,
+                        }),
+                    ]).start();
+                }
+            },
+        })
+    ).current;
 
     const handleSubmit = async () => {
         if (!message.trim()) {
@@ -111,8 +191,8 @@ export const AppFeedbackSheet: React.FC<AppFeedbackSheetProps> = ({ visible, onC
             setMessage('');
             handleDismiss();
             Alert.alert(
-                t('feedback_submitted', 'Feedback submitted!'),
-                t('feedback_thanks', 'Thank you for your feedback!')
+                t('feedback_submitted', 'Feedback submitted! 🎉'),
+                t('feedback_thanks', 'Thank you for your feedback! Our engineering team will review it.')
             );
         } catch (err: any) {
             Alert.alert(
@@ -126,6 +206,8 @@ export const AppFeedbackSheet: React.FC<AppFeedbackSheetProps> = ({ visible, onC
 
     if (!modalVisible) return null;
 
+    const translateY = Animated.add(sheetAnim, panY);
+
     return (
         <Modal
             visible={modalVisible}
@@ -134,11 +216,8 @@ export const AppFeedbackSheet: React.FC<AppFeedbackSheetProps> = ({ visible, onC
             animationType="none"
             onRequestClose={handleDismiss}
         >
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                style={styles.modalOverlay}
-            >
-                {/* Backdrop with 60fps Native Driver Fade Animation */}
+            <View style={styles.modalOverlay}>
+                {/* Backdrop Fade */}
                 <Animated.View
                     style={[
                         styles.backdrop,
@@ -154,29 +233,46 @@ export const AppFeedbackSheet: React.FC<AppFeedbackSheetProps> = ({ visible, onC
                     />
                 </Animated.View>
 
-                {/* Bottom Sheet with 60fps Native Driver Spring Slide Animation */}
+                {/* Animated Sheet with Keyboard Offset & Pan Gesture */}
                 <Animated.View
                     style={[
                         styles.sheetContainer,
                         {
-                            transform: [{ translateY: sheetAnim }],
+                            backgroundColor: theme.colors.surface,
+                            borderColor: theme.colors.border,
+                            transform: [{ translateY }],
+                            paddingBottom: Animated.add(
+                                keyboardOffsetAnim,
+                                new Animated.Value(Platform.OS === 'ios' ? 24 : 16)
+                            ),
                         },
                     ]}
                 >
-                    {/* Bottom Sheet Top Drag Handle Bar */}
-                    <View style={styles.dragHandleWrapper}>
-                        <View style={styles.dragHandleBar} />
+                    {/* Swipe Handle Bar with Pan Gesture Attachment */}
+                    <View {...panResponder.panHandlers} style={styles.dragHandleArea}>
+                        <View
+                            style={[
+                                styles.dragHandleBar,
+                                {
+                                    backgroundColor: isDark
+                                        ? 'rgba(255, 255, 255, 0.25)'
+                                        : 'rgba(0, 0, 0, 0.18)',
+                                },
+                            ]}
+                        />
                     </View>
 
-                    {/* Header Close Button */}
+                    {/* Sheet Header */}
                     <View style={styles.sheetHeader}>
-                        <Text style={styles.sheetTitle}>{t('app_feedback', 'App Feedback')}</Text>
+                        <Text style={[styles.sheetTitle, { color: theme.colors.textPrimary }]}>
+                            {t('app_feedback', 'App Feedback')}
+                        </Text>
                         <TouchableOpacity
                             onPress={handleDismiss}
-                            style={styles.closeBtn}
+                            style={[styles.closeBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
                             activeOpacity={0.7}
                         >
-                            <X color={theme.colors.textPrimary} size={20} />
+                            <X color={theme.colors.textPrimary} size={18} />
                         </TouchableOpacity>
                     </View>
 
@@ -184,27 +280,42 @@ export const AppFeedbackSheet: React.FC<AppFeedbackSheetProps> = ({ visible, onC
                         showsVerticalScrollIndicator={false}
                         contentContainerStyle={styles.scrollContent}
                         keyboardShouldPersistTaps="handled"
+                        onScroll={(e: any) => {
+                            setIsScrolledToTop(e.nativeEvent.contentOffset.y <= 0);
+                        }}
+                        scrollEventThrottle={16}
                     >
-                        {/* Icon Box Header */}
+                        {/* Hero Header */}
                         <View style={styles.heroWrapper}>
                             <View style={[styles.iconCircle, { backgroundColor: `${primaryColor}18` }]}>
-                                <MessageSquare color={primaryColor} size={32} />
+                                <MessageSquare color={primaryColor} size={28} />
                             </View>
-                            <Text style={styles.heroTitle}>{t('help_us_improve', 'Help us improve')}</Text>
-                            <Text style={styles.heroSub}>
+                            <Text style={[styles.heroTitle, { color: theme.colors.textPrimary }]}>
+                                {t('help_us_improve', 'Help Us Improve')}
+                            </Text>
+                            <Text style={[styles.heroSub, { color: theme.colors.textSecondary }]}>
                                 {t('feedback_desc', 'Found a bug or have a suggestion? Tell us about it.')}
                             </Text>
                         </View>
 
                         {/* Input Area */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.inputLabel}>{t('your_message', 'YOUR MESSAGE')}</Text>
+                            <Text style={[styles.inputLabel, { color: theme.colors.textSecondary }]}>
+                                {t('your_message', 'YOUR MESSAGE')}
+                            </Text>
                             <TextInput
-                                style={styles.textArea}
+                                style={[
+                                    styles.textArea,
+                                    {
+                                        backgroundColor: theme.colors.surfaceSubtle,
+                                        borderColor: theme.colors.border,
+                                        color: theme.colors.textPrimary,
+                                    },
+                                ]}
                                 value={message}
                                 onChangeText={setMessage}
-                                placeholder={t('feedback_placeholder', 'Describe your experience or suggestion...')}
-                                placeholderTextColor={theme.colors.textSecondary}
+                                placeholder={t('feedback_placeholder', 'Describe your experience or suggestion in detail...')}
+                                placeholderTextColor={theme.colors.textDisabled}
                                 multiline
                                 numberOfLines={5}
                                 editable={!isSubmitting}
@@ -212,18 +323,26 @@ export const AppFeedbackSheet: React.FC<AppFeedbackSheetProps> = ({ visible, onC
                             />
                         </View>
 
-                        {/* Device Info Warning Banner */}
-                        <View style={styles.infoBanner}>
-                            <Smartphone color={theme.colors.status.warning} size={20} style={styles.infoIcon} />
-                            <Text style={styles.infoText}>
+                        {/* Device Info Banner */}
+                        <View
+                            style={[
+                                styles.infoBanner,
+                                {
+                                    backgroundColor: 'rgba(245, 158, 11, 0.10)',
+                                    borderColor: 'rgba(245, 158, 11, 0.25)',
+                                },
+                            ]}
+                        >
+                            <Smartphone color="#F59E0B" size={18} style={styles.infoIcon} />
+                            <Text style={[styles.infoText, { color: theme.colors.textSecondary }]}>
                                 {t(
                                     'device_info_hint',
-                                    'Basic device info (OS, screen size) is automatically attached to help us debug.'
+                                    'Basic device info (OS, screen resolution) is automatically attached to help us diagnose issues.'
                                 )}
                             </Text>
                         </View>
 
-                        {/* Action Submit Button */}
+                        {/* Submit Button */}
                         <TouchableOpacity
                             style={[
                                 styles.submitBtn,
@@ -235,25 +354,25 @@ export const AppFeedbackSheet: React.FC<AppFeedbackSheetProps> = ({ visible, onC
                             activeOpacity={0.85}
                         >
                             {isSubmitting ? (
-                                <>
-                                    <ActivityIndicator color={theme.colors.onPrimary} size="small" />
+                                <View style={styles.btnContent}>
+                                    <ActivityIndicator color="#FFFFFF" size="small" />
                                     <Text style={styles.submitBtnText}>{t('submitting', 'Submitting...')}</Text>
-                                </>
+                                </View>
                             ) : (
-                                <>
-                                    <Send color={theme.colors.onPrimary} size={19} />
+                                <View style={styles.btnContent}>
+                                    <Send color="#FFFFFF" size={18} />
                                     <Text style={styles.submitBtnText}>{t('send_feedback', 'Send Feedback')}</Text>
-                                </>
+                                </View>
                             )}
                         </TouchableOpacity>
                     </ScrollView>
                 </Animated.View>
-            </KeyboardAvoidingView>
+            </View>
         </Modal>
     );
 };
 
-const stylesheet = StyleSheet.create((theme) => ({
+const styles = StyleSheet.create({
     modalOverlay: {
         flex: 1,
         justifyContent: 'flex-end',
@@ -263,108 +382,102 @@ const stylesheet = StyleSheet.create((theme) => ({
         backgroundColor: 'rgba(0, 0, 0, 0.55)',
     },
     sheetContainer: {
-        backgroundColor: theme.colors.surface,
-        borderTopLeftRadius: theme.borderRadius.lg + 8,
-        borderTopRightRadius: theme.borderRadius.lg + 8,
-        paddingHorizontal: theme.spacing.lg,
-        paddingBottom: Platform.OS === 'ios' ? theme.spacing.xl + 10 : theme.spacing.lg,
-        maxHeight: '88%',
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        ...theme.shadows.md,
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        paddingHorizontal: 20,
+        maxHeight: '90%',
+        borderTopWidth: 1,
+        borderLeftWidth: 1,
+        borderRightWidth: 1,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.12,
+        shadowRadius: 12,
+        elevation: 16,
     },
-    dragHandleWrapper: {
+    dragHandleArea: {
         alignItems: 'center',
-        paddingVertical: theme.spacing.xs + 6,
+        paddingVertical: 12,
+        width: '100%',
     },
     dragHandleBar: {
-        width: 40,
+        width: 44,
         height: 5,
         borderRadius: 3,
-        backgroundColor: theme.colors.borderStrong,
     },
     sheetHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: theme.spacing.md,
+        marginBottom: 14,
     },
     sheetTitle: {
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: '700',
-        color: theme.colors.textPrimary,
     },
     closeBtn: {
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: theme.colors.surfaceSubtle,
         justifyContent: 'center',
         alignItems: 'center',
     },
     scrollContent: {
-        paddingBottom: theme.spacing.md,
+        paddingBottom: 8,
     },
     heroWrapper: {
         alignItems: 'center',
-        marginBottom: theme.spacing.lg,
+        marginBottom: 16,
     },
     iconCircle: {
-        width: 64,
-        height: 64,
-        borderRadius: 24,
+        width: 58,
+        height: 58,
+        borderRadius: 20,
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: theme.spacing.sm,
+        marginBottom: 10,
     },
     heroTitle: {
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: '800',
-        color: theme.colors.textPrimary,
         textAlign: 'center',
     },
     heroSub: {
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: '500',
-        color: theme.colors.textSecondary,
         textAlign: 'center',
-        marginTop: 4,
-        paddingHorizontal: theme.spacing.md,
+        marginTop: 3,
+        paddingHorizontal: 16,
+        lineHeight: 16,
     },
     inputGroup: {
-        marginBottom: theme.spacing.md,
+        marginBottom: 14,
     },
     inputLabel: {
         fontSize: 10,
         fontWeight: '700',
         textTransform: 'uppercase',
         letterSpacing: 0.8,
-        color: theme.colors.textSecondary,
-        marginBottom: theme.spacing.xs,
+        marginBottom: 6,
         marginLeft: 2,
     },
     textArea: {
-        backgroundColor: theme.colors.surfaceSubtle,
-        borderRadius: theme.borderRadius.md + 2,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        color: theme.colors.textPrimary,
-        padding: theme.spacing.md,
+        borderRadius: 14,
+        borderWidth: 1.5,
+        padding: 14,
         fontSize: 14,
-        minHeight: 140,
+        minHeight: 120,
     },
     infoBanner: {
         flexDirection: 'row',
         alignItems: 'flex-start',
-        backgroundColor: theme.colors.status.warning + '12',
-        borderRadius: theme.borderRadius.md,
-        padding: theme.spacing.md,
-        marginBottom: theme.spacing.lg,
+        borderRadius: 12,
+        padding: 12,
+        marginBottom: 18,
         borderWidth: 1,
-        borderColor: theme.colors.status.warning + '30',
     },
     infoIcon: {
-        marginRight: theme.spacing.sm,
+        marginRight: 8,
         marginTop: 1,
     },
     infoText: {
@@ -372,23 +485,24 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontSize: 11,
         lineHeight: 16,
         fontWeight: '500',
-        color: theme.colors.textSecondary,
     },
     submitBtn: {
-        height: 52,
-        borderRadius: theme.borderRadius.md + 4,
-        flexDirection: 'row',
+        height: 50,
+        borderRadius: 14,
         justifyContent: 'center',
         alignItems: 'center',
-        gap: theme.spacing.sm,
-        ...theme.shadows.sm,
+    },
+    btnContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
     },
     submitBtnDisabled: {
         opacity: 0.5,
     },
     submitBtnText: {
-        color: theme.colors.onPrimary,
+        color: '#FFFFFF',
         fontWeight: '700',
         fontSize: 15,
     },
-}));
+});

@@ -3,7 +3,6 @@ import {
     View,
     ScrollView,
     TouchableOpacity,
-    SafeAreaView,
     StatusBar,
     Alert,
     ActivityIndicator,
@@ -17,6 +16,7 @@ import { quizApi, QuizQuestion, QuizAnswerPayload } from '../../api/quiz';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { AppText as Text } from '../../components/AppText';
+import { AppHeader, HeaderIconButton } from '../../components/common/AppHeader';
 import {
     ArrowLeft,
     Clock,
@@ -396,13 +396,13 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
 
     if (loading && !testData) {
         return (
-            <SafeAreaView style={styles.safeArea}>
+            <View style={[styles.safeArea, { paddingTop: insets.top }]}>
                 <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
                 <View style={styles.loadingContainer}>
                     <ActivityIndicator size="large" color={primaryColor} />
                     <Text style={styles.loadingText}>{t('loading_quiz', 'Preparing assessment environment...')}</Text>
                 </View>
-            </SafeAreaView>
+            </View>
         );
     }
 
@@ -412,21 +412,14 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
     // Initial Instructions / Agreement Screen
     if (!started) {
         return (
-            <SafeAreaView style={styles.safeArea}>
+            <View style={[styles.safeArea, { paddingTop: insets.top }]}>
                 <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-                {/* Top Navigation Bar */}
-                <View style={styles.topBar}>
-                    <TouchableOpacity
-                        style={styles.iconCircle}
-                        onPress={() => navigation.goBack()}
-                        activeOpacity={0.7}
-                    >
-                        <ArrowLeft color={theme.colors.textPrimary} size={18} />
-                    </TouchableOpacity>
-                    <Text style={styles.headerTitle}>{t('assessment_overview', 'Assessment Overview')}</Text>
-                    <View style={styles.topBarSpacer} />
-                </View>
+                {/* Standard Native Header Bar */}
+                <AppHeader
+                    title={t('assessment_overview', 'Assessment Overview')}
+                    onBack={() => navigation.goBack()}
+                />
 
                 <ScrollView
                     style={styles.container}
@@ -546,7 +539,7 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
                         </TouchableOpacity>
                     </View>
                 </ScrollView>
-            </SafeAreaView>
+            </View>
         );
     }
 
@@ -555,18 +548,16 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
     const isWarningTime = timeLeft !== null && timeLeft > 60 && timeLeft <= 180;
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <View style={[styles.safeArea, { paddingTop: insets.top }]}>
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
             {/* Exam Header */}
             <View style={styles.topBar}>
-                <TouchableOpacity
-                    style={styles.iconCircle}
+                <HeaderIconButton
+                    icon={<ArrowLeft color={theme.colors.textPrimary} size={19} />}
                     onPress={handleHeaderBack}
-                    activeOpacity={0.7}
-                >
-                    <ArrowLeft color={theme.colors.textPrimary} size={18} />
-                </TouchableOpacity>
+                    accessibilityLabel="Leave quiz"
+                />
 
                 {/* Live Countdown Timer Badge */}
                 <View
@@ -876,7 +867,7 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
                     </TouchableOpacity>
                 )}
             </View>
-        </SafeAreaView>
+        </View>
     );
 };
 
@@ -1025,9 +1016,10 @@ const stylesheet = StyleSheet.create((theme) => ({
         flex: 1,
     },
     scrollContent: {
+        flexGrow: 1,
         paddingHorizontal: theme.spacing.md + 4,
         paddingTop: theme.spacing.md,
-        paddingBottom: theme.spacing.xl,
+        paddingBottom: theme.spacing.xl + 40,
     },
     loadingContainer: {
         flex: 1,

@@ -3,7 +3,6 @@ import {
     View,
     ScrollView,
     TouchableOpacity,
-    SafeAreaView,
     StatusBar,
     ActivityIndicator,
     Image,
@@ -12,6 +11,7 @@ import {
     Linking,
     useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { format, parseISO, isValid } from 'date-fns';
@@ -20,6 +20,7 @@ import { useTranslation } from '../../context/LanguageContext';
 import { apiClient } from '../../api/client';
 import { notificationApi } from '../../api/notification';
 import { AppText as Text } from '../../components/AppText';
+import { AppHeader } from '../../components/common/AppHeader';
 import {
     ArrowLeft,
     Download,
@@ -69,6 +70,7 @@ export const AnnouncementDetailScreen: React.FC<{ route: any; navigation: any }>
     route,
     navigation,
 }) => {
+    const insets = useSafeAreaInsets();
     const { isDark, primaryColor } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
@@ -168,25 +170,25 @@ export const AnnouncementDetailScreen: React.FC<{ route: any; navigation: any }>
     };
 
     return (
-        <SafeAreaView style={styles.safeArea}>
+        <View style={[styles.safeArea, { paddingTop: insets.top }]}>
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
-            {/* Navigation Header */}
-            <View style={styles.topBar}>
-                <TouchableOpacity style={styles.iconCircle} onPress={() => navigation.goBack()} activeOpacity={0.7}>
-                    <ArrowLeft color={theme.colors.textPrimary} size={19} />
-                </TouchableOpacity>
-
-                <Text style={styles.headerTitle}>{t('tab_announcement', 'Announcement Details')}</Text>
-
-                {(notificationId || notificationItem?.id) ? (
-                    <TouchableOpacity style={styles.iconCircle} onPress={handleDeleteNotification} activeOpacity={0.7}>
-                        <Trash2 color={theme.colors.status.danger} size={18} />
-                    </TouchableOpacity>
-                ) : (
-                    <View style={{ width: 38 }} />
-                )}
-            </View>
+            {/* Standard Native Header Bar */}
+            <AppHeader
+                title={t('tab_announcement', 'Announcement Details')}
+                onBack={() => navigation.goBack()}
+                rightActions={
+                    notificationId || notificationItem?.id
+                        ? [
+                              {
+                                  icon: <Trash2 color={theme.colors.status.danger} size={18} />,
+                                  onPress: handleDeleteNotification,
+                                  accessibilityLabel: 'Delete notification',
+                              },
+                          ]
+                        : []
+                }
+            />
 
             <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
                 {isLoading ? (
@@ -277,25 +279,31 @@ export const AnnouncementDetailScreen: React.FC<{ route: any; navigation: any }>
                 )}
             </ScrollView>
 
-            {/* Image Preview Modal */}
-            <Modal visible={imagePreviewVisible} transparent animationType="fade">
-                <View style={styles.imageModalOverlay}>
-                    <TouchableOpacity
-                        style={styles.imageModalCloseBtn}
-                        onPress={() => setImagePreviewVisible(false)}
-                    >
-                        <X color="#FFFFFF" size={24} />
-                    </TouchableOpacity>
-                    {previewImageUrl && (
+            {/* Fullscreen Image Preview Modal */}
+            {previewImageUrl && (
+                <Modal
+                    visible={!!previewImageUrl}
+                    transparent={true}
+                    animationType="fade"
+                    onRequestClose={() => setPreviewImageUrl(null)}
+                >
+                    <View style={styles.imageModalOverlay}>
+                        <TouchableOpacity
+                            style={styles.imageModalCloseBtn}
+                            onPress={() => setPreviewImageUrl(null)}
+                            activeOpacity={0.8}
+                        >
+                            <X color="#FFFFFF" size={24} />
+                        </TouchableOpacity>
                         <Image
                             source={{ uri: previewImageUrl }}
                             style={{ width: screenWidth, height: '80%' }}
                             resizeMode="contain"
                         />
-                    )}
-                </View>
-            </Modal>
-        </SafeAreaView>
+                    </View>
+                </Modal>
+            )}
+        </View>
     );
 };
 
@@ -330,8 +338,9 @@ const stylesheet = StyleSheet.create((theme) => ({
         flex: 1,
     },
     scrollContent: {
+        flexGrow: 1,
         paddingHorizontal: theme.spacing.md + 4,
-        paddingBottom: theme.spacing.xl,
+        paddingBottom: theme.spacing.xl + 40,
     },
     loadingContainer: {
         paddingVertical: theme.spacing.xxl,

@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
     View,
-    Text,
     TextInput,
     TouchableOpacity,
     Alert,
@@ -9,6 +8,7 @@ import {
     ScrollView,
     ActivityIndicator,
 } from 'react-native';
+import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
@@ -16,6 +16,7 @@ import * as Location from 'expo-location';
 import { activityApi, OFFICIAL_ACTIVITY_TYPES } from '../../api/activity';
 import { useAppTheme } from '../../context/ThemeContext';
 import { AppShell } from '../../components/common/AppShell';
+import { HeaderIconButton } from '../../components/common/AppHeader';
 import {
     Camera,
     Image as ImageIcon,
@@ -190,14 +191,11 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
     };
 
     const headerRight = (
-        <TouchableOpacity
-            style={styles.headerIconBtnSubtle}
+        <HeaderIconButton
+            icon={<History color={theme.colors.brand} size={20} />}
             onPress={() => navigation.navigate('ActivityList')}
-            activeOpacity={0.8}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-            <History color={theme.colors.primary} size={20} />
-        </TouchableOpacity>
+            accessibilityLabel="Activity history"
+        />
     );
 
     return (

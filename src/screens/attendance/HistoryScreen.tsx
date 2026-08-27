@@ -1,7 +1,6 @@
 import React, { useState, useRef } from 'react';
 import {
     View,
-    Text,
     FlatList,
     TouchableOpacity,
     RefreshControl,
@@ -9,9 +8,11 @@ import {
     ScrollView,
     Animated,
 } from 'react-native';
+import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '../../components/common/AppShell';
+import { HeaderIconButton } from '../../components/common/AppHeader';
 import { AttendanceHistorySkeleton } from '../../components/common/Skeletons';
 import { attendanceApi, HistoryRecord } from '../../api/attendance';
 import { useAppTheme } from '../../context/ThemeContext';
@@ -300,14 +301,20 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     };
 
     const headerRight = (
-        <TouchableOpacity
+        <HeaderIconButton
+            icon={
+                <Filter
+                    color={
+                        selectedMonth || selectedQuickFilter !== 'all'
+                            ? theme.colors.brand
+                            : theme.colors.textPrimary
+                    }
+                    size={18}
+                />
+            }
             onPress={openFilterModal}
-            style={styles.iconButton}
-            activeOpacity={0.8}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-            <Filter color={(selectedMonth || selectedQuickFilter !== 'all') ? theme.colors.primary : theme.colors.textPrimary} size={18} />
-        </TouchableOpacity>
+            accessibilityLabel="Filter history"
+        />
     );
 
     const subHeader = (
