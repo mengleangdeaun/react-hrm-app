@@ -278,5 +278,21 @@
     "gps_geofence_location": "GPS Geofence Location",
     "push_notifications": "Push Notifications",
     "granted": "Granted",
-    "grant": "Grant"
+    "grant": "Grant",
+    "welcome_title": "Empower Your Workday",
+    "welcome_subtitle": "Smart attendance, leave tracking, company notices, and team collaboration in one unified app.",
+    "get_started": "Get Started",
+    "sign_in": "Sign In",
+    "scan_qr_login": "Scan QR Code",
+    "skip": "Skip",
+    "next": "Next",
+    "app_tour": "App Tour & Feature Guide",
+    "app_tour_desc": "Revisit the app overview and key features",
+    "onboarding_1_title": "Smart Geofence Attendance",
+    "onboarding_1_desc": "Fast and accurate check-in with GPS verification, QR codes, and automated branch detection.",
+    "onboarding_2_title": "Seamless Leave & Day-Off",
+    "onboarding_2_desc": "Request time off in seconds, track approval status, and manage your annual allowances effortlessly.",
+    "onboarding_3_title": "Company Notices & Quizzes",
+    "onboarding_3_desc": "Stay informed with real-time announcements, celebrations, and complete skill quizzes on the go.",
+    "onboarding_finish_btn": "Start Using HRMS"
 }

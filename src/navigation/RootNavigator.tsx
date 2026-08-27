@@ -1,33 +1,30 @@
-import React from 'react';
-import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import React, { useEffect } from 'react';
 import { NavigationContainer } from '@react-navigation/native';
 import { useAuth } from '../context/AuthContext';
 import { AuthNavigator } from './AuthNavigator';
 import { MainTabNavigator } from './MainTabNavigator';
 
-export function RootNavigator() {
+interface RootNavigatorProps {
+    onReady?: () => void;
+}
+
+export function RootNavigator({ onReady }: RootNavigatorProps) {
     const { user, isLoading } = useAuth();
 
+    useEffect(() => {
+        if (!isLoading && onReady) {
+            onReady();
+        }
+    }, [isLoading, onReady]);
+
     if (isLoading) {
-        return (
-            <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color="#2563EB" />
-            </View>
-        );
+        return null;
     }
 
     return (
         <NavigationContainer>
-            {user ? <MainTabNavigator /> : <AuthNavigator />}
+            {user ? <MainTabNavigator /> : <AuthNavigator initialRouteName="Welcome" />}
         </NavigationContainer>
     );
 }
 
-const styles = StyleSheet.create({
-    loadingContainer: {
-        flex: 1,
-        backgroundColor: '#0F172A',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-});

@@ -42,6 +42,7 @@ import {
     Type,
     FileText,
     Lock,
+    Sparkles,
 } from 'lucide-react-native';
 
 const COLOR_THEMES = [
@@ -559,6 +560,25 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                             <View style={styles.textFlex}>
                                 <Text style={styles.rowTitle}>{t('in_app_feedback', 'In-App Feedback & Bug Reports')}</Text>
                                 <Text style={styles.rowSub}>{t('help_us_description', 'Send app suggestions to development team')}</Text>
+                            </View>
+                        </View>
+                    </TouchableOpacity>
+
+                    <View style={styles.divider} />
+
+                    {/* App Tour Trigger */}
+                    <TouchableOpacity
+                        style={styles.row}
+                        onPress={() => navigation.navigate('AppTour', { isReviewMode: true })}
+                        activeOpacity={0.8}
+                    >
+                        <View style={styles.rowInfo}>
+                            <View style={styles.iconBox}>
+                                <Sparkles color={theme.colors.textSecondary} size={18} />
+                            </View>
+                            <View style={styles.textFlex}>
+                                <Text style={styles.rowTitle}>{t('app_tour', 'App Tour & Feature Guide')}</Text>
+                                <Text style={styles.rowSub}>{t('app_tour_desc', 'Revisit the app overview and key features')}</Text>
                             </View>
                         </View>
                     </TouchableOpacity>

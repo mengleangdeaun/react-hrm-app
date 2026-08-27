@@ -29,6 +29,7 @@ import { WishesInboxScreen } from '../screens/celebrations/WishesInboxScreen';
 import { QuizListScreen } from '../screens/quizzes/QuizListScreen';
 import { TakeQuizScreen } from '../screens/quizzes/TakeQuizScreen';
 import { QuizResultScreen } from '../screens/quizzes/QuizResultScreen';
+import { OnboardingScreen } from '../screens/onboarding/OnboardingScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -76,6 +77,7 @@ function ProfileStack() {
         <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="ProfileMain" component={ProfileScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
+            <Stack.Screen name="AppTour" component={OnboardingScreen} />
         </Stack.Navigator>
     );
 }

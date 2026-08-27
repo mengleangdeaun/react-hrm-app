@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { User } from '../types';
 import { AUTH_TOKEN_KEY, USER_DATA_KEY, apiClient } from '../api/client';
-import { storage } from '../utils/storage';
+import { storage, getOnboardingCompleted, setOnboardingCompleted, resetOnboarding } from '../utils/storage';
 import { getDeviceId } from '../utils/device';
 
 export interface AuthApiError extends Error {
@@ -14,11 +14,14 @@ interface AuthContextType {
     user: User | null;
     token: string | null;
     isLoading: boolean;
+    hasCompletedOnboarding: boolean;
     isBiometricAvailable: boolean;
     login: (credentials: { email?: string; password?: string; pin?: string }, force?: boolean) => Promise<void>;
     loginWithQr: (qrPayload: string, force?: boolean) => Promise<void>;
     loginWithTelegram: (telegramData: any, force?: boolean) => Promise<void>;
     loginWithBiometrics: () => Promise<boolean>;
+    completeOnboarding: () => Promise<void>;
+    resetOnboardingState: () => Promise<void>;
     logout: () => Promise<void>;
 }
 
@@ -28,6 +31,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [user, setUser] = useState<User | null>(null);
     const [token, setToken] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
+    const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean>(false);
     const [isBiometricAvailable, setIsBiometricAvailable] = useState<boolean>(false);
 
     useEffect(() => {
@@ -47,8 +51,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const checkStoredAuth = async () => {
         try {
-            const storedToken = await storage.getItem(AUTH_TOKEN_KEY);
-            const storedUserJson = await storage.getItem(USER_DATA_KEY);
+            const [storedToken, storedUserJson, onboarded] = await Promise.all([
+                storage.getItem(AUTH_TOKEN_KEY),
+                storage.getItem(USER_DATA_KEY),
+                getOnboardingCompleted(),
+            ]);
+
+            setHasCompletedOnboarding(onboarded);
 
             if (storedToken && storedUserJson) {
                 setToken(storedToken);
@@ -59,6 +68,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         } finally {
             setIsLoading(false);
         }
+    };
+
+    const completeOnboarding = async () => {
+        setHasCompletedOnboarding(true);
+        await setOnboardingCompleted(true);
+    };
+
+    const resetOnboardingState = async () => {
+        setHasCompletedOnboarding(false);
+        await resetOnboarding();
     };
 
     const saveAuthData = async (newToken: string, newUser: User) => {
@@ -230,11 +249,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 user,
                 token,
                 isLoading,
+                hasCompletedOnboarding,
                 isBiometricAvailable,
                 login,
                 loginWithQr,
                 loginWithTelegram,
                 loginWithBiometrics,
+                completeOnboarding,
+                resetOnboardingState,
                 logout,
             }}
         >
