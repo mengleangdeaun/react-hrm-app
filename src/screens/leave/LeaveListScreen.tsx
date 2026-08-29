@@ -64,8 +64,11 @@ const formatDateDisplay = (dateStr?: string) => {
     }
 };
 
+import { useTranslation } from '../../context/LanguageContext';
+
 export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark, toggleTheme } = useAppTheme();
+    const { t } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
 
@@ -133,18 +136,18 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     };
 
     const handleCancelRequest = (id: number) => {
-        Alert.alert('Cancel Application', 'Are you sure you want to cancel this pending leave application?', [
-            { text: 'No', style: 'cancel' },
+        Alert.alert(t('cancel_application', 'Cancel Application'), t('cancel_leave_confirm', 'Are you sure you want to cancel this pending leave application?'), [
+            { text: t('no', 'No'), style: 'cancel' },
             {
-                text: 'Yes, Cancel',
+                text: t('yes_cancel', 'Yes, Cancel'),
                 style: 'destructive',
                 onPress: async () => {
                     try {
                         await leaveApi.cancelLeaveRequest(id);
-                        Alert.alert('Cancelled', 'Leave request has been cancelled.');
+                        Alert.alert(t('cancelled', 'Cancelled'), t('leave_cancelled_desc', 'Leave request has been cancelled.'));
                         fetchLeaveData();
                     } catch (err: any) {
-                        Alert.alert('Error', err?.message || 'Failed to cancel leave request.');
+                        Alert.alert(t('error', 'Error'), err?.message || t('fail_cancel_leave', 'Failed to cancel leave request.'));
                     }
                 },
             },
@@ -154,29 +157,29 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     const handleApproveRequest = async (id: number) => {
         try {
             await leaveApi.approveLeaveRequest(id);
-            Alert.alert('Approved', 'Leave request approved successfully.');
+            Alert.alert(t('approved', 'Approved'), t('leave_approved_desc', 'Leave request approved successfully.'));
             fetchLeaveData();
         } catch (err: any) {
-            Alert.alert('Error', err?.message || 'Failed to approve leave request.');
+            Alert.alert(t('error', 'Error'), err?.message || t('fail_approve_leave', 'Failed to approve leave request.'));
         }
     };
 
     const handleConfirmReject = async () => {
         if (!rejectingItem) return;
         if (!rejectionReason.trim()) {
-            Alert.alert('Reason Required', 'Please state a rejection reason.');
+            Alert.alert(t('reason_required', 'Reason Required'), t('state_rejection_reason', 'Please state a rejection reason.'));
             return;
         }
 
         setIsSubmittingReject(true);
         try {
             await leaveApi.rejectLeaveRequest(rejectingItem.id, rejectionReason);
-            Alert.alert('Rejected', 'Leave request has been rejected.');
+            Alert.alert(t('rejected', 'Rejected'), t('leave_rejected_desc', 'Leave request has been rejected.'));
             setRejectingItem(null);
             setRejectionReason('');
             fetchLeaveData();
         } catch (err: any) {
-            Alert.alert('Error', err?.message || 'Failed to reject leave request.');
+            Alert.alert(t('error', 'Error'), err?.message || t('fail_reject_leave', 'Failed to reject leave request.'));
         } finally {
             setIsSubmittingReject(false);
         }
@@ -201,7 +204,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         const target = leaveTypeObj || item?.leaveType;
         if (typeof target === 'string') return target;
         if (target && typeof target === 'object' && target.name) return target.name;
-        return 'Leave';
+        return t('leave', 'Leave');
     };
 
     const headerRight = (
@@ -214,7 +217,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
     return (
         <AppShell
-            title="Leave Requests"
+            title={t('leave_requests', 'Leave Requests')}
             onBack={() => navigation.goBack()}
             headerRight={headerRight}
             refreshing={refreshing}
@@ -227,7 +230,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                         onPress={() => setActiveTab('my_requests')}
                     >
                         <Text style={[styles.tabBtnText, activeTab === 'my_requests' && styles.tabBtnTextActive]}>
-                            My Applications
+                            {t('my_applications', 'My Applications')}
                         </Text>
                     </TouchableOpacity>
                     <TouchableOpacity
@@ -235,7 +238,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                         onPress={() => setActiveTab('approvals')}
                     >
                         <Text style={[styles.tabBtnText, activeTab === 'approvals' && styles.tabBtnTextActive]}>
-                            Subordinate Approvals
+                            {t('subordinate_approvals', 'Subordinate Approvals')}
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -243,14 +246,14 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 {/* Leave Balances Carousel Summary */}
                 {leaveBalances.length > 0 && (
                     <View style={styles.balanceSection}>
-                        <Text style={styles.sectionTitle}>Leave Balances Summary</Text>
+                        <Text style={styles.sectionTitle}>{t('leave_balances_summary', 'Leave Balances Summary')}</Text>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.balanceCarousel}>
                             {leaveBalances.map((item, idx) => (
                                 <View key={idx} style={styles.balanceCard}>
                                     <Text style={styles.balanceType}>{getLeaveTypeName(item.leave_type, item)}</Text>
-                                    <Text style={styles.balanceRemaining}>{getRemainingDays(item)} Days</Text>
+                                    <Text style={styles.balanceRemaining}>{getRemainingDays(item)} {t('days', 'Days')}</Text>
                                     <Text style={styles.balanceSub}>
-                                        Used {getUsedDays(item)} of {getAllocatedDays(item)} days
+                                        {t('used_days_of_total', `Used ${getUsedDays(item)} of ${getAllocatedDays(item)} days`)}
                                     </Text>
                                 </View>
                             ))}
@@ -265,8 +268,8 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                     myRequests.length === 0 ? (
                         <View style={styles.emptyCard}>
                             <FileText color={theme.colors.textSecondary} size={40} />
-                            <Text style={styles.emptyTitle}>No Leave Requests</Text>
-                            <Text style={styles.emptySub}>You have not submitted any leave applications yet.</Text>
+                            <Text style={styles.emptyTitle}>{t('no_leave_requests', 'No Leave Requests')}</Text>
+                            <Text style={styles.emptySub}>{t('no_leave_requests_desc', 'You have not submitted any leave applications yet.')}</Text>
                         </View>
                     ) : (
                         myRequests.map((req) => {
@@ -324,7 +327,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                                         </Text>
                                         <View style={styles.durationPill}>
                                             <Text style={styles.durationPillText}>
-                                                {req.total_days || req.days_count || 1} {(req.total_days || req.days_count || 1) > 1 ? 'Days' : 'Day'}
+                                                {req.total_days || req.days_count || 1} {(req.total_days || req.days_count || 1) > 1 ? t('days', 'Days') : t('day', 'Day')}
                                             </Text>
                                         </View>
                                     </View>
@@ -335,7 +338,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                                     {/* Action Footer */}
                                     <View style={styles.cardFooter}>
                                         <Text style={styles.appliedDateText}>
-                                            Applied {formatDateDisplay(req.created_at)}
+                                            {t('applied', 'Applied')} {formatDateDisplay(req.created_at)}
                                         </Text>
 
                                         {isPending && (
@@ -346,7 +349,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                                                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                                             >
                                                 <Ban color={theme.colors.status.danger} size={15} />
-                                                <Text style={styles.cancelBtnText}>Cancel</Text>
+                                                <Text style={styles.cancelBtnText}>{t('cancel', 'Cancel')}</Text>
                                             </TouchableOpacity>
                                         )}
                                     </View>
@@ -357,8 +360,8 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 ) : managerApprovals.length === 0 ? (
                     <View style={styles.emptyCard}>
                         <CheckCircle2 color={theme.colors.textSecondary} size={40} />
-                        <Text style={styles.emptyTitle}>No Pending Approvals</Text>
-                        <Text style={styles.emptySub}>All subordinate leave requests have been processed.</Text>
+                        <Text style={styles.emptyTitle}>{t('no_pending_approvals', 'No Pending Approvals')}</Text>
+                        <Text style={styles.emptySub}>{t('no_pending_approvals_desc', 'All subordinate leave requests have been processed.')}</Text>
                     </View>
                 ) : (
                     managerApprovals.map((item) => (
@@ -366,11 +369,11 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                             <View style={styles.cardHeader}>
                                 <View style={styles.typeGroup}>
                                     <User color={theme.colors.primary} size={16} />
-                                    <Text style={styles.typeText}>{item.employee_name || 'Subordinate'}</Text>
+                                    <Text style={styles.typeText}>{item.employee_name || t('subordinate', 'Subordinate')}</Text>
                                 </View>
 
                                 <View style={styles.pendingBadge}>
-                                    <Text style={styles.pendingBadgeText}>PENDING REVIEW</Text>
+                                    <Text style={styles.pendingBadgeText}>{t('pending_review', 'PENDING REVIEW')}</Text>
                                 </View>
                             </View>
 
@@ -380,7 +383,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                                 </Text>
                                 <View style={styles.durationPill}>
                                     <Text style={styles.durationPillText}>
-                                        {item.total_days || item.days_count || 1} {(item.total_days || item.days_count || 1) > 1 ? 'Days' : 'Day'}
+                                        {item.total_days || item.days_count || 1} {(item.total_days || item.days_count || 1) > 1 ? t('days', 'Days') : t('day', 'Day')}
                                     </Text>
                                 </View>
                             </View>
@@ -392,7 +395,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                                     onPress={() => setRejectingItem(item)}
                                 >
                                     <X color={theme.colors.status.danger} size={16} />
-                                    <Text style={styles.rejectActionText}>Reject</Text>
+                                    <Text style={styles.rejectActionText}>{t('reject', 'Reject')}</Text>
                                 </TouchableOpacity>
 
                                 <TouchableOpacity
@@ -400,7 +403,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                                     onPress={() => handleApproveRequest(item.id)}
                                 >
                                     <Check color="#FFFFFF" size={16} />
-                                    <Text style={styles.approveActionText}>Approve</Text>
+                                    <Text style={styles.approveActionText}>{t('approve', 'Approve')}</Text>
                                 </TouchableOpacity>
                             </View>
                         </View>
@@ -416,18 +419,18 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 >
                     <View style={styles.modalSheet}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Reject Leave Application</Text>
+                            <Text style={styles.modalTitle}>{t('reject_leave_app', 'Reject Leave Application')}</Text>
                             <TouchableOpacity onPress={() => setRejectingItem(null)}>
                                 <X color={theme.colors.textPrimary} size={20} />
                             </TouchableOpacity>
                         </View>
 
-                        <Text style={styles.inputLabel}>Reason for Rejection</Text>
+                        <Text style={styles.inputLabel}>{t('reason_for_rejection', 'Reason for Rejection')}</Text>
                         <TextInput
                             style={styles.reasonInput}
                             value={rejectionReason}
                             onChangeText={setRejectionReason}
-                            placeholder="State rejection reason for employee..."
+                            placeholder={t('state_rejection_reason', 'State rejection reason for employee...')}
                             placeholderTextColor={theme.colors.textSecondary}
                             multiline
                             numberOfLines={3}
@@ -441,7 +444,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                             {isSubmittingReject ? (
                                 <ActivityIndicator color="#FFFFFF" />
                             ) : (
-                                <Text style={styles.confirmRejectText}>Confirm Rejection</Text>
+                                <Text style={styles.confirmRejectText}>{t('confirm_rejection', 'Confirm Rejection')}</Text>
                             )}
                         </TouchableOpacity>
                     </View>

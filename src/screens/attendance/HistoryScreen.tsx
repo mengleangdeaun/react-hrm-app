@@ -30,17 +30,20 @@ import {
 } from 'lucide-react-native';
 import { format, parseISO } from 'date-fns';
 
+import { useTranslation } from '../../context/LanguageContext';
+
 export const AUDIT_CATEGORIES = [
-    { id: 'all', label: 'All Logs' },
-    { id: 'early_in', label: 'Early In', key: 'in_status', value: 'Early' },
-    { id: 'late_in', label: 'Late In', key: 'in_status', value: 'Late' },
-    { id: 'early_departure', label: 'Early Depart', key: 'out_status', value: 'Early' },
-    { id: 'stay_late', label: 'Stay Late', key: 'out_status', value: 'Stay Late' },
-    { id: 'overtime', label: 'Overtime', key: 'out_status', value: 'Overtime' },
+    { id: 'all', keyName: 'all_logs', fallback: 'All Logs' },
+    { id: 'early_in', keyName: 'early_in', fallback: 'Early In', key: 'in_status', value: 'Early' },
+    { id: 'late_in', keyName: 'late_in', fallback: 'Late In', key: 'in_status', value: 'Late' },
+    { id: 'early_departure', keyName: 'early_depart', fallback: 'Early Depart', key: 'out_status', value: 'Early' },
+    { id: 'stay_late', keyName: 'stay_late', fallback: 'Stay Late', key: 'out_status', value: 'Stay Late' },
+    { id: 'overtime', keyName: 'overtime', fallback: 'Overtime', key: 'out_status', value: 'Overtime' },
 ];
 
 export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark } = useAppTheme();
+    const { t } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
     const queryClient = useQueryClient();
@@ -214,7 +217,7 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                     <View style={styles.sessionItem}>
                         <View style={styles.rowCentered}>
                             <ArrowDownLeft color={theme.colors.status.success} size={16} />
-                            <Text style={styles.sessionLabel}>Clock In</Text>
+                            <Text style={styles.sessionLabel}>{t('clock_in', 'Clock In')}</Text>
                         </View>
                         <Text style={styles.sessionValue}>{formatTimeString(item.clock_in_time)}</Text>
                     </View>
@@ -225,7 +228,7 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                         <View style={styles.rowCentered}>
                             <ArrowUpRight color={theme.colors.status.danger} size={16} />
                             <Text style={styles.sessionLabel}>
-                                {hasSplitShift ? 'Session 1 Out' : 'Clock Out'}
+                                {hasSplitShift ? t('session_1_out', 'Session 1 Out') : t('clock_out', 'Clock Out')}
                             </Text>
                         </View>
                         <Text style={styles.sessionValue}>
@@ -240,7 +243,7 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                         <View style={styles.breakLine} />
                         <View style={styles.breakPill}>
                             <Coffee color={theme.colors.textSecondary} size={12} />
-                            <Text style={styles.breakPillText}>Lunch Break</Text>
+                            <Text style={styles.breakPillText}>{t('lunch_break', 'Lunch Break')}</Text>
                         </View>
                         <View style={styles.breakLine} />
                     </View>
@@ -252,7 +255,7 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                         <View style={styles.sessionItem}>
                             <View style={styles.rowCentered}>
                                 <ArrowDownLeft color={theme.colors.status.success} size={16} />
-                                <Text style={styles.sessionLabel}>Session 2 In</Text>
+                                <Text style={styles.sessionLabel}>{t('session_2_in', 'Session 2 In')}</Text>
                             </View>
                             <Text style={styles.sessionValue}>{formatTimeString(item.session_2_in_time)}</Text>
                         </View>
@@ -262,7 +265,7 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                         <View style={styles.sessionItem}>
                             <View style={styles.rowCentered}>
                                 <ArrowUpRight color={theme.colors.status.danger} size={16} />
-                                <Text style={styles.sessionLabel}>Clock Out</Text>
+                                <Text style={styles.sessionLabel}>{t('clock_out', 'Clock Out')}</Text>
                             </View>
                             <Text style={styles.sessionValue}>{formatTimeString(item.clock_out_time)}</Text>
                         </View>
@@ -274,25 +277,25 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                     <View style={styles.rowCentered}>
                         {isLate && (
                             <View style={styles.lateChip}>
-                                <Text style={styles.lateChipText}>-{item.late_minutes}m Late</Text>
+                                <Text style={styles.lateChipText}>-{item.late_minutes}m {t('late', 'Late')}</Text>
                             </View>
                         )}
                         {hasEarlyLeave && (
                             <View style={styles.earlyChip}>
-                                <Text style={styles.earlyChipText}>-{item.early_departure_minutes}m Early Leave</Text>
+                                <Text style={styles.earlyChipText}>-{item.early_departure_minutes}m {t('early_leave', 'Early Leave')}</Text>
                             </View>
                         )}
                         {hasOvertime && (
                             <View style={styles.overtimeChip}>
                                 <Sparkles color={theme.colors.status.success} size={11} />
-                                <Text style={styles.overtimeChipText}>+{item.overtime_minutes}m OT</Text>
+                                <Text style={styles.overtimeChipText}>+{item.overtime_minutes}m {t('ot', 'OT')}</Text>
                             </View>
                         )}
                     </View>
 
                     {item.working_hours && (
                         <Text style={styles.workingHoursText}>
-                            Total: <Text style={styles.workingHoursHighlight}>{item.working_hours}</Text>
+                            {t('total', 'Total')}: <Text style={styles.workingHoursHighlight}>{item.working_hours}</Text>
                         </Text>
                     )}
                 </View>
@@ -357,7 +360,7 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                             activeOpacity={0.8}
                         >
                             <Text style={[styles.tabItemText, isActive && styles.tabItemTextActive]}>
-                                {tab.label}
+                                {t(tab.keyName, tab.fallback)}
                             </Text>
                             {isActive && <View style={styles.tabIndicator} />}
                         </TouchableOpacity>
@@ -369,7 +372,7 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
     return (
         <AppShell
-            title="Attendance History"
+            title={t('attendance_history', 'Attendance History')}
             onBack={() => navigation?.goBack()}
             headerRight={headerRight}
             subHeader={subHeader}
@@ -399,8 +402,8 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 ) : historyLogs.length === 0 ? (
                     <View style={styles.centerContainer}>
                         <Clock color={theme.colors.textSecondary} size={44} />
-                        <Text style={styles.emptyTitle}>No History Records</Text>
-                        <Text style={styles.emptySubtitle}>No attendance logs found for this period.</Text>
+                        <Text style={styles.emptyTitle}>{t('no_history_records', 'No History Records')}</Text>
+                        <Text style={styles.emptySubtitle}>{t('no_attendance_logs_period', 'No attendance logs found for this period.')}</Text>
                     </View>
                 ) : (
                     <FlatList
@@ -427,10 +430,10 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 >
                     <TouchableOpacity activeOpacity={1} style={styles.modalSheet}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Filter History</Text>
+                            <Text style={styles.modalTitle}>{t('filter_history', 'Filter History')}</Text>
                             {(draftQuickFilter !== 'all' || draftMonth) ? (
                                 <TouchableOpacity onPress={handleResetFilters}>
-                                    <Text style={styles.resetBtnText}>Reset All</Text>
+                                    <Text style={styles.resetBtnText}>{t('reset_all', 'Reset All')}</Text>
                                 </TouchableOpacity>
                             ) : (
                                 <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
@@ -440,7 +443,7 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                         </View>
 
                         {/* Review Month Picker */}
-                        <Text style={styles.filterSectionLabel}>Review Month</Text>
+                        <Text style={styles.filterSectionLabel}>{t('review_month', 'Review Month')}</Text>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.monthPillsRow}>
                             {getMonthOptions().map((m) => {
                                 const isSel = draftMonth === m.value;
@@ -471,7 +474,7 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                                         onPress={() => setDraftQuickFilter(f.id)}
                                     >
                                         <Text style={[styles.filterOptionText, isSel && styles.filterOptionTextSelected]}>
-                                            {f.label}
+                                            {t(f.keyName, f.fallback)}
                                         </Text>
                                     </TouchableOpacity>
                                 );

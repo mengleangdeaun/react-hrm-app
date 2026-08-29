@@ -14,8 +14,11 @@ import { AppCard } from '../../components/common/AppCard';
 import { AppInput } from '../../components/common/AppInput';
 import { AppButton } from '../../components/common/AppButton';
 
+import { useTranslation } from '../../context/LanguageContext';
+
 export const FeedbackScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark } = useAppTheme();
+    const { t } = useTranslation();
     const theme = isDark ? darkTheme : lightTheme;
 
     const [subject, setSubject] = useState('');
@@ -25,7 +28,7 @@ export const FeedbackScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
     const handleSubmit = () => {
         if (!subject.trim() || !message.trim()) {
-            Alert.alert('Required', 'Please enter a subject and your feedback details.');
+            Alert.alert(t('required', 'Required'), t('enter_subject_and_feedback', 'Please enter a subject and your feedback details.'));
             return;
         }
 
@@ -33,15 +36,15 @@ export const FeedbackScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         setTimeout(() => {
             setIsSubmitting(false);
             Alert.alert(
-                'Feedback Submitted! 🙏',
-                'Thank you for your valuable feedback. HR management will review it shortly.',
-                [{ text: 'OK', onPress: () => navigation.goBack() }]
+                t('feedback_submitted', 'Feedback Submitted! 🙏'),
+                t('feedback_submitted_desc', 'Thank you for your valuable feedback. HR management will review it shortly.'),
+                [{ text: t('ok', 'OK'), onPress: () => navigation.goBack() }]
             );
         }, 600);
     };
 
     return (
-        <AppShell title="Suggestion & Feedback" onBack={() => navigation.goBack()}>
+        <AppShell title={t('suggestion_and_feedback', 'Suggestion & Feedback')} onBack={() => navigation.goBack()}>
             <AppCard variant="surface" style={styles.card}>
                 <View style={styles.headerInfoRow}>
                     <View style={[styles.iconBadge, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]}>
@@ -49,28 +52,28 @@ export const FeedbackScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                     </View>
                     <View style={styles.headerTextWrapper}>
                         <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
-                            Share Your Thoughts
+                            {t('share_your_thoughts', 'Share Your Thoughts')}
                         </Text>
                         <Text style={[styles.cardSub, { color: theme.colors.textSecondary }]}>
-                            Help us improve our workplace and operations.
+                            {t('help_us_improve', 'Help us improve our workplace and operations.')}
                         </Text>
                     </View>
                 </View>
 
                 {/* Subject Input */}
                 <AppInput
-                    label="Topic / Subject"
+                    label={t('topic_subject', 'Topic / Subject')}
                     value={subject}
                     onChangeText={setSubject}
-                    placeholder="e.g., Office cafeteria menu suggestion"
+                    placeholder={t('subject_placeholder', 'e.g., Office cafeteria menu suggestion')}
                 />
 
                 {/* Detailed Feedback */}
                 <AppInput
-                    label="Detailed Feedback"
+                    label={t('detailed_feedback', 'Detailed Feedback')}
                     value={message}
                     onChangeText={setMessage}
-                    placeholder="Provide your constructive feedback or suggestions..."
+                    placeholder={t('feedback_placeholder', 'Provide your constructive feedback or suggestions...')}
                     multiline
                     numberOfLines={5}
                 />
@@ -94,10 +97,10 @@ export const FeedbackScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                     </View>
                     <View style={styles.checkboxLabelWrapper}>
                         <Text style={[styles.checkboxLabel, { color: theme.colors.textPrimary }]}>
-                            Submit Anonymously
+                            {t('submit_anonymously', 'Submit Anonymously')}
                         </Text>
                         <Text style={[styles.checkboxSub, { color: theme.colors.textSecondary }]}>
-                            Your name and employee ID will not be attached to this submission.
+                            {t('anonymous_desc', 'Your name and employee ID will not be attached to this submission.')}
                         </Text>
                     </View>
                 </TouchableOpacity>
@@ -105,7 +108,7 @@ export const FeedbackScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 {/* Submit Action */}
                 <View style={styles.submitWrapper}>
                     <AppButton
-                        title="Submit Feedback"
+                        title={t('submit_feedback', 'Submit Feedback')}
                         onPress={handleSubmit}
                         loading={isSubmitting}
                         icon={<Send color="#FFFFFF" size={18} />}

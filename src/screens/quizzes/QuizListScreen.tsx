@@ -42,8 +42,9 @@ const formatQuizDate = (rawStr?: string) => {
     }
 };
 
+import { AppShell } from '../../components/common/AppShell';
+
 export const QuizListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-    const insets = useSafeAreaInsets();
     const { isDark, primaryColor } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
@@ -73,191 +74,177 @@ export const QuizListScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     const activeQuizzes = quizzes.filter((q) => q.status === 'in_progress' || q.status === 'available');
     const historyQuizzes = quizzes.filter((q) => q.status === 'completed' || q.status === 'timed_out' || q.status === 'passed' || q.status === 'failed');
 
-    return (
-        <View style={[styles.safeArea, { paddingTop: insets.top }]}>
-            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-
-            {/* Standard Native Header Bar */}
-            <AppHeader
-                title={t('quizzes', 'Quizzes')}
-                onBack={() => navigation.goBack()}
-            />
-
-            {/* Sub-Header Category Segmented Underlined Tab Bar */}
-            <View style={styles.tabBarContainer}>
-                <View style={styles.tabBarRow}>
-                    {QUIZ_TABS.map((tab) => {
-                        const isActive = activeTab === tab.id;
-                        const count = tab.id === 'active' ? activeQuizzes.length : historyQuizzes.length;
-                        return (
-                            <TouchableOpacity
-                                key={tab.id}
-                                style={styles.tabItem}
-                                onPress={() => setActiveTab(tab.id as any)}
-                                activeOpacity={0.8}
+    const subHeader = (
+        <View style={styles.tabBarContainer}>
+            <View style={styles.tabBarRow}>
+                {QUIZ_TABS.map((tab) => {
+                    const isActive = activeTab === tab.id;
+                    const count = tab.id === 'active' ? activeQuizzes.length : historyQuizzes.length;
+                    return (
+                        <TouchableOpacity
+                            key={tab.id}
+                            style={styles.tabItem}
+                            onPress={() => setActiveTab(tab.id as any)}
+                            activeOpacity={0.8}
+                        >
+                            <Text
+                                style={[
+                                    styles.tabText,
+                                    isActive && { color: primaryColor, fontWeight: '800' },
+                                ]}
                             >
-                                <Text
-                                    style={[
-                                        styles.tabText,
-                                        isActive && { color: primaryColor, fontWeight: '800' },
-                                    ]}
-                                >
-                                    {t(tab.labelKey, tab.fallback)} ({count})
-                                </Text>
-                                {isActive && <View style={[styles.tabIndicator, { backgroundColor: primaryColor }]} />}
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
+                                {t(tab.labelKey, tab.fallback)} ({count})
+                            </Text>
+                            {isActive && <View style={[styles.tabIndicator, { backgroundColor: primaryColor }]} />}
+                        </TouchableOpacity>
+                    );
+                })}
             </View>
+        </View>
+    );
 
-            <ScrollView
-                style={styles.container}
-                contentContainerStyle={styles.scrollContent}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing || isFetching}
-                        onRefresh={onRefresh}
-                        tintColor={primaryColor}
-                        colors={[primaryColor]}
-                    />
-                }
-            >
-                {isLoading ? (
-                    <QuizListSkeleton />
-                ) : activeTab === 'active' ? (
-                    activeQuizzes.length === 0 ? (
-                        <View style={styles.emptyCard}>
-                            <HelpCircle color={theme.colors.textSecondary} size={44} />
-                            <Text style={styles.emptyTitle}>{t('no_active_quizzes', 'No active quizzes')}</Text>
-                            <Text style={styles.emptySub}>
-                                {t('no_active_quizzes_desc', 'You do not have any pending assessment tests assigned at the moment.')}
-                            </Text>
-                        </View>
-                    ) : (
-                        activeQuizzes.map((item) => {
-                            const durationMins = item.quiz?.duration ? Math.round(item.quiz.duration / 60) : null;
-                            return (
-                                <View key={item.id} style={styles.card}>
-                                    <View style={styles.cardHeader}>
-                                        <View style={styles.iconBgPrimary}>
-                                            <Book color={primaryColor} size={20} />
-                                        </View>
-                                        <Text style={styles.cardTitle} numberOfLines={1}>
-                                            {item.quiz?.title || 'Training Assessment'}
-                                        </Text>
-                                    </View>
-
-                                    {/* Duration & Points Grid Box */}
-                                    <View style={styles.infoGrid}>
-                                        <View style={styles.infoGridItem}>
-                                            <Clock color={primaryColor} size={15} />
-                                            <Text style={styles.infoGridText}>
-                                                {durationMins ? `${durationMins} Mins` : t('no_limit', 'No Limit')}
-                                            </Text>
-                                        </View>
-                                        <View style={styles.infoGridItem}>
-                                            <CheckCheck color={primaryColor} size={15} />
-                                            <Text style={styles.infoGridText}>
-                                                {item.quiz?.points ?? 100} {t('points', 'Points')}
-                                            </Text>
-                                        </View>
-                                    </View>
-
-                                    <TouchableOpacity
-                                        style={[styles.primaryActionBtn, { backgroundColor: primaryColor }]}
-                                        activeOpacity={0.85}
-                                        onPress={() => navigation.navigate('TakeQuiz', { quizId: item.quiz?.id || item.id, token: item.token })}
-                                    >
-                                        <Text style={styles.primaryActionBtnText}>
-                                            {t('start_assessment', 'Start Assessment')}
-                                        </Text>
-                                        <ChevronRight color="#FFFFFF" size={16} />
-                                    </TouchableOpacity>
-                                </View>
-                            );
-                        })
-                    )
+    return (
+        <AppShell
+            title={t('quizzes', 'Quizzes')}
+            onBack={() => navigation.goBack()}
+            subHeader={subHeader}
+            refreshing={refreshing || isFetching}
+            onRefresh={onRefresh}
+        >
+            {isLoading ? (
+                <QuizListSkeleton />
+            ) : activeTab === 'active' ? (
+                activeQuizzes.length === 0 ? (
+                    <View style={styles.emptyCard}>
+                        <HelpCircle color={theme.colors.textSecondary} size={44} />
+                        <Text style={styles.emptyTitle}>{t('no_active_quizzes', 'No active quizzes')}</Text>
+                        <Text style={styles.emptySub}>
+                            {t('no_active_quizzes_desc', 'You do not have any pending assessment tests assigned at the moment.')}
+                        </Text>
+                    </View>
                 ) : (
-                    historyQuizzes.length === 0 ? (
-                        <View style={styles.emptyCard}>
-                            <Award color={theme.colors.textSecondary} size={44} />
-                            <Text style={styles.emptyTitle}>{t('no_history_yet', 'No history yet')}</Text>
-                            <Text style={styles.emptySub}>
-                                {t('quizzes_history_empty_desc', 'Completed quizzes will be listed here with scores and detailed reviews.')}
-                            </Text>
-                        </View>
-                    ) : (
-                        historyQuizzes.map((item) => {
-                            const snap = item.quiz_snapshot;
-                            const maxPoints = snap?.points ?? item.quiz?.points ?? 100;
-                            const passingPct = snap?.passing_percentage ?? item.quiz?.passing_percentage ?? 70;
-                            const quizTitle = snap?.title ?? item.quiz?.title ?? 'Training Assessment';
-                            const passingPoints = maxPoints * (passingPct / 100);
-                            const isPassed = item.score !== null && item.score !== undefined && item.score >= passingPoints;
-                            const scorePct = Math.round(((item.score ?? 0) / (maxPoints || 1)) * 100);
-                            const dateStr = formatQuizDate(item.completed_at || item.created_at);
+                    activeQuizzes.map((item) => {
+                        const durationMins = item.quiz?.duration ? Math.round(item.quiz.duration / 60) : null;
+                        return (
+                            <View key={item.id} style={styles.card}>
+                                <View style={styles.cardHeader}>
+                                    <View style={styles.iconBgPrimary}>
+                                        <Book color={primaryColor} size={20} />
+                                    </View>
+                                    <Text style={styles.cardTitle} numberOfLines={1}>
+                                        {item.quiz?.title || 'Training Assessment'}
+                                    </Text>
+                                </View>
 
-                            return (
-                                <View key={item.id} style={styles.card}>
-                                    <View style={styles.cardHeader}>
-                                        <View style={styles.iconBgIndigo}>
-                                            <Award color="#8B5CF6" size={20} />
-                                        </View>
-                                        <View style={styles.headerTextGroup}>
-                                            <Text style={styles.cardTitle} numberOfLines={1}>
-                                                {quizTitle}
-                                            </Text>
-                                            <Text style={styles.cardDate}>{dateStr}</Text>
-                                        </View>
+                                {/* Duration & Points Grid Box */}
+                                <View style={styles.infoGrid}>
+                                    <View style={styles.infoGridItem}>
+                                        <Clock color={primaryColor} size={15} />
+                                        <Text style={styles.infoGridText}>
+                                            {durationMins ? `${durationMins} Mins` : t('no_limit', 'No Limit')}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.infoGridItem}>
+                                        <CheckCheck color={primaryColor} size={15} />
+                                        <Text style={styles.infoGridText}>
+                                            {item.quiz?.points ?? 100} {t('points', 'Points')}
+                                        </Text>
+                                    </View>
+                                </View>
 
-                                        <View
-                                            style={[
-                                                styles.badgePill,
-                                                isPassed ? styles.badgePassed : styles.badgeFailed,
-                                            ]}
-                                        >
-                                            <Text
-                                                style={[
-                                                    styles.badgePillText,
-                                                    isPassed ? styles.badgePassedText : styles.badgeFailedText,
-                                                ]}
-                                            >
-                                                {isPassed ? t('passed', 'Passed') : t('failed', 'Failed')}
-                                            </Text>
-                                        </View>
+                                <TouchableOpacity
+                                    style={[styles.primaryActionBtn, { backgroundColor: primaryColor }]}
+                                    activeOpacity={0.85}
+                                    onPress={() => navigation.navigate('TakeQuiz', { quizId: item.quiz?.id || item.id, token: item.token })}
+                                >
+                                    <Text style={styles.primaryActionBtnText}>
+                                        {t('start_assessment', 'Start Assessment')}
+                                    </Text>
+                                    <ChevronRight color="#FFFFFF" size={16} />
+                                </TouchableOpacity>
+                            </View>
+                        );
+                    })
+                )
+            ) : (
+                historyQuizzes.length === 0 ? (
+                    <View style={styles.emptyCard}>
+                        <Award color={theme.colors.textSecondary} size={44} />
+                        <Text style={styles.emptyTitle}>{t('no_history_yet', 'No history yet')}</Text>
+                        <Text style={styles.emptySub}>
+                            {t('quizzes_history_empty_desc', 'Completed quizzes will be listed here with scores and detailed reviews.')}
+                        </Text>
+                    </View>
+                ) : (
+                    historyQuizzes.map((item) => {
+                        const snap = item.quiz_snapshot;
+                        const maxPoints = snap?.points ?? item.quiz?.points ?? 100;
+                        const passingPct = snap?.passing_percentage ?? item.quiz?.passing_percentage ?? 70;
+                        const quizTitle = snap?.title ?? item.quiz?.title ?? 'Training Assessment';
+                        const passingPoints = maxPoints * (passingPct / 100);
+                        const isPassed = item.score !== null && item.score !== undefined && item.score >= passingPoints;
+                        const scorePct = Math.round(((item.score ?? 0) / (maxPoints || 1)) * 100);
+                        const dateStr = formatQuizDate(item.completed_at || item.created_at);
+
+                        return (
+                            <View key={item.id} style={styles.card}>
+                                <View style={styles.cardHeader}>
+                                    <View style={styles.iconBgIndigo}>
+                                        <Award color="#8B5CF6" size={20} />
+                                    </View>
+                                    <View style={styles.headerTextGroup}>
+                                        <Text style={styles.cardTitle} numberOfLines={1}>
+                                            {quizTitle}
+                                        </Text>
+                                        <Text style={styles.cardDate}>{dateStr}</Text>
                                     </View>
 
-                                    {/* Score Box */}
-                                    <View style={styles.scoreRow}>
-                                        <Text style={styles.scoreLabel}>{t('score', 'Score')}</Text>
+                                    <View
+                                        style={[
+                                            styles.badgePill,
+                                            isPassed ? styles.badgePassed : styles.badgeFailed,
+                                        ]}
+                                    >
                                         <Text
                                             style={[
-                                                styles.scoreValue,
-                                                { color: isPassed ? theme.colors.status.success : theme.colors.status.danger },
+                                                styles.badgePillText,
+                                                isPassed ? styles.badgePassedText : styles.badgeFailedText,
                                             ]}
                                         >
-                                            {item.score ?? 0} / {maxPoints} ({scorePct}%)
+                                            {isPassed ? t('passed', 'Passed') : t('failed', 'Failed')}
                                         </Text>
                                     </View>
-
-                                    <TouchableOpacity
-                                        style={styles.outlineActionBtn}
-                                        activeOpacity={0.85}
-                                        onPress={() => navigation.navigate('QuizResult', { token: item.token, quizData: item })}
-                                    >
-                                        <Text style={styles.outlineActionBtnText}>
-                                            {t('view_feedback', 'View Feedback')}
-                                        </Text>
-                                        <ChevronRight color={theme.colors.textPrimary} size={16} />
-                                    </TouchableOpacity>
                                 </View>
-                            );
-                        })
-                    )
-                )}
-            </ScrollView>
-        </View>
+
+                                {/* Score Box */}
+                                <View style={styles.scoreRow}>
+                                    <Text style={styles.scoreLabel}>{t('score', 'Score')}</Text>
+                                    <Text
+                                        style={[
+                                            styles.scoreValue,
+                                            { color: isPassed ? theme.colors.status.success : theme.colors.status.danger },
+                                        ]}
+                                    >
+                                        {item.score ?? 0} / {maxPoints} ({scorePct}%)
+                                    </Text>
+                                </View>
+
+                                <TouchableOpacity
+                                    style={styles.outlineActionBtn}
+                                    activeOpacity={0.85}
+                                    onPress={() => navigation.navigate('QuizResult', { token: item.token, quizData: item })}
+                                >
+                                    <Text style={styles.outlineActionBtnText}>
+                                        {t('view_feedback', 'View Feedback')}
+                                    </Text>
+                                    <ChevronRight color={theme.colors.textPrimary} size={16} />
+                                </TouchableOpacity>
+                            </View>
+                        );
+                    })
+                )
+            )}
+        </AppShell>
     );
 };
 

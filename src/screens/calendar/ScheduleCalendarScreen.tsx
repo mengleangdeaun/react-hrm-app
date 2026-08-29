@@ -35,8 +35,11 @@ import { HeaderIconButton } from '../../components/common/AppHeader';
 import { calendarApi } from '../../api/calendar';
 import { MonthCalendarGrid } from '../../components/calendar/MonthCalendarGrid';
 
+import { useTranslation } from '../../context/LanguageContext';
+
 export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
     const { isDark } = useAppTheme();
+    const { t } = useTranslation();
     const theme = isDark ? darkTheme : lightTheme;
     const queryClient = useQueryClient();
 
@@ -164,7 +167,7 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
 
     return (
         <AppShell
-            title="My Calendar"
+            title={t('my_calendar', 'My Calendar')}
             refreshing={isRefetching}
             onRefresh={refetch}
             headerRight={
@@ -187,7 +190,7 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                     </Text>
                     {!isCurrentMonthActive && (
                         <TouchableOpacity onPress={handleGoToday} style={[styles.todayBadge, { backgroundColor: theme.colors.primarySubtle }]}>
-                            <Text style={[styles.todayBadgeText, { color: theme.colors.primary }]}>Today</Text>
+                            <Text style={[styles.todayBadgeText, { color: theme.colors.primary }]}>{t('today', 'Today')}</Text>
                         </TouchableOpacity>
                     )}
                 </View>
@@ -197,15 +200,15 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                 </TouchableOpacity>
             </View>
 
-            {/* 2. Monthly Summary Stats Row */}
+            {/* 2. Monthly Summary Stats 2x2 Grid */}
             <View style={styles.statsRow}>
                 <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
                     <View style={[styles.statIconBadge, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
                         <CalendarCheck color="#10B981" size={18} />
                     </View>
-                    <View>
+                    <View style={styles.statTextCol}>
                         <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{stats.attendance}</Text>
-                        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Present</Text>
+                        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{t('present', 'Present')}</Text>
                     </View>
                 </View>
 
@@ -213,9 +216,9 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                     <View style={[styles.statIconBadge, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
                         <PartyPopper color="#F59E0B" size={18} />
                     </View>
-                    <View>
+                    <View style={styles.statTextCol}>
                         <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{stats.holidays}</Text>
-                        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Holidays</Text>
+                        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{t('holidays', 'Holidays')}</Text>
                     </View>
                 </View>
 
@@ -223,9 +226,9 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                     <View style={[styles.statIconBadge, { backgroundColor: 'rgba(139, 92, 246, 0.12)' }]}>
                         <CalendarPlus color="#8B5CF6" size={18} />
                     </View>
-                    <View>
+                    <View style={styles.statTextCol}>
                         <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{stats.leaves}</Text>
-                        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Leaves</Text>
+                        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{t('leaves', 'Leaves')}</Text>
                     </View>
                 </View>
 
@@ -233,9 +236,9 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                     <View style={[styles.statIconBadge, { backgroundColor: 'rgba(244, 63, 94, 0.12)' }]}>
                         <CalendarOff color="#F43F5E" size={18} />
                     </View>
-                    <View>
+                    <View style={styles.statTextCol}>
                         <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{stats.dayOffs}</Text>
-                        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>Day Off</Text>
+                        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{t('day_off', 'Day Off')}</Text>
                     </View>
                 </View>
             </View>
@@ -257,7 +260,7 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                 >
                     <Clock color={activeTab === 'workday' ? theme.colors.primary : theme.colors.textSecondary} size={14} />
                     <Text style={[styles.tabLabel, { color: activeTab === 'workday' ? theme.colors.textPrimary : theme.colors.textSecondary }]}>
-                        Workday
+                        {t('workday', 'Workday')}
                     </Text>
                 </TouchableOpacity>
 
@@ -268,7 +271,7 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                 >
                     <PartyPopper color={activeTab === 'holiday' ? theme.colors.primary : theme.colors.textSecondary} size={14} />
                     <Text style={[styles.tabLabel, { color: activeTab === 'holiday' ? theme.colors.textPrimary : theme.colors.textSecondary }]}>
-                        Holidays
+                        {t('holidays', 'Holidays')}
                     </Text>
                 </TouchableOpacity>
 
@@ -279,7 +282,7 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                 >
                     <CalendarPlus color={activeTab === 'leave' ? theme.colors.primary : theme.colors.textSecondary} size={14} />
                     <Text style={[styles.tabLabel, { color: activeTab === 'leave' ? theme.colors.textPrimary : theme.colors.textSecondary }]}>
-                        Leaves
+                        {t('leaves', 'Leaves')}
                     </Text>
                 </TouchableOpacity>
 
@@ -290,7 +293,7 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                 >
                     <CalendarOff color={activeTab === 'day_off' ? theme.colors.primary : theme.colors.textSecondary} size={14} />
                     <Text style={[styles.tabLabel, { color: activeTab === 'day_off' ? theme.colors.textPrimary : theme.colors.textSecondary }]}>
-                        Day Off
+                        {t('day_off', 'Day Off')}
                     </Text>
                 </TouchableOpacity>
             </View>
@@ -602,17 +605,22 @@ const styles = StyleSheet.create({
     },
     statsRow: {
         flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
         gap: 8,
         marginBottom: 12,
     },
     statCard: {
-        flex: 1,
+        width: '48%',
         flexDirection: 'row',
         alignItems: 'center',
-        padding: 8,
+        padding: 10,
         borderRadius: 14,
         borderWidth: 1,
-        gap: 6,
+        gap: 8,
+    },
+    statTextCol: {
+        flex: 1,
     },
     statIconBadge: {
         width: 32,

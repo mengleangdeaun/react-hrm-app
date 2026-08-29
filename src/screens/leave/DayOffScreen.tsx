@@ -15,8 +15,11 @@ import { AppInput } from '../../components/common/AppInput';
 import { AppButton } from '../../components/common/AppButton';
 import { NativeDatePickerField } from '../../components/common/NativeDatePickerField';
 
+import { useTranslation } from '../../context/LanguageContext';
+
 export const DayOffScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark } = useAppTheme();
+    const { t } = useTranslation();
     const theme = isDark ? darkTheme : lightTheme;
 
     const [targetDate, setTargetDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
@@ -26,7 +29,7 @@ export const DayOffScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
     const handleSubmit = () => {
         if (!reason.trim()) {
-            Alert.alert('Required', 'Please enter a reason for off-day / shift swap request.');
+            Alert.alert(t('required', 'Required'), t('enter_swap_reason_alert', 'Please enter a reason for off-day / shift swap request.'));
             return;
         }
 
@@ -34,15 +37,15 @@ export const DayOffScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         setTimeout(() => {
             setIsSubmitting(false);
             Alert.alert(
-                'Request Sent! 🎉',
-                'Your off-day / shift swap request has been submitted for supervisor review.',
-                [{ text: 'OK', onPress: () => navigation.goBack() }]
+                t('request_sent', 'Request Sent! 🎉'),
+                t('swap_submitted_desc', 'Your off-day / shift swap request has been submitted for supervisor review.'),
+                [{ text: t('ok', 'OK'), onPress: () => navigation.goBack() }]
             );
         }, 600);
     };
 
     return (
-        <AppShell title="Off-Day & Shift Swap" onBack={() => navigation.goBack()}>
+        <AppShell title={t('off_day_shift_swap', 'Off-Day & Shift Swap')} onBack={() => navigation.goBack()}>
             <AppCard variant="surface" style={styles.card}>
                 <View style={styles.headerInfoRow}>
                     <View style={[styles.iconBadge, { backgroundColor: 'rgba(239, 68, 68, 0.12)' }]}>
@@ -50,36 +53,36 @@ export const DayOffScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                     </View>
                     <View style={styles.headerTextWrapper}>
                         <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
-                            Request Rest Day Swap
+                            {t('request_rest_day_swap', 'Request Rest Day Swap')}
                         </Text>
                         <Text style={[styles.cardSub, { color: theme.colors.textSecondary }]}>
-                            Adjust your assigned rest day or arrange a swap with a teammate.
+                            {t('request_rest_day_desc', 'Adjust your assigned rest day or arrange a swap with a teammate.')}
                         </Text>
                     </View>
                 </View>
 
                 {/* Target Date Picker */}
                 <NativeDatePickerField
-                    label="Target Off-Day Date"
+                    label={t('target_off_day_date', 'Target Off-Day Date')}
                     value={targetDate}
                     onChange={setTargetDate}
                 />
 
                 {/* Substitute Colleague */}
                 <AppInput
-                    label="Substitute Colleague (Shift Swap Optional)"
+                    label={t('substitute_colleague_label', 'Substitute Colleague (Shift Swap Optional)')}
                     value={swapEmployee}
                     onChangeText={setSwapEmployee}
-                    placeholder="Enter colleague name or code (optional)"
+                    placeholder={t('enter_colleague_placeholder', 'Enter colleague name or code (optional)')}
                     icon={<Users color={theme.colors.textSecondary} size={18} />}
                 />
 
                 {/* Reason Input */}
                 <AppInput
-                    label="Reason for Request"
+                    label={t('reason_for_request', 'Reason for Request')}
                     value={reason}
                     onChangeText={setReason}
-                    placeholder="Explain why you are requesting this off-day / shift swap..."
+                    placeholder={t('explain_swap_reason', 'Explain why you are requesting this off-day / shift swap...')}
                     multiline
                     numberOfLines={4}
                     icon={<FileText color={theme.colors.textSecondary} size={18} />}
@@ -88,7 +91,7 @@ export const DayOffScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 {/* Submit Action */}
                 <View style={styles.submitWrapper}>
                     <AppButton
-                        title="Submit Swap Request"
+                        title={t('submit_swap_request', 'Submit Swap Request')}
                         onPress={handleSubmit}
                         loading={isSubmitting}
                         icon={<RefreshCw color="#FFFFFF" size={18} />}

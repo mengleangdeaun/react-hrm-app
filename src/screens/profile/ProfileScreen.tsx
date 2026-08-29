@@ -18,7 +18,8 @@ import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { profileApi, ProfileData } from '../../api/profile';
 import { AppText as Text } from '../../components/AppText';
-import { AppHeader } from '../../components/common/AppHeader';
+import { AppShell } from '../../components/common/AppShell';
+import { AppHeader, HeaderIconButton } from '../../components/common/AppHeader';
 import {
     Mail,
     Phone,
@@ -162,214 +163,203 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         refetch();
     };
 
-    return (
-        <View style={[styles.safeArea, { paddingTop: insets.top }]}>
-            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-
-            {/* Standard Native Header Bar */}
-            <AppHeader
-                title={t('my_profile', 'My Profile')}
-                rightActions={[
-                    {
-                        icon: isDark ? (
-                            <Sun color={theme.colors.textSecondary} size={18} />
-                        ) : (
-                            <Moon color={theme.colors.textSecondary} size={18} />
-                        ),
-                        onPress: toggleTheme,
-                        accessibilityLabel: 'Toggle theme',
-                    },
-                    {
-                        icon: <Settings color={theme.colors.textSecondary} size={18} />,
-                        onPress: () => navigation.navigate('Settings'),
-                        accessibilityLabel: 'App Settings',
-                    },
-                ]}
+    const headerRight = (
+        <View style={styles.headerRightRow}>
+            <HeaderIconButton
+                icon={isDark ? (
+                    <Sun color={theme.colors.textSecondary} size={18} />
+                ) : (
+                    <Moon color={theme.colors.textSecondary} size={18} />
+                )}
+                onPress={toggleTheme}
+                accessibilityLabel="Toggle theme"
             />
+            <HeaderIconButton
+                icon={<Settings color={theme.colors.textSecondary} size={18} />}
+                onPress={() => navigation.navigate('Settings')}
+                accessibilityLabel="App Settings"
+                style={{ marginLeft: 6 }}
+            />
+        </View>
+    );
 
-            <ScrollView
-                style={styles.container}
-                contentContainerStyle={styles.scrollContent}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={isFetching}
-                        onRefresh={handleRefresh}
-                        tintColor={primaryColor}
-                        colors={[primaryColor]}
-                    />
-                }
-            >
-                {/* Hero Profile Card */}
-                <View style={styles.heroCard}>
-                    <View style={styles.avatarWrapper}>
-                        {showAvatarImage ? (
-                            <Image
-                                source={{ uri: avatarUrl! }}
-                                style={styles.avatarImg}
-                                onError={() => setAvatarLoadError(true)}
-                            />
-                        ) : (
-                            <View style={styles.avatarFallback}>
-                                <Text style={styles.avatarFallbackText}>
-                                    {displayName ? displayName.charAt(0).toUpperCase() : 'U'}
-                                </Text>
-                            </View>
-                        )}
-
-                        <TouchableOpacity
-                            style={[styles.cameraBadge, { backgroundColor: primaryColor }]}
-                            onPress={handlePickAvatar}
-                            disabled={isUploadingAvatar}
-                            activeOpacity={0.8}
-                        >
-                            {isUploadingAvatar ? (
-                                <ActivityIndicator size="small" color={theme.colors.onPrimary} />
-                            ) : (
-                                <Camera color={theme.colors.onPrimary} size={13} />
-                            )}
-                        </TouchableOpacity>
-                    </View>
-
-                    <Text variant="h1" style={styles.displayName}>{displayName}</Text>
-                    <Text style={styles.designationText}>{designationName}</Text>
-
-                    <View style={styles.badgeRow}>
-                        <View style={styles.codeBadge}>
-                            <Text style={styles.codeBadgeText}>{displayCode}</Text>
-                        </View>
-                    </View>
-                </View>
-
-                {/* Employment Info Section */}
-                <Text style={styles.sectionHeaderTitle}>{t('employment_information', 'Employment Information')}</Text>
-                <View style={styles.infoCard}>
-                    <View style={styles.infoRow}>
-                        <View style={styles.iconBox}>
-                            <Building2 color={theme.colors.textSecondary} size={18} />
-                        </View>
-                        <View style={styles.infoTextGroup}>
-                            <Text style={styles.infoLabel}>{t('department', 'Department')}</Text>
-                            <Text style={styles.infoValue}>{deptName}</Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.divider} />
-
-                    <View style={styles.infoRow}>
-                        <View style={styles.iconBox}>
-                            <MapPin color={theme.colors.textSecondary} size={18} />
-                        </View>
-                        <View style={styles.infoTextGroup}>
-                            <Text style={styles.infoLabel}>{t('branch_office', 'Branch Office')}</Text>
-                            <Text style={styles.infoValue}>{branchName}</Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.divider} />
-
-                    <View style={styles.infoRow}>
-                        <View style={styles.iconBox}>
-                            <UserCheck color={theme.colors.textSecondary} size={18} />
-                        </View>
-                        <View style={styles.infoTextGroup}>
-                            <Text style={styles.infoLabel}>{t('line_manager', 'Line Manager')}</Text>
-                            <Text style={styles.infoValue}>{lineManagerName}</Text>
-                        </View>
-                    </View>
-
-                    <View style={styles.divider} />
-
-                    <View style={styles.infoRow}>
-                        <View style={styles.iconBox}>
-                            <Calendar color={theme.colors.textSecondary} size={18} />
-                        </View>
-                        <View style={styles.infoTextGroup}>
-                            <Text style={styles.infoLabel}>{t('date_of_joining', 'Date of Joining')}</Text>
-                            <Text style={styles.infoValue}>{formatDate(emp?.date_of_joining)}</Text>
-                        </View>
-                    </View>
-
-                    {emp?.working_period && (
-                        <>
-                            <View style={styles.divider} />
-                            <View style={styles.infoRow}>
-                                <View style={styles.iconBox}>
-                                    <Clock color={theme.colors.textSecondary} size={18} />
-                                </View>
-                                <View style={styles.infoTextGroup}>
-                                    <Text style={styles.infoLabel}>{t('length_of_service', 'Length of Service')}</Text>
-                                    <Text style={styles.infoValue}>{emp.working_period}</Text>
-                                </View>
-                            </View>
-                        </>
-                    )}
-                </View>
-
-                {/* Contact & Personal Information Section */}
-                <Text style={styles.sectionHeaderTitle}>{t('contact_credentials', 'Contact & Credentials')}</Text>
-                <View style={styles.infoCard}>
-                    <View style={styles.infoRow}>
-                        <View style={styles.iconBox}>
-                            <Mail color={theme.colors.textSecondary} size={18} />
-                        </View>
-                        <View style={styles.infoTextGroup}>
-                            <Text style={styles.infoLabel}>{t('email_address', 'Email Address')}</Text>
-                            <Text style={styles.infoValue}>{emp?.email || user?.email || 'N/A'}</Text>
-                        </View>
-                    </View>
-
-                    {emp?.phone && (
-                        <>
-                            <View style={styles.divider} />
-                            <View style={styles.infoRow}>
-                                <View style={styles.iconBox}>
-                                    <Phone color={theme.colors.textSecondary} size={18} />
-                                </View>
-                                <View style={styles.infoTextGroup}>
-                                    <Text style={styles.infoLabel}>{t('phone_number', 'Phone Number')}</Text>
-                                    <Text style={styles.infoValue}>{emp.phone}</Text>
-                                </View>
-                            </View>
-                        </>
-                    )}
-
-                    {emp?.date_of_birth && (
-                        <>
-                            <View style={styles.divider} />
-                            <View style={styles.infoRow}>
-                                <View style={styles.iconBox}>
-                                    <Cake color={theme.colors.textSecondary} size={18} />
-                                </View>
-                                <View style={styles.infoTextGroup}>
-                                    <Text style={styles.infoLabel}>{t('date_of_birth', 'Date of Birth')}</Text>
-                                    <Text style={styles.infoValue}>{formatDate(emp.date_of_birth)}</Text>
-                                </View>
-                            </View>
-                        </>
-                    )}
-
-                    <View style={styles.divider} />
-
-                    <View style={styles.infoRow}>
-                        <View style={styles.iconBox}>
-                            <Send color={theme.colors.textSecondary} size={18} />
-                        </View>
-                        <View style={styles.infoTextGroup}>
-                            <Text style={styles.infoLabel}>{t('telegram_linked_account', 'Telegram Linked Account')}</Text>
-                            <Text style={styles.infoValue}>
-                                {emp?.telegram_user_id ? `Linked (ID: ${emp.telegram_user_id})` : 'Not Linked'}
+    return (
+        <AppShell
+            title={t('my_profile', 'My Profile')}
+            headerRight={headerRight}
+            refreshing={isFetching}
+            onRefresh={handleRefresh}
+        >
+            {/* Hero Profile Card */}
+            <View style={styles.heroCard}>
+                <View style={styles.avatarWrapper}>
+                    {showAvatarImage ? (
+                        <Image
+                            source={{ uri: avatarUrl! }}
+                            style={styles.avatarImg}
+                            onError={() => setAvatarLoadError(true)}
+                        />
+                    ) : (
+                        <View style={styles.avatarFallback}>
+                            <Text style={styles.avatarFallbackText}>
+                                {displayName ? displayName.charAt(0).toUpperCase() : 'U'}
                             </Text>
                         </View>
+                    )}
+
+                    <TouchableOpacity
+                        style={[styles.cameraBadge, { backgroundColor: primaryColor }]}
+                        onPress={handlePickAvatar}
+                        disabled={isUploadingAvatar}
+                        activeOpacity={0.8}
+                    >
+                        {isUploadingAvatar ? (
+                            <ActivityIndicator size="small" color={theme.colors.onPrimary} />
+                        ) : (
+                            <Camera color={theme.colors.onPrimary} size={13} />
+                        )}
+                    </TouchableOpacity>
+                </View>
+
+                <Text variant="h1" style={styles.displayName}>{displayName}</Text>
+                <Text style={styles.designationText}>{designationName}</Text>
+
+                <View style={styles.badgeRow}>
+                    <View style={styles.codeBadge}>
+                        <Text style={styles.codeBadgeText}>{displayCode}</Text>
+                    </View>
+                </View>
+            </View>
+
+            {/* Employment Info Section */}
+            <Text style={styles.sectionHeaderTitle}>{t('employment_information', 'Employment Information')}</Text>
+            <View style={styles.infoCard}>
+                <View style={styles.infoRow}>
+                    <View style={styles.iconBox}>
+                        <Building2 color={theme.colors.textSecondary} size={18} />
+                    </View>
+                    <View style={styles.infoTextGroup}>
+                        <Text style={styles.infoLabel}>{t('department', 'Department')}</Text>
+                        <Text style={styles.infoValue}>{deptName}</Text>
                     </View>
                 </View>
 
-                {/* Security Sign-Out Button */}
-                <TouchableOpacity style={styles.logoutBtn} onPress={handleLogoutConfirm} activeOpacity={0.85}>
-                    <LogOut color={theme.colors.status.danger} size={18} />
-                    <Text style={styles.logoutBtnText}>{t('sign_out_account', 'Sign Out of Account')}</Text>
-                </TouchableOpacity>
-            </ScrollView>
-        </View>
+                <View style={styles.divider} />
+
+                <View style={styles.infoRow}>
+                    <View style={styles.iconBox}>
+                        <MapPin color={theme.colors.textSecondary} size={18} />
+                    </View>
+                    <View style={styles.infoTextGroup}>
+                        <Text style={styles.infoLabel}>{t('branch_office', 'Branch Office')}</Text>
+                        <Text style={styles.infoValue}>{branchName}</Text>
+                    </View>
+                </View>
+
+                <View style={styles.divider} />
+
+                <View style={styles.infoRow}>
+                    <View style={styles.iconBox}>
+                        <UserCheck color={theme.colors.textSecondary} size={18} />
+                    </View>
+                    <View style={styles.infoTextGroup}>
+                        <Text style={styles.infoLabel}>{t('line_manager', 'Line Manager')}</Text>
+                        <Text style={styles.infoValue}>{lineManagerName}</Text>
+                    </View>
+                </View>
+
+                <View style={styles.divider} />
+
+                <View style={styles.infoRow}>
+                    <View style={styles.iconBox}>
+                        <Calendar color={theme.colors.textSecondary} size={18} />
+                    </View>
+                    <View style={styles.infoTextGroup}>
+                        <Text style={styles.infoLabel}>{t('date_of_joining', 'Date of Joining')}</Text>
+                        <Text style={styles.infoValue}>{formatDate(emp?.date_of_joining)}</Text>
+                    </View>
+                </View>
+
+                {emp?.working_period && (
+                    <>
+                        <View style={styles.divider} />
+                        <View style={styles.infoRow}>
+                            <View style={styles.iconBox}>
+                                <Clock color={theme.colors.textSecondary} size={18} />
+                            </View>
+                            <View style={styles.infoTextGroup}>
+                                <Text style={styles.infoLabel}>{t('length_of_service', 'Length of Service')}</Text>
+                                <Text style={styles.infoValue}>{emp.working_period}</Text>
+                            </View>
+                        </View>
+                    </>
+                )}
+            </View>
+
+            {/* Contact & Personal Information Section */}
+            <Text style={styles.sectionHeaderTitle}>{t('contact_credentials', 'Contact & Credentials')}</Text>
+            <View style={styles.infoCard}>
+                <View style={styles.infoRow}>
+                    <View style={styles.iconBox}>
+                        <Mail color={theme.colors.textSecondary} size={18} />
+                    </View>
+                    <View style={styles.infoTextGroup}>
+                        <Text style={styles.infoLabel}>{t('email_address', 'Email Address')}</Text>
+                        <Text style={styles.infoValue}>{emp?.email || user?.email || 'N/A'}</Text>
+                    </View>
+                </View>
+
+                {emp?.phone && (
+                    <>
+                        <View style={styles.divider} />
+                        <View style={styles.infoRow}>
+                            <View style={styles.iconBox}>
+                                <Phone color={theme.colors.textSecondary} size={18} />
+                            </View>
+                            <View style={styles.infoTextGroup}>
+                                <Text style={styles.infoLabel}>{t('phone_number', 'Phone Number')}</Text>
+                                <Text style={styles.infoValue}>{emp.phone}</Text>
+                            </View>
+                        </View>
+                    </>
+                )}
+
+                {emp?.date_of_birth && (
+                    <>
+                        <View style={styles.divider} />
+                        <View style={styles.infoRow}>
+                            <View style={styles.iconBox}>
+                                <Cake color={theme.colors.textSecondary} size={18} />
+                            </View>
+                            <View style={styles.infoTextGroup}>
+                                <Text style={styles.infoLabel}>{t('date_of_birth', 'Date of Birth')}</Text>
+                                <Text style={styles.infoValue}>{formatDate(emp.date_of_birth)}</Text>
+                            </View>
+                        </View>
+                    </>
+                )}
+
+                <View style={styles.divider} />
+
+                <View style={styles.infoRow}>
+                    <View style={styles.iconBox}>
+                        <Send color={theme.colors.textSecondary} size={18} />
+                    </View>
+                    <View style={styles.infoTextGroup}>
+                        <Text style={styles.infoLabel}>{t('telegram_linked_account', 'Telegram Linked Account')}</Text>
+                        <Text style={styles.infoValue}>
+                            {emp?.telegram_user_id ? `${t('linked', 'Linked')} (ID: ${emp.telegram_user_id})` : t('not_linked', 'Not Linked')}
+                        </Text>
+                    </View>
+                </View>
+            </View>
+
+            {/* Security Sign-Out Button */}
+            <TouchableOpacity style={styles.logoutBtn} onPress={handleLogoutConfirm} activeOpacity={0.85}>
+                <LogOut color={theme.colors.status.danger} size={18} />
+                <Text style={styles.logoutBtnText}>{t('sign_out_account', 'Sign Out of Account')}</Text>
+            </TouchableOpacity>
+        </AppShell>
     );
 };
 
@@ -377,6 +367,10 @@ const stylesheet = StyleSheet.create((theme) => ({
     safeArea: {
         flex: 1,
         backgroundColor: theme.colors.background,
+    },
+    headerRightRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     topBar: {
         flexDirection: 'row',
@@ -558,7 +552,8 @@ const stylesheet = StyleSheet.create((theme) => ({
         backgroundColor: theme.colors.status.dangerSubtle,
         borderWidth: 1,
         borderColor: theme.colors.status.dangerBorder,
-        height: 50,
+        minHeight: 48,
+        paddingVertical: 12,
         borderRadius: theme.borderRadius.lg,
         marginTop: theme.spacing.xs,
     },

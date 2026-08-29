@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
     View,
     TextInput,
@@ -8,33 +8,41 @@ import {
     KeyboardAvoidingView,
     Platform,
     ScrollView,
+    Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useAuth } from '../../context/AuthContext';
-import { useAppTheme } from '../../context/ThemeContext';
-import { Lock, Mail, QrCode, Fingerprint, LogIn, Moon, Sun } from 'lucide-react-native';
+import { useTranslation } from '../../context/LanguageContext';
+import { Lock, Mail, QrCode, Fingerprint, LogIn } from 'lucide-react-native';
 
 export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { login, loginWithBiometrics, isBiometricAvailable, isLoading } = useAuth();
-    const { isDark, toggleTheme } = useAppTheme();
+    const { t } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
+    const scrollViewRef = useRef<any>(null);
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loginMode, setLoginMode] = useState<'password' | 'pin'>('password');
     const [pin, setPin] = useState('');
 
+    const handleInputFocus = () => {
+        setTimeout(() => {
+            scrollViewRef.current?.scrollToEnd({ animated: true });
+        }, 120);
+    };
+
     const handleLogin = async (forceOption: any = false) => {
         const force = typeof forceOption === 'boolean' ? forceOption : false;
         if (loginMode === 'password' && (!email || !password)) {
-            Alert.alert('Required', 'Please enter both email and password');
+            Alert.alert(t('required', 'Required'), t('enter_email_password', 'Please enter both email and password'));
             return;
         }
         if (loginMode === 'pin' && pin.length < 4) {
-            Alert.alert('Required', 'Please enter your 4-digit PIN');
+            Alert.alert(t('required', 'Required'), t('enter_4digit_pin', 'Please enter your 4-digit PIN'));
             return;
         }
 
@@ -45,21 +53,21 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 await login({ pin }, force);
             }
         } catch (error: any) {
-            const errorMsg = error?.message || 'An error occurred during login.';
+            const errorMsg = error?.message || t('login_error_occurred', 'An error occurred during login.');
             if (error?.code === 'DEVICE_MISMATCH') {
-                const promptText = errorMsg + '\n\nWould you like to transfer your account to this device?';
+                const promptText = errorMsg + '\n\n' + t('device_transfer_prompt', 'Would you like to transfer your account to this device?');
                 if (Platform.OS === 'web') {
                     if (window.confirm('Device Transfer Required\n\n' + promptText)) {
                         handleLogin(true);
                     }
                 } else {
                     Alert.alert(
-                        'Device Transfer Required',
+                        t('device_transfer_required', 'Device Transfer Required'),
                         promptText,
                         [
-                            { text: 'Cancel', style: 'cancel' },
+                            { text: t('cancel', 'Cancel'), style: 'cancel' },
                             {
-                                text: 'Transfer Account',
+                                text: t('transfer_account', 'Transfer Account'),
                                 style: 'destructive',
                                 onPress: () => handleLogin(true),
                             },
@@ -70,13 +78,13 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 if (Platform.OS === 'web') {
                     window.alert('Security Error:\n' + errorMsg);
                 } else {
-                    Alert.alert('Security Error', errorMsg);
+                    Alert.alert(t('security_error', 'Security Error'), errorMsg);
                 }
             } else {
                 if (Platform.OS === 'web') {
                     window.alert('Login Failed:\n' + errorMsg);
                 } else {
-                    Alert.alert('Login Failed', errorMsg);
+                    Alert.alert(t('login_failed', 'Login Failed'), errorMsg);
                 }
             }
         }
@@ -85,7 +93,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const handleBiometricAuth = async () => {
         const success = await loginWithBiometrics();
         if (!success) {
-            Alert.alert('Biometric Login', 'Biometric authentication failed or credentials not saved.');
+            Alert.alert(t('biometric_login', 'Biometric Login'), t('biometric_failed', 'Biometric authentication failed or credentials not saved.'));
         }
     };
 
@@ -93,96 +101,99 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         <SafeAreaView {...({ edges: ['top', 'bottom'], style: { flex: 1, backgroundColor: theme.colors.background } } as any)}>
             <KeyboardAvoidingView
                 style={styles.keyboardContainer}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
             >
-                <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-                    {/* Header Actions */}
-                    <View style={styles.headerRow}>
-                    <TouchableOpacity
-                        onPress={toggleTheme}
-                        style={styles.themeIconButton}
-                        activeOpacity={0.7}
-                    >
-                        {isDark ? <Sun color="#F59E0B" size={20} /> : <Moon color="#2563EB" size={20} />}
-                    </TouchableOpacity>
-                </View>
-
-                {/* Hero / Branding Section */}
-                <View style={styles.brandContainer}>
-                    <View style={styles.logoBadge}>
-                        <Text style={styles.logoText}>HRMS</Text>
+                <ScrollView
+                    ref={scrollViewRef}
+                    contentContainerStyle={styles.scrollContent}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                    bounces={false}
+                >
+                    {/* Hero / Branding Section */}
+                    <View style={styles.brandContainer}>
+                        <View style={styles.logoContainer}>
+                            <Image
+                                source={require('../../../assets/icon.png')}
+                                style={styles.logoImage}
+                                resizeMode="contain"
+                            />
+                        </View>
+                        <Text style={styles.welcomeTitle}>{t('welcome_back', 'Welcome Back')}</Text>
+                        <Text style={styles.welcomeSubtitle}>{t('employee_self_service', 'Employee Self-Service Portal')}</Text>
                     </View>
-                    <Text style={styles.welcomeTitle}>Welcome Back</Text>
-                    <Text style={styles.welcomeSubtitle}>Employee Self-Service Portal</Text>
-                </View>
 
-                {/* Login Mode Segmented Control */}
-                <View style={styles.segmentedContainer}>
-                    <TouchableOpacity
-                        style={[styles.segmentButton, loginMode === 'password' && styles.segmentButtonActive]}
-                        onPress={() => setLoginMode('password')}
-                        activeOpacity={0.8}
-                    >
-                        <Text style={[styles.segmentText, loginMode === 'password' && styles.segmentTextActive]}>
-                            Password
-                        </Text>
-                    </TouchableOpacity>
+                    {/* Login Mode Segmented Control */}
+                    <View style={styles.segmentedContainer}>
+                        <TouchableOpacity
+                            style={[styles.segmentButton, loginMode === 'password' && styles.segmentButtonActive]}
+                            onPress={() => setLoginMode('password')}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={[styles.segmentText, loginMode === 'password' && styles.segmentTextActive]}>
+                                {t('password', 'Password')}
+                            </Text>
+                        </TouchableOpacity>
 
-                    <TouchableOpacity
-                        style={[styles.segmentButton, loginMode === 'pin' && styles.segmentButtonActive]}
-                        onPress={() => setLoginMode('pin')}
-                        activeOpacity={0.8}
-                    >
-                        <Text style={[styles.segmentText, loginMode === 'pin' && styles.segmentTextActive]}>
-                            4-Digit PIN
-                        </Text>
-                    </TouchableOpacity>
-                </View>
+                        <TouchableOpacity
+                            style={[styles.segmentButton, loginMode === 'pin' && styles.segmentButtonActive]}
+                            onPress={() => setLoginMode('pin')}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={[styles.segmentText, loginMode === 'pin' && styles.segmentTextActive]}>
+                                {t('pin_mode_tab', '4-Digit PIN')}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
 
-                {/* Login Form Card */}
-                <View style={styles.card}>
-                    {loginMode === 'password' ? (
-                        <>
-                            <View style={styles.inputWrapper}>
-                                <Mail color={theme.colors.textSecondary} size={20} style={styles.inputIcon} />
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Employee Email"
-                                    placeholderTextColor={theme.colors.textSecondary}
-                                    value={email}
-                                    onChangeText={setEmail}
-                                    keyboardType="email-address"
-                                    autoCapitalize="none"
-                                />
-                            </View>
+                    {/* Login Form Card */}
+                    <View style={styles.card}>
+                        {loginMode === 'password' ? (
+                            <>
+                                <View style={styles.inputWrapper}>
+                                    <Mail color={theme.colors.textSecondary} size={20} style={styles.inputIcon} />
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder={t('employee_email', 'Employee Email')}
+                                        placeholderTextColor={theme.colors.textSecondary}
+                                        value={email}
+                                        onChangeText={setEmail}
+                                        onFocus={handleInputFocus}
+                                        keyboardType="email-address"
+                                        autoCapitalize="none"
+                                    />
+                                </View>
 
+                                <View style={styles.inputWrapper}>
+                                    <Lock color={theme.colors.textSecondary} size={20} style={styles.inputIcon} />
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder={t('password', 'Password')}
+                                        placeholderTextColor={theme.colors.textSecondary}
+                                        value={password}
+                                        onChangeText={setPassword}
+                                        onFocus={handleInputFocus}
+                                        secureTextEntry
+                                    />
+                                </View>
+                            </>
+                        ) : (
                             <View style={styles.inputWrapper}>
                                 <Lock color={theme.colors.textSecondary} size={20} style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="Password"
+                                    placeholder={t('enter_4digit_pin', 'Enter 4-Digit Security PIN')}
                                     placeholderTextColor={theme.colors.textSecondary}
-                                    value={password}
-                                    onChangeText={setPassword}
+                                    value={pin}
+                                    onChangeText={setPin}
+                                    onFocus={handleInputFocus}
+                                    keyboardType="number-pad"
+                                    maxLength={4}
                                     secureTextEntry
                                 />
                             </View>
-                        </>
-                    ) : (
-                        <View style={styles.inputWrapper}>
-                            <Lock color={theme.colors.textSecondary} size={20} style={styles.inputIcon} />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Enter 4-Digit Security PIN"
-                                placeholderTextColor={theme.colors.textSecondary}
-                                value={pin}
-                                onChangeText={setPin}
-                                keyboardType="number-pad"
-                                maxLength={4}
-                                secureTextEntry
-                            />
-                        </View>
-                    )}
+                        )}
 
                     {/* Submit Button */}
                     <TouchableOpacity
@@ -196,7 +207,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                         ) : (
                             <View style={styles.submitContent}>
                                 <LogIn color="#FFFFFF" size={20} />
-                                <Text style={styles.submitText}>Sign In</Text>
+                                <Text style={styles.submitText}>{t('sign_in', 'Sign In')}</Text>
                             </View>
                         )}
                     </TouchableOpacity>
@@ -209,7 +220,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                             activeOpacity={0.7}
                         >
                             <QrCode color={theme.colors.primary} size={20} />
-                            <Text style={styles.quickActionText}>QR Code Login</Text>
+                            <Text style={styles.quickActionText}>{t('scan_qr_login', 'QR Code Login')}</Text>
                         </TouchableOpacity>
 
                         {isBiometricAvailable && (
@@ -220,7 +231,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                             >
                                 <Fingerprint color={theme.colors.status.success} size={20} />
                                 <Text style={[styles.quickActionText, { color: theme.colors.status.success }]}>
-                                    Biometrics
+                                    {t('biometrics', 'Biometrics')}
                                 </Text>
                             </TouchableOpacity>
                         )}
@@ -240,39 +251,23 @@ const stylesheet = StyleSheet.create((theme) => ({
     scrollContent: {
         flexGrow: 1,
         paddingHorizontal: theme.spacing.lg,
-        paddingVertical: theme.spacing.xl,
+        paddingTop: theme.spacing.xl,
+        paddingBottom: theme.spacing.xxl + 48,
         justifyContent: 'center',
-    },
-    headerRow: {
-        flexDirection: 'row',
-        justifyContent: 'flex-end',
-        marginBottom: theme.spacing.md,
-    },
-    themeIconButton: {
-        padding: theme.spacing.sm + 4,
-        backgroundColor: theme.colors.surfaceSubtle,
-        borderRadius: theme.borderRadius.full,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
     },
     brandContainer: {
         alignItems: 'center',
         marginBottom: theme.spacing.lg,
     },
-    logoBadge: {
-        width: 76,
-        height: 76,
-        backgroundColor: theme.colors.primary,
-        borderRadius: theme.borderRadius.lg + 4,
-        justifyContent: 'center',
+    logoContainer: {
         alignItems: 'center',
+        justifyContent: 'center',
         marginBottom: theme.spacing.md,
     },
-    logoText: {
-        color: '#FFFFFF',
-        fontWeight: '900',
-        fontSize: 22,
-        letterSpacing: 2,
+    logoImage: {
+        width: 68,
+        height: 68,
+        borderRadius: 16,
     },
     welcomeTitle: {
         fontSize: 28,
@@ -327,7 +322,8 @@ const stylesheet = StyleSheet.create((theme) => ({
         backgroundColor: theme.colors.background,
         borderRadius: theme.borderRadius.md,
         paddingHorizontal: theme.spacing.md,
-        height: 52,
+        minHeight: 52,
+        paddingVertical: 4,
         marginBottom: theme.spacing.md,
         borderWidth: 1,
         borderColor: theme.colors.border,
@@ -339,10 +335,12 @@ const stylesheet = StyleSheet.create((theme) => ({
         flex: 1,
         color: theme.colors.textPrimary,
         fontSize: 15,
+        paddingVertical: 4,
     },
     submitButton: {
         backgroundColor: theme.colors.primary,
-        height: 52,
+        minHeight: 52,
+        paddingVertical: 12,
         borderRadius: theme.borderRadius.md,
         justifyContent: 'center',
         alignItems: 'center',

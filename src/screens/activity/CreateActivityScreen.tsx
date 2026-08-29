@@ -47,8 +47,11 @@ const CATEGORY_ICONS: Record<string, any> = {
     'Other': MoreHorizontal,
 };
 
+import { useTranslation } from '../../context/LanguageContext';
+
 export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark } = useAppTheme();
+    const { t } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
     const queryClient = useQueryClient();
@@ -75,7 +78,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
         try {
             const { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') {
-                setLocation({ address: 'Location permission denied' });
+                setLocation({ address: t('loc_permission_denied', 'Location permission denied') });
                 return;
             }
 
@@ -100,7 +103,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
             });
         } catch (err) {
             console.warn('Location capture error:', err);
-            setLocation({ address: 'GPS Location unavailable' });
+            setLocation({ address: t('gps_loc_unavailable', 'GPS Location unavailable') });
         } finally {
             setIsLocating(false);
         }
@@ -109,7 +112,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
     const takePhoto = async () => {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
         if (!permission.granted) {
-            Alert.alert('Permission Required', 'Camera access is required to take photo proof.');
+            Alert.alert(t('permission_required', 'Permission Required'), t('camera_access_photo_proof', 'Camera access is required to take photo proof.'));
             return;
         }
 
@@ -154,11 +157,11 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
 
     const handleSubmit = async () => {
         if (!selectedCategory) {
-            Alert.alert('Required', 'Please select an activity category.');
+            Alert.alert(t('required', 'Required'), t('select_activity_category', 'Please select an activity category.'));
             return;
         }
         if (attachments.length === 0) {
-            Alert.alert('Photo Proof Required', 'Please attach at least 1 photo for activity proof.');
+            Alert.alert(t('photo_proof_required', 'Photo Proof Required'), t('attach_photo_proof_alert', 'Please attach at least 1 photo for activity proof.'));
             return;
         }
 
@@ -176,15 +179,15 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
             await queryClient.invalidateQueries({ queryKey: ['activities'] });
 
             if (Platform.OS === 'web') {
-                window.alert('Activity Submitted: Your work log entry has been submitted.');
+                window.alert(t('activity_submitted_msg', 'Activity Submitted: Your work log entry has been submitted.'));
                 navigation.navigate('ActivityList');
             } else {
-                Alert.alert('Activity Submitted', 'Your work log entry has been submitted.', [
-                    { text: 'OK', onPress: () => navigation.navigate('ActivityList') },
+                Alert.alert(t('activity_submitted', 'Activity Submitted'), t('work_log_submitted_desc', 'Your work log entry has been submitted.'), [
+                    { text: t('ok', 'OK'), onPress: () => navigation.navigate('ActivityList') },
                 ]);
             }
         } catch (error: any) {
-            Alert.alert('Submission Error', error?.message || 'Failed to submit activity report.');
+            Alert.alert(t('submission_error', 'Submission Error'), error?.message || t('fail_submit_activity', 'Failed to submit activity report.'));
         } finally {
             setIsSubmitting(false);
         }
@@ -199,10 +202,10 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
     );
 
     return (
-        <AppShell title="Log Activity" onBack={() => navigation.goBack()} headerRight={headerRight}>
+        <AppShell title={t('log_activity', 'Log Activity')} onBack={() => navigation.goBack()} headerRight={headerRight}>
             {/* Step Progress Bar */}
             <View style={styles.stepHeaderRow}>
-                <Text style={styles.stepProgressText}>Step {currentStep} of 3</Text>
+                <Text style={styles.stepProgressText}>{t('step_x_of_y', `Step ${currentStep} of 3`)}</Text>
             </View>
             <View style={styles.progressBarBg}>
                 <View style={[styles.progressBarFill, { width: `${(currentStep / 3) * 100}%` }]} />
@@ -211,8 +214,8 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
             {/* STEP 1: Select Category (2-Column Grid Layout) */}
             {currentStep === 1 && (
                 <View>
-                    <Text style={styles.stepTitle}>1. Select Activity Type</Text>
-                    <Text style={styles.stepSubtitle}>Choose the category that best describes your task.</Text>
+                    <Text style={styles.stepTitle}>{t('step_1_title', '1. Select Activity Type')}</Text>
+                    <Text style={styles.stepSubtitle}>{t('step_1_subtitle', 'Choose the category that best describes your task.')}</Text>
 
                     <View style={styles.gridContainer}>
                         {OFFICIAL_ACTIVITY_TYPES.map((cat) => {
@@ -250,7 +253,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                         onPress={() => setCurrentStep(2)}
                         activeOpacity={0.85}
                     >
-                        <Text style={styles.nextBtnText}>Continue to Photo Proof</Text>
+                        <Text style={styles.nextBtnText}>{t('continue_to_photo_proof', 'Continue to Photo Proof')}</Text>
                         <ChevronRight color="#FFFFFF" size={18} />
                     </TouchableOpacity>
                 </View>
@@ -259,25 +262,25 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
             {/* STEP 2: Photo Proof Capture */}
             {currentStep === 2 && (
                 <View>
-                    <Text style={styles.stepTitle}>2. Attach Photo Proof</Text>
-                    <Text style={styles.stepSubtitle}>Capture or upload photos to verify your activity.</Text>
+                    <Text style={styles.stepTitle}>{t('step_2_title', '2. Attach Photo Proof')}</Text>
+                    <Text style={styles.stepSubtitle}>{t('step_2_subtitle', 'Capture or upload photos to verify your activity.')}</Text>
 
                     <View style={styles.photoPickerRow}>
                         <TouchableOpacity style={styles.pickerTile} onPress={takePhoto} activeOpacity={0.8}>
                             <Camera color={theme.colors.primary} size={28} />
-                            <Text style={styles.pickerTileText}>Take Camera Photo</Text>
+                            <Text style={styles.pickerTileText}>{t('take_camera_photo', 'Take Camera Photo')}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity style={styles.pickerTile} onPress={pickImage} activeOpacity={0.8}>
                             <ImageIcon color={theme.colors.status.success} size={28} />
-                            <Text style={styles.pickerTileText}>Choose from Gallery</Text>
+                            <Text style={styles.pickerTileText}>{t('choose_from_gallery', 'Choose from Gallery')}</Text>
                         </TouchableOpacity>
                     </View>
 
                     {/* Thumbnail Grid */}
                     {attachments.length > 0 && (
                         <View style={styles.previewSection}>
-                            <Text style={styles.previewTitle}>Attached Photos ({attachments.length})</Text>
+                            <Text style={styles.previewTitle}>{t('attached_photos_count', `Attached Photos (${attachments.length})`)}</Text>
                             <View style={styles.thumbnailGrid}>
                                 {attachments.map((item, index) => (
                                     <View key={index} style={styles.thumbnailWrapper}>
@@ -300,7 +303,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                             onPress={() => setCurrentStep(1)}
                             activeOpacity={0.8}
                         >
-                            <Text style={styles.backStepBtnText}>Back</Text>
+                            <Text style={styles.backStepBtnText}>{t('back', 'Back')}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -309,7 +312,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                             onPress={() => setCurrentStep(3)}
                             activeOpacity={0.85}
                         >
-                            <Text style={styles.nextBtnText}>Continue to Notes</Text>
+                            <Text style={styles.nextBtnText}>{t('continue_to_notes', 'Continue to Notes')}</Text>
                             <ChevronRight color="#FFFFFF" size={18} />
                         </TouchableOpacity>
                     </View>
@@ -319,28 +322,28 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
             {/* STEP 3: Notes & Location Tagging */}
             {currentStep === 3 && (
                 <View>
-                    <Text style={styles.stepTitle}>3. Location & Activity Notes</Text>
-                    <Text style={styles.stepSubtitle}>Review GPS location tag and add descriptive notes.</Text>
+                    <Text style={styles.stepTitle}>{t('step_3_title', '3. Location & Activity Notes')}</Text>
+                    <Text style={styles.stepSubtitle}>{t('step_3_subtitle', 'Review GPS location tag and add descriptive notes.')}</Text>
 
                     {/* GPS Tagged Location Banner */}
                     <View style={styles.locationCard}>
                         <MapPin color={theme.colors.primary} size={20} />
                         <View style={styles.locationTextGroup}>
-                            <Text style={styles.locationCardTitle}>Verified Location Tag</Text>
+                            <Text style={styles.locationCardTitle}>{t('verified_location_tag', 'Verified Location Tag')}</Text>
                             <Text style={styles.locationCardSub} numberOfLines={2}>
-                                {isLocating ? 'Resolving GPS coordinates...' : location?.address || 'Location Tagged'}
+                                {isLocating ? t('resolving_gps_coords', 'Resolving GPS coordinates...') : location?.address || t('location_tagged', 'Location Tagged')}
                             </Text>
                         </View>
                         {isLocating && <ActivityIndicator size="small" color={theme.colors.primary} />}
                     </View>
 
                     {/* Notes / Comment Text Input */}
-                    <Text style={styles.inputLabel}>Activity Notes / Details</Text>
+                    <Text style={styles.inputLabel}>{t('activity_notes_details', 'Activity Notes / Details')}</Text>
                     <TextInput
                         style={[styles.input, styles.textArea]}
                         value={comment}
                         onChangeText={setComment}
-                        placeholder="Describe work completed, client feedback, or tasks performed..."
+                        placeholder={t('describe_work_placeholder', 'Describe work completed, client feedback, or tasks performed...')}
                         placeholderTextColor={theme.colors.textSecondary}
                         multiline
                         numberOfLines={4}
@@ -352,7 +355,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                             onPress={() => setCurrentStep(2)}
                             activeOpacity={0.8}
                         >
-                            <Text style={styles.backStepBtnText}>Back</Text>
+                            <Text style={styles.backStepBtnText}>{t('back', 'Back')}</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -364,7 +367,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                             {isSubmitting ? (
                                 <ActivityIndicator color="#FFFFFF" />
                             ) : (
-                                <Text style={styles.submitBtnText}>Submit Activity</Text>
+                                <Text style={styles.submitBtnText}>{t('submit_activity', 'Submit Activity')}</Text>
                             )}
                         </TouchableOpacity>
                     </View>

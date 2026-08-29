@@ -12,7 +12,9 @@ import {
 } from 'react-native';
 import { AlertCircle, Clock, Check, X } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
-import { AppText, AppText as Text } from '../AppText';
+import { useTranslation } from '../../context/LanguageContext';
+import { lightTheme, darkTheme } from '../../styles/theme';
+import { AppText } from '../AppText';
 
 interface AttendanceReasonModalProps {
     visible: boolean;
@@ -24,20 +26,20 @@ interface AttendanceReasonModalProps {
 }
 
 const LATE_PRESETS = [
-    'Heavy Traffic',
-    'Vehicle Breakdown',
-    'Severe Weather',
-    'Personal Emergency',
-    'Public Transport Delay',
-    'Client Meeting',
+    { key: 'preset_heavy_traffic', fallback: 'Heavy Traffic' },
+    { key: 'preset_vehicle_breakdown', fallback: 'Vehicle Breakdown' },
+    { key: 'preset_severe_weather', fallback: 'Severe Weather' },
+    { key: 'preset_personal_emergency', fallback: 'Personal Emergency' },
+    { key: 'preset_public_transport', fallback: 'Public Transport Delay' },
+    { key: 'preset_client_meeting', fallback: 'Client Meeting' },
 ];
 
 const EARLY_PRESETS = [
-    'Medical Appointment',
-    'Family Emergency',
-    'Approved Client Visit',
-    'Feeling Unwell',
-    'Personal Matter',
+    { key: 'preset_medical_appointment', fallback: 'Medical Appointment' },
+    { key: 'preset_family_emergency', fallback: 'Family Emergency' },
+    { key: 'preset_client_visit', fallback: 'Approved Client Visit' },
+    { key: 'preset_feeling_unwell', fallback: 'Feeling Unwell' },
+    { key: 'preset_personal_matter', fallback: 'Personal Matter' },
 ];
 
 export const AttendanceReasonModal: React.FC<AttendanceReasonModalProps> = ({
@@ -49,19 +51,22 @@ export const AttendanceReasonModal: React.FC<AttendanceReasonModalProps> = ({
     onCancel,
 }) => {
     const { isDark } = useAppTheme();
+    const { t } = useTranslation();
+    const theme = isDark ? darkTheme : lightTheme;
+
     const isLate = reasonType === 'late';
     const presets = isLate ? LATE_PRESETS : EARLY_PRESETS;
 
     const [selectedPreset, setSelectedPreset] = useState<string>('');
     const [customReason, setCustomReason] = useState<string>('');
 
-    const handleSelectPreset = (preset: string) => {
-        if (selectedPreset === preset) {
+    const handleSelectPreset = (presetLabel: string) => {
+        if (selectedPreset === presetLabel) {
             setSelectedPreset('');
             setCustomReason('');
         } else {
-            setSelectedPreset(preset);
-            setCustomReason(preset);
+            setSelectedPreset(presetLabel);
+            setCustomReason(presetLabel);
         }
     };
 
@@ -84,14 +89,18 @@ export const AttendanceReasonModal: React.FC<AttendanceReasonModalProps> = ({
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.modalBackdrop}
             >
-                <View style={[styles.sheetContent, isDark && styles.sheetContentDark]}>
+                <View style={[styles.sheetContent, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
                     {/* Header */}
                     <View style={styles.headerRow}>
                         <View style={styles.headerLeft}>
                             <View
                                 style={[
                                     styles.iconBadge,
-                                    isLate ? styles.iconBadgeLate : styles.iconBadgeEarly,
+                                    {
+                                        backgroundColor: isLate
+                                            ? 'rgba(234, 88, 12, 0.15)'
+                                            : 'rgba(225, 29, 72, 0.15)',
+                                    },
                                 ]}
                             >
                                 {isLate ? (
@@ -100,25 +109,27 @@ export const AttendanceReasonModal: React.FC<AttendanceReasonModalProps> = ({
                                     <AlertCircle color="#E11D48" size={20} />
                                 )}
                             </View>
-                            <View>
-                                <AppText style={[styles.title, isDark && styles.textLight]}>
-                                    {isLate ? 'Late Arrival Reason' : 'Early Departure Reason'}
+                            <View style={styles.headerTitleGroup}>
+                                <AppText style={[styles.title, { color: theme.colors.textPrimary }]}>
+                                    {isLate
+                                        ? t('late_arrival_reason', 'Late Arrival Reason')
+                                        : t('early_departure_reason', 'Early Departure Reason')}
                                 </AppText>
                                 {delayMinutes > 0 && (
                                     <AppText style={styles.subtitle}>
                                         {isLate
-                                            ? `Shift delayed by ~${delayMinutes} minutes`
-                                            : `Departing ~${delayMinutes} minutes early`}
+                                            ? `${t('shift_delayed_by', 'Shift delayed by')} ~${delayMinutes} ${t('mins', 'mins')}`
+                                            : `${t('departing_early_by', 'Departing')} ~${delayMinutes} ${t('mins_early', 'mins early')}`}
                                     </AppText>
                                 )}
                             </View>
                         </View>
                         <TouchableOpacity
-                            style={styles.closeBtn}
+                            style={[styles.closeBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
                             onPress={onCancel}
                             disabled={isLoading}
                         >
-                            <X color={isDark ? '#94A3B8' : '#64748B'} size={20} />
+                            <X color={theme.colors.textSecondary} size={18} />
                         </TouchableOpacity>
                     </View>
 
@@ -127,39 +138,42 @@ export const AttendanceReasonModal: React.FC<AttendanceReasonModalProps> = ({
                         contentContainerStyle={styles.scrollBody}
                     >
                         {/* Policy note */}
-                        <View style={[styles.infoBox, isDark && styles.infoBoxDark]}>
-                            <AppText style={[styles.infoText, isDark && styles.infoTextDark]}>
-                                Company policy requires an authorized reason for {isLate ? 'late check-in' : 'early departure'}.
+                        <View style={[styles.infoBox, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}>
+                            <AppText style={[styles.infoText, { color: theme.colors.textSecondary }]}>
+                                {t('policy_reason_note', 'Company policy requires an authorized explanation for attendance adjustments.')}
                             </AppText>
                         </View>
 
                         {/* Quick Presets */}
-                        <AppText style={[styles.sectionLabel, isDark && styles.textLight]}>
-                            Quick Select Reason:
+                        <AppText style={[styles.sectionLabel, { color: theme.colors.textPrimary }]}>
+                            {t('quick_select_reason', 'Quick Select Reason:')}
                         </AppText>
                         <View style={styles.presetsGrid}>
                             {presets.map((item) => {
-                                const active = selectedPreset === item;
+                                const localizedLabel = t(item.key, item.fallback);
+                                const active = selectedPreset === localizedLabel;
                                 return (
                                     <TouchableOpacity
-                                        key={item}
+                                        key={item.key}
                                         style={[
                                             styles.presetChip,
-                                            isDark && styles.presetChipDark,
-                                            active && styles.presetChipActive,
+                                            {
+                                                backgroundColor: active ? theme.colors.brand : theme.colors.surfaceSubtle,
+                                                borderColor: active ? theme.colors.brand : theme.colors.border,
+                                            },
                                         ]}
-                                        onPress={() => handleSelectPreset(item)}
+                                        onPress={() => handleSelectPreset(localizedLabel)}
                                         activeOpacity={0.7}
                                     >
                                         {active && <Check size={14} color="#FFFFFF" style={{ marginRight: 4 }} />}
                                         <AppText
                                             style={[
                                                 styles.presetText,
-                                                isDark && styles.textLight,
-                                                active && styles.presetTextActive,
+                                                { color: active ? '#FFFFFF' : theme.colors.textPrimary },
+                                                active && { fontWeight: '700' },
                                             ]}
                                         >
-                                            {item}
+                                            {localizedLabel}
                                         </AppText>
                                     </TouchableOpacity>
                                 );
@@ -167,13 +181,20 @@ export const AttendanceReasonModal: React.FC<AttendanceReasonModalProps> = ({
                         </View>
 
                         {/* Custom Reason Input */}
-                        <AppText style={[styles.sectionLabel, isDark && styles.textLight]}>
-                            Or specify custom explanation:
+                        <AppText style={[styles.sectionLabel, { color: theme.colors.textPrimary }]}>
+                            {t('or_custom_explanation', 'Or specify custom explanation:')}
                         </AppText>
                         <TextInput
-                            style={[styles.input, isDark && styles.inputDark]}
-                            placeholder="Enter detailed reason here..."
-                            placeholderTextColor={isDark ? '#64748B' : '#94A3B8'}
+                            style={[
+                                styles.input,
+                                {
+                                    backgroundColor: theme.colors.surfaceSubtle,
+                                    borderColor: theme.colors.border,
+                                    color: theme.colors.textPrimary,
+                                },
+                            ]}
+                            placeholder={t('enter_detailed_reason', 'Enter detailed reason here...')}
+                            placeholderTextColor={theme.colors.textDisabled}
                             multiline
                             numberOfLines={3}
                             value={customReason}
@@ -188,6 +209,7 @@ export const AttendanceReasonModal: React.FC<AttendanceReasonModalProps> = ({
                         <TouchableOpacity
                             style={[
                                 styles.submitButton,
+                                { backgroundColor: theme.colors.brand },
                                 !canSubmit && styles.submitButtonDisabled,
                             ]}
                             onPress={handleSubmit}
@@ -198,7 +220,7 @@ export const AttendanceReasonModal: React.FC<AttendanceReasonModalProps> = ({
                                 <ActivityIndicator color="#FFFFFF" size="small" />
                             ) : (
                                 <AppText style={styles.submitButtonText}>
-                                    Submit & Record Attendance
+                                    {t('submit_record_attendance', 'Submit & Record Attendance')}
                                 </AppText>
                             )}
                         </TouchableOpacity>
@@ -208,7 +230,9 @@ export const AttendanceReasonModal: React.FC<AttendanceReasonModalProps> = ({
                             onPress={onCancel}
                             disabled={isLoading}
                         >
-                            <AppText style={styles.cancelButtonText}>Cancel</AppText>
+                            <AppText style={[styles.cancelButtonText, { color: theme.colors.textSecondary }]}>
+                                {t('cancel', 'Cancel')}
+                            </AppText>
                         </TouchableOpacity>
                     </ScrollView>
                 </View>
@@ -224,16 +248,13 @@ const styles = StyleSheet.create({
         justifyContent: 'flex-end',
     },
     sheetContent: {
-        backgroundColor: '#FFFFFF',
         borderTopLeftRadius: 28,
         borderTopRightRadius: 28,
+        borderTopWidth: 1,
         paddingHorizontal: 20,
         paddingTop: 20,
         paddingBottom: Platform.OS === 'ios' ? 36 : 24,
         maxHeight: '88%',
-    },
-    sheetContentDark: {
-        backgroundColor: '#0F172A',
     },
     headerRow: {
         flexDirection: 'row',
@@ -245,6 +266,10 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
+        flex: 1,
+    },
+    headerTitleGroup: {
+        flex: 1,
     },
     iconBadge: {
         width: 44,
@@ -253,16 +278,9 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    iconBadgeLate: {
-        backgroundColor: 'rgba(234, 88, 12, 0.15)',
-    },
-    iconBadgeEarly: {
-        backgroundColor: 'rgba(225, 29, 72, 0.15)',
-    },
     title: {
-        fontSize: 17,
+        fontSize: 16,
         fontWeight: '700',
-        color: '#0F172A',
     },
     subtitle: {
         fontSize: 12,
@@ -270,40 +288,30 @@ const styles = StyleSheet.create({
         fontWeight: '600',
         marginTop: 2,
     },
-    textLight: {
-        color: '#F8FAFC',
-    },
     closeBtn: {
-        padding: 8,
-        borderRadius: 12,
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginLeft: 8,
     },
     scrollBody: {
         paddingBottom: 16,
     },
     infoBox: {
-        backgroundColor: '#F8FAFC',
         padding: 12,
         borderRadius: 12,
         borderWidth: 1,
-        borderColor: '#E2E8F0',
         marginBottom: 16,
-    },
-    infoBoxDark: {
-        backgroundColor: 'rgba(30, 41, 59, 0.5)',
-        borderColor: '#334155',
     },
     infoText: {
         fontSize: 12,
-        color: '#475569',
         lineHeight: 16,
-    },
-    infoTextDark: {
-        color: '#94A3B8',
     },
     sectionLabel: {
         fontSize: 13,
         fontWeight: '600',
-        color: '#334155',
         marginBottom: 10,
         marginTop: 4,
     },
@@ -319,60 +327,31 @@ const styles = StyleSheet.create({
         paddingHorizontal: 14,
         paddingVertical: 8,
         borderRadius: 20,
-        backgroundColor: '#F1F5F9',
         borderWidth: 1,
-        borderColor: '#E2E8F0',
-    },
-    presetChipDark: {
-        backgroundColor: '#1E293B',
-        borderColor: '#334155',
-    },
-    presetChipActive: {
-        backgroundColor: '#2563EB',
-        borderColor: '#2563EB',
+        minHeight: 36,
     },
     presetText: {
         fontSize: 13,
         fontWeight: '500',
-        color: '#334155',
-    },
-    presetTextActive: {
-        color: '#FFFFFF',
-        fontWeight: '700',
     },
     input: {
-        backgroundColor: '#F8FAFC',
         borderWidth: 1,
-        borderColor: '#CBD5E1',
         borderRadius: 16,
         padding: 14,
         fontSize: 14,
-        color: '#0F172A',
         minHeight: 80,
         textAlignVertical: 'top',
         marginBottom: 20,
     },
-    inputDark: {
-        backgroundColor: '#1E293B',
-        borderColor: '#334155',
-        color: '#F8FAFC',
-    },
     submitButton: {
-        backgroundColor: '#2563EB',
         borderRadius: 16,
-        paddingVertical: 15,
+        paddingVertical: 14,
+        minHeight: 48,
         alignItems: 'center',
         justifyContent: 'center',
-        shadowColor: '#2563EB',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 4,
     },
     submitButtonDisabled: {
-        backgroundColor: '#94A3B8',
-        shadowOpacity: 0,
-        elevation: 0,
+        opacity: 0.5,
     },
     submitButtonText: {
         color: '#FFFFFF',
@@ -383,9 +362,10 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         alignItems: 'center',
         marginTop: 4,
+        minHeight: 40,
+        justifyContent: 'center',
     },
     cancelButtonText: {
-        color: '#64748B',
         fontSize: 14,
         fontWeight: '600',
     },

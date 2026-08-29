@@ -14,8 +14,11 @@ import { AppCard } from '../../components/common/AppCard';
 import { AppInput } from '../../components/common/AppInput';
 import { AppButton } from '../../components/common/AppButton';
 
+import { useTranslation } from '../../context/LanguageContext';
+
 export const CelebrationWishScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark } = useAppTheme();
+    const { t } = useTranslation();
     const theme = isDark ? darkTheme : lightTheme;
 
     const [wishText, setWishText] = useState('');
@@ -23,7 +26,7 @@ export const CelebrationWishScreen: React.FC<{ navigation: any }> = ({ navigatio
 
     const handleSend = () => {
         if (!wishText.trim()) {
-            Alert.alert('Required', 'Please write a wish message.');
+            Alert.alert(t('required', 'Required'), t('please_write_wish_message', 'Please write a wish message.'));
             return;
         }
 
@@ -31,40 +34,40 @@ export const CelebrationWishScreen: React.FC<{ navigation: any }> = ({ navigatio
         setTimeout(() => {
             setIsSubmitting(false);
             Alert.alert(
-                'Wish Sent! 🎉',
-                'Your celebratory wish has been delivered to your colleague.',
-                [{ text: 'OK', onPress: () => navigation.goBack() }]
+                t('wish_sent', 'Wish Sent! 🎉'),
+                t('wish_sent_desc', 'Your celebratory wish has been delivered to your colleague.'),
+                [{ text: t('ok', 'OK'), onPress: () => navigation.goBack() }]
             );
         }, 500);
     };
 
     return (
-        <AppShell title="Send Celebration Wish" onBack={() => navigation.goBack()}>
+        <AppShell title={t('send_celebration_wish', 'Send Celebration Wish')} onBack={() => navigation.goBack()}>
             <AppCard variant="surface" style={styles.heroCard}>
                 <View style={[styles.giftIconCircle, { backgroundColor: 'rgba(236, 72, 153, 0.12)' }]}>
                     <Gift color="#EC4899" size={32} />
                 </View>
                 <Text style={[styles.title, { color: theme.colors.textPrimary }]}>
-                    Happy Celebration! 🎂
+                    {t('happy_celebration', 'Happy Celebration! 🎂')}
                 </Text>
                 <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
-                    Send your colleague warm birthday or milestone wishes today.
+                    {t('happy_celebration_desc', 'Send your colleague warm birthday or milestone wishes today.')}
                 </Text>
             </AppCard>
 
             <AppCard variant="surface">
                 <AppInput
-                    label="Your Wish Message"
+                    label={t('your_wish_message', 'Your Wish Message')}
                     value={wishText}
                     onChangeText={setWishText}
-                    placeholder="Wishing you a wonderful celebration filled with joy and success! 🎉"
+                    placeholder={t('wish_placeholder', 'Wishing you a wonderful celebration filled with joy and success! 🎉')}
                     multiline
                     numberOfLines={4}
                 />
 
                 <View style={styles.btnWrapper}>
                     <AppButton
-                        title="Send Wish"
+                        title={t('send_wish', 'Send Wish')}
                         onPress={handleSend}
                         loading={isSubmitting}
                         icon={<Send color="#FFFFFF" size={18} />}
@@ -77,7 +80,7 @@ export const CelebrationWishScreen: React.FC<{ navigation: any }> = ({ navigatio
                     activeOpacity={0.75}
                 >
                     <Heart color="#EC4899" size={16} />
-                    <Text style={styles.inboxBtnText}>View My Received Wishes Inbox</Text>
+                    <Text style={styles.inboxBtnText}>{t('view_received_wishes_inbox', 'View My Received Wishes Inbox')}</Text>
                 </TouchableOpacity>
             </AppCard>
         </AppShell>

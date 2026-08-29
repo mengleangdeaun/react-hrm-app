@@ -25,12 +25,15 @@ const MOCK_WISHES = [
     },
 ];
 
+import { useTranslation } from '../../context/LanguageContext';
+
 export const WishesInboxScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark } = useAppTheme();
+    const { t } = useTranslation();
     const theme = isDark ? darkTheme : lightTheme;
 
     return (
-        <AppShell title="Celebration Wishes" onBack={() => navigation.goBack()}>
+        <AppShell title={t('celebration_wishes', 'Celebration Wishes')} onBack={() => navigation.goBack()}>
             {MOCK_WISHES.map((item) => (
                 <AppCard key={item.id} variant="surface" style={styles.card}>
                     <View style={styles.cardHeader}>

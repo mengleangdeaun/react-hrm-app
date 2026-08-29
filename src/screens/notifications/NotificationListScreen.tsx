@@ -16,7 +16,8 @@ import { notificationApi, NotificationItem, CelebrantItem } from '../../api/noti
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { AppText as Text } from '../../components/AppText';
-import { AppHeader } from '../../components/common/AppHeader';
+import { AppShell } from '../../components/common/AppShell';
+import { AppHeader, HeaderIconButton } from '../../components/common/AppHeader';
 import { NotificationListSkeleton } from '../../components/common/Skeletons';
 import {
     Bell,
@@ -280,162 +281,153 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
         return <Bell color={primaryColor} size={18} />;
     };
 
-    return (
-        <View style={[styles.safeArea, { paddingTop: insets.top }]}>
-            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-
-            {/* Standard Native Header Bar */}
-            <AppHeader
-                title={t('noti', 'Notifications Center')}
-                onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
-                rightActions={[
-                    {
-                        icon: <CheckCheck color={theme.colors.brand} size={18} />,
-                        onPress: handleMarkAllRead,
-                        accessibilityLabel: 'Mark all read',
-                    },
-                    {
-                        icon: <Trash2 color={theme.colors.status.danger} size={18} />,
-                        onPress: handleClearAll,
-                        accessibilityLabel: 'Clear all notifications',
-                    },
-                ]}
+    const headerRight = (
+        <View style={styles.headerRightRow}>
+            <HeaderIconButton
+                icon={<CheckCheck color={theme.colors.brand} size={18} />}
+                onPress={handleMarkAllRead}
+                accessibilityLabel="Mark all read"
             />
+            <HeaderIconButton
+                icon={<Trash2 color={theme.colors.status.danger} size={18} />}
+                onPress={handleClearAll}
+                accessibilityLabel="Clear all notifications"
+                style={{ marginLeft: 6 }}
+            />
+        </View>
+    );
 
-            {/* Sub-Header Category Segmented Underlined Tab Bar */}
-            <View style={styles.tabBarContainer}>
-                <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    contentContainerStyle={styles.tabBarScrollContent}
-                >
-                    {CATEGORY_FILTERS.map((cat) => {
-                        const isActive = selectedCategory === cat.id;
-                        return (
-                            <TouchableOpacity
-                                key={cat.id}
-                                style={styles.tabItem}
-                                onPress={() => setSelectedCategory(cat.id)}
-                                activeOpacity={0.8}
-                            >
-                                <Text
-                                    style={[
-                                        styles.tabLabel,
-                                        isActive && { color: primaryColor, fontWeight: '800' },
-                                    ]}
-                                >
-                                    {t(cat.labelKey, cat.fallback)}
-                                </Text>
-                                {isActive && <View style={[styles.tabIndicator, { backgroundColor: primaryColor }]} />}
-                            </TouchableOpacity>
-                        );
-                    })}
-                </ScrollView>
-            </View>
-
+    const subHeader = (
+        <View style={styles.tabBarContainer}>
             <ScrollView
-                style={styles.container}
-                contentContainerStyle={styles.scrollContent}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={refreshing || isFetchingNotifs}
-                        onRefresh={onRefresh}
-                        tintColor={primaryColor}
-                        colors={[primaryColor]}
-                    />
-                }
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.tabBarScrollContent}
             >
-                {/* Team Celebration Banner Header */}
-                {celebrations.length > 0 && (
-                    <TouchableOpacity
-                        style={styles.celebrationBanner}
-                        onPress={() => navigation.navigate('WishesInbox')}
-                        activeOpacity={0.85}
-                    >
-                        <PartyPopper color="#EC4899" size={24} />
-                        <View style={styles.celebrationBannerText}>
-                            <Text style={styles.celebrationTitle}>
-                                {celebrations.length} {t('team_celebration', 'Team Celebration')}{celebrations.length > 1 ? 's' : ''} {t('today', 'Today')}! 🎉
+                {CATEGORY_FILTERS.map((cat) => {
+                    const isActive = selectedCategory === cat.id;
+                    return (
+                        <TouchableOpacity
+                            key={cat.id}
+                            style={styles.tabItem}
+                            onPress={() => setSelectedCategory(cat.id)}
+                            activeOpacity={0.8}
+                        >
+                            <Text
+                                style={[
+                                    styles.tabLabel,
+                                    isActive && { color: primaryColor, fontWeight: '800' },
+                                ]}
+                            >
+                                {t(cat.labelKey, cat.fallback)}
                             </Text>
-                            <Text style={styles.celebrationSub}>
-                                {celebrations.map((c) => c.name).join(', ')} • {t('open_my_wishes', 'Send wishes')}
-                            </Text>
-                        </View>
-                        <ChevronRight color="#EC4899" size={18} />
-                    </TouchableOpacity>
-                )}
-
-                {/* Notifications List Grouped by Date */}
-                {isLoadingNotifs ? (
-                    <NotificationListSkeleton />
-                ) : filteredNotifications.length === 0 ? (
-                    <View style={styles.emptyCard}>
-                        <Bell color={theme.colors.textSecondary} size={44} />
-                        <Text style={styles.emptyTitle}>{t('nothing_here_yet', 'No Notifications')}</Text>
-                        <Text style={styles.emptySub}>
-                            {t('everything_up_to_date', 'You are all caught up! No active notifications found.')}
-                        </Text>
-                    </View>
-                ) : (
-                    groupedData.map((group) => (
-                        <View key={group.titleKey} style={styles.dateGroupWrapper}>
-                            {/* Sticky Date Section Header */}
-                            <Text style={styles.dateSectionHeader}>
-                                {t(group.titleKey, group.fallbackTitle)}
-                            </Text>
-
-                            {group.data.map((item) => {
-                                const isUnread = !item.read_at;
-                                return (
-                                    <TouchableOpacity
-                                        key={item.id}
-                                        style={[
-                                            styles.card,
-                                            isUnread && [
-                                                styles.unreadCard,
-                                                { borderColor: primaryColor, backgroundColor: `${primaryColor}08` },
-                                            ],
-                                        ]}
-                                        onPress={() => handleItemPress(item)}
-                                        activeOpacity={0.8}
-                                    >
-                                        <View style={styles.cardHeader}>
-                                            <View style={styles.iconBg}>{getCategoryIcon(item.type)}</View>
-
-                                            <View style={styles.headerTextGroup}>
-                                                <Text style={[styles.cardTitle, isUnread && styles.unreadCardTitle]} numberOfLines={1}>
-                                                    {item.title}
-                                                </Text>
-                                                <Text style={styles.cardDate}>
-                                                    {formatNotificationTime(item.created_at)}
-                                                </Text>
-                                            </View>
-
-                                            {isUnread && <View style={[styles.unreadDot, { backgroundColor: primaryColor }]} />}
-                                        </View>
-
-                                        <Text style={styles.cardMessage} numberOfLines={2}>
-                                            {item.message}
-                                        </Text>
-
-                                        <View style={styles.cardFooter}>
-                                            <TouchableOpacity
-                                                style={styles.deleteBtn}
-                                                onPress={() => handleDeleteItem(item.id)}
-                                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                            >
-                                                <Trash2 color={theme.colors.textSecondary} size={14} />
-                                            </TouchableOpacity>
-                                            <ChevronRight color={theme.colors.textSecondary} size={16} />
-                                        </View>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
-                    ))
-                )}
+                            {isActive && <View style={[styles.tabIndicator, { backgroundColor: primaryColor }]} />}
+                        </TouchableOpacity>
+                    );
+                })}
             </ScrollView>
         </View>
+    );
+
+    return (
+        <AppShell
+            title={t('noti', 'Notifications Center')}
+            onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
+            headerRight={headerRight}
+            subHeader={subHeader}
+            refreshing={refreshing || isFetchingNotifs}
+            onRefresh={onRefresh}
+        >
+            {/* Team Celebration Banner Header */}
+            {celebrations.length > 0 && (
+                <TouchableOpacity
+                    style={styles.celebrationBanner}
+                    onPress={() => navigation.navigate('WishesInbox')}
+                    activeOpacity={0.85}
+                >
+                    <PartyPopper color="#EC4899" size={24} />
+                    <View style={styles.celebrationBannerText}>
+                        <Text style={styles.celebrationTitle}>
+                            {celebrations.length} {t('team_celebration', 'Team Celebration')}{celebrations.length > 1 ? 's' : ''} {t('today', 'Today')}! 🎉
+                        </Text>
+                        <Text style={styles.celebrationSub}>
+                            {celebrations.map((c) => c.name).join(', ')} • {t('open_my_wishes', 'Send wishes')}
+                        </Text>
+                    </View>
+                    <ChevronRight color="#EC4899" size={18} />
+                </TouchableOpacity>
+            )}
+
+            {/* Notifications List Grouped by Date */}
+            {isLoadingNotifs ? (
+                <NotificationListSkeleton />
+            ) : filteredNotifications.length === 0 ? (
+                <View style={styles.emptyCard}>
+                    <Bell color={theme.colors.textSecondary} size={44} />
+                    <Text style={styles.emptyTitle}>{t('nothing_here_yet', 'No Notifications')}</Text>
+                    <Text style={styles.emptySub}>
+                        {t('everything_up_to_date', 'You are all caught up! No active notifications found.')}
+                    </Text>
+                </View>
+            ) : (
+                groupedData.map((group) => (
+                    <View key={group.titleKey} style={styles.dateGroupWrapper}>
+                        {/* Sticky Date Section Header */}
+                        <Text style={styles.dateSectionHeader}>
+                            {t(group.titleKey, group.fallbackTitle)}
+                        </Text>
+
+                        {group.data.map((item) => {
+                            const isUnread = !item.read_at;
+                            return (
+                                <TouchableOpacity
+                                    key={item.id}
+                                    style={[
+                                        styles.card,
+                                        isUnread && [
+                                            styles.unreadCard,
+                                            { borderColor: primaryColor, backgroundColor: `${primaryColor}08` },
+                                        ],
+                                    ]}
+                                    onPress={() => handleItemPress(item)}
+                                    activeOpacity={0.8}
+                                >
+                                    <View style={styles.cardHeader}>
+                                        <View style={styles.iconBg}>{getCategoryIcon(item.type)}</View>
+
+                                        <View style={styles.headerTextGroup}>
+                                            <Text style={[styles.cardTitle, isUnread && styles.unreadCardTitle]} numberOfLines={1}>
+                                                {item.title}
+                                            </Text>
+                                            <Text style={styles.cardDate}>
+                                                {formatNotificationTime(item.created_at)}
+                                            </Text>
+                                        </View>
+
+                                        {isUnread && <View style={[styles.unreadDot, { backgroundColor: primaryColor }]} />}
+                                    </View>
+
+                                    <Text style={styles.cardMessage} numberOfLines={2}>
+                                        {item.message}
+                                    </Text>
+
+                                    <View style={styles.cardFooter}>
+                                        <TouchableOpacity
+                                            style={styles.deleteBtn}
+                                            onPress={() => handleDeleteItem(item.id)}
+                                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                        >
+                                            <Trash2 color={theme.colors.textSecondary} size={14} />
+                                        </TouchableOpacity>
+                                        <ChevronRight color={theme.colors.textSecondary} size={16} />
+                                    </View>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                ))
+            )}
+        </AppShell>
     );
 };
 
@@ -443,6 +435,10 @@ const stylesheet = StyleSheet.create((theme) => ({
     safeArea: {
         flex: 1,
         backgroundColor: theme.colors.background,
+    },
+    headerRightRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
     },
     topBar: {
         flexDirection: 'row',

@@ -32,11 +32,12 @@ const formatResultDate = (rawStr?: string) => {
     }
 };
 
+import { AppShell } from '../../components/common/AppShell';
+
 export const QuizResultScreen: React.FC<{ route: any; navigation: any }> = ({
     route,
     navigation,
 }) => {
-    const insets = useSafeAreaInsets();
     const { isDark, primaryColor } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
@@ -73,211 +74,204 @@ export const QuizResultScreen: React.FC<{ route: any; navigation: any }> = ({
     const completedDate = formatResultDate(test?.completed_at || test?.created_at || paramQuizData?.completed_at);
 
     return (
-        <View style={[styles.safeArea, { paddingTop: insets.top }]}>
-            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+        <AppShell
+            title={t('quiz_result', 'Quiz Result')}
+            onBack={() => navigation.navigate('QuizList')}
+        >
+            {isLoading && !resultData ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={primaryColor} />
+                </View>
+            ) : (
+                <>
+                    {/* Score Circle Card */}
+                    <View style={styles.scoreCard}>
+                        <Text style={styles.quizTitle} numberOfLines={2}>
+                            {quizTitle}
+                        </Text>
+                        <Text style={styles.completedDateText}>
+                            {t('completed_on', 'Completed On')}: {completedDate}
+                        </Text>
 
-            {/* Standard Native Header Bar */}
-            <AppHeader
-                title={t('quiz_result', 'Quiz Result')}
-                onBack={() => navigation.navigate('QuizList')}
-            />
-
-            <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-                {isLoading && !resultData ? (
-                    <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color={primaryColor} />
-                    </View>
-                ) : (
-                    <>
-                        {/* Score Circle Card */}
-                        <View style={styles.scoreCard}>
-                            <Text style={styles.quizTitle} numberOfLines={2}>
-                                {quizTitle}
-                            </Text>
-                            <Text style={styles.completedDateText}>
-                                {t('completed_on', 'Completed On')}: {completedDate}
-                            </Text>
-
-                            <View
+                        <View
+                            style={[
+                                styles.scoreCircle,
+                                isPassed ? styles.scoreCirclePassed : styles.scoreCircleFailed,
+                            ]}
+                        >
+                            <Text
                                 style={[
-                                    styles.scoreCircle,
-                                    isPassed ? styles.scoreCirclePassed : styles.scoreCircleFailed,
+                                    styles.scorePctText,
+                                    isPassed ? styles.scorePctPassed : styles.scorePctFailed,
                                 ]}
                             >
-                                <Text
-                                    style={[
-                                        styles.scorePctText,
-                                        isPassed ? styles.scorePctPassed : styles.scorePctFailed,
-                                    ]}
-                                >
-                                    {scorePct}%
-                                </Text>
-                                <Text style={styles.scoreSubText}>
-                                    {userScore} / {maxPoints} {t('points', 'Points')}
-                                </Text>
-                            </View>
-
-                            <View
-                                style={[
-                                    styles.statusBadge,
-                                    isPassed ? styles.statusBadgePassed : styles.statusBadgeFailed,
-                                ]}
-                            >
-                                <Text
-                                    style={[
-                                        styles.statusBadgeText,
-                                        isPassed ? styles.statusBadgePassedText : styles.statusBadgeFailedText,
-                                    ]}
-                                >
-                                    {isPassed ? t('passed', 'PASSED') : t('failed', 'FAILED')}
-                                </Text>
-                            </View>
+                                {scorePct}%
+                            </Text>
+                            <Text style={styles.scoreSubText}>
+                                {userScore} / {maxPoints} {t('points', 'Points')}
+                            </Text>
                         </View>
 
-                        {/* Detailed Feedback Breakdown Section */}
-                        <Text style={styles.sectionHeader}>{t('detailed_feedback', 'DETAILED FEEDBACK')}</Text>
+                        <View
+                            style={[
+                                styles.statusBadge,
+                                isPassed ? styles.statusBadgePassed : styles.statusBadgeFailed,
+                            ]}
+                        >
+                            <Text
+                                style={[
+                                    styles.statusBadgeText,
+                                    isPassed ? styles.statusBadgePassedText : styles.statusBadgeFailedText,
+                                ]}
+                            >
+                                {isPassed ? t('passed', 'PASSED') : t('failed', 'FAILED')}
+                            </Text>
+                        </View>
+                    </View>
 
-                        {questions.length === 0 ? (
-                            <View style={styles.noQuestionsCard}>
-                                <Text style={styles.noQuestionsText}>
-                                    {t('no_questions_feedback', 'Detailed option breakdown is not available for this session.')}
-                                </Text>
-                            </View>
-                        ) : (
-                            questions.map((question: any, idx: number) => {
-                                const answer = test?.answers?.find((ans: any) => ans.question_id === question.id);
-                                let isAnswerCorrect = false;
+                    {/* Detailed Feedback Breakdown Section */}
+                    <Text style={styles.sectionHeader}>{t('detailed_feedback', 'DETAILED FEEDBACK')}</Text>
 
-                                if (question.question_type !== 'text' && question.question_type !== 'essay') {
-                                    const correctOptionIds = question.options
-                                        ?.filter((o: any) => o.is_correct)
-                                        .map((o: any) => Number(o.id)) || [];
-                                    const selectedOptionIds = (answer?.selected_options || []).map(Number);
+                    {questions.length === 0 ? (
+                        <View style={styles.noQuestionsCard}>
+                            <Text style={styles.noQuestionsText}>
+                                {t('no_questions_feedback', 'Detailed option breakdown is not available for this session.')}
+                            </Text>
+                        </View>
+                    ) : (
+                        questions.map((question: any, idx: number) => {
+                            const answer = test?.answers?.find((ans: any) => ans.question_id === question.id);
+                            let isAnswerCorrect = false;
 
-                                    correctOptionIds.sort((a: number, b: number) => a - b);
-                                    selectedOptionIds.sort((a: number, b: number) => a - b);
+                            if (question.question_type !== 'text' && question.question_type !== 'essay') {
+                                const correctOptionIds = question.options
+                                    ?.filter((o: any) => o.is_correct)
+                                    .map((o: any) => Number(o.id)) || [];
+                                const selectedOptionIds = (answer?.selected_options || []).map(Number);
 
-                                    isAnswerCorrect =
-                                        correctOptionIds.length > 0 &&
-                                        JSON.stringify(correctOptionIds) === JSON.stringify(selectedOptionIds);
-                                }
+                                correctOptionIds.sort((a: number, b: number) => a - b);
+                                selectedOptionIds.sort((a: number, b: number) => a - b);
 
-                                return (
-                                    <View key={question.id || idx} style={styles.questionCard}>
-                                        <View style={styles.questionHeaderRow}>
-                                            <View style={styles.qNumTag}>
-                                                <Text style={styles.qNumTagText}>
-                                                    Q{idx + 1} • {question.question_type || 'choice'}
-                                                </Text>
-                                            </View>
+                                isAnswerCorrect =
+                                    correctOptionIds.length > 0 &&
+                                    JSON.stringify(correctOptionIds) === JSON.stringify(selectedOptionIds);
+                            }
 
-                                            {question.question_type !== 'text' && question.question_type !== 'essay' && (
-                                                <View
-                                                    style={[
-                                                        styles.correctBadge,
-                                                        isAnswerCorrect ? styles.correctBadgeSuccess : styles.correctBadgeDanger,
-                                                    ]}
-                                                >
-                                                    {isAnswerCorrect ? (
-                                                        <Check color="#10B981" size={12} />
-                                                    ) : (
-                                                        <X color="#EF4444" size={12} />
-                                                    )}
-                                                    <Text
-                                                        style={[
-                                                            styles.correctBadgeText,
-                                                            isAnswerCorrect ? styles.correctBadgeSuccessText : styles.correctBadgeDangerText,
-                                                        ]}
-                                                    >
-                                                        {isAnswerCorrect ? t('correct', 'CORRECT') : t('incorrect', 'INCORRECT')}
-                                                    </Text>
-                                                </View>
-                                            )}
+                            return (
+                                <View key={question.id || idx} style={styles.questionCard}>
+                                    <View style={styles.questionHeaderRow}>
+                                        <View style={styles.qNumTag}>
+                                            <Text style={styles.qNumTagText}>
+                                                Q{idx + 1} • {question.question_type || 'choice'}
+                                            </Text>
                                         </View>
 
-                                        {/* Question Text */}
-                                        <Text style={styles.questionText}>{question.question_text}</Text>
-
-                                        {/* Essay/Text Answer Display */}
-                                        {(question.question_type === 'text' || question.question_type === 'essay') ? (
-                                            <View style={styles.essayAnswerBox}>
-                                                <Text style={styles.essayAnswerText}>
-                                                    {answer?.text_answer || t('no_answer_submitted', 'No answer submitted')}
+                                        {question.question_type !== 'text' && question.question_type !== 'essay' && (
+                                            <View
+                                                style={[
+                                                    styles.correctBadge,
+                                                    isAnswerCorrect ? styles.correctBadgeSuccess : styles.correctBadgeDanger,
+                                                ]}
+                                            >
+                                                {isAnswerCorrect ? (
+                                                    <Check color="#10B981" size={12} />
+                                                ) : (
+                                                    <X color="#EF4444" size={12} />
+                                                )}
+                                                <Text
+                                                    style={[
+                                                        styles.correctBadgeText,
+                                                        isAnswerCorrect ? styles.correctBadgeSuccessText : styles.correctBadgeDangerText,
+                                                    ]}
+                                                >
+                                                    {isAnswerCorrect ? t('correct', 'CORRECT') : t('incorrect', 'INCORRECT')}
                                                 </Text>
-                                            </View>
-                                        ) : (
-                                            /* Options Choice Breakdown */
-                                            <View style={styles.optionsList}>
-                                                {question.options?.map((opt: any) => {
-                                                    const isSelected = answer?.selected_options
-                                                        ?.map(Number)
-                                                        .includes(Number(opt.id));
-                                                    const isCorrectOpt = Boolean(opt.is_correct);
-
-                                                    const isCorrectSelected = isSelected && isCorrectOpt;
-                                                    const isWrongSelected = isSelected && !isCorrectOpt;
-                                                    const isMissedCorrect = !isSelected && isCorrectOpt;
-
-                                                    return (
-                                                        <View
-                                                            key={opt.id}
-                                                            style={[
-                                                                styles.optItem,
-                                                                isCorrectSelected && styles.optItemCorrectSelected,
-                                                                isWrongSelected && styles.optItemWrongSelected,
-                                                                isMissedCorrect && styles.optItemMissedCorrect,
-                                                            ]}
-                                                        >
-                                                            <Text
-                                                                style={[
-                                                                    styles.optText,
-                                                                    isCorrectSelected && styles.optItemCorrectSelectedText,
-                                                                    isWrongSelected && styles.optItemWrongSelectedText,
-                                                                    isMissedCorrect && styles.optItemMissedCorrectText,
-                                                                ]}
-                                                            >
-                                                                {opt.option_text}
-                                                            </Text>
-                                                            <View style={styles.optBadgeGroup}>
-                                                                {isSelected && (
-                                                                    <Text
-                                                                        style={[
-                                                                            styles.optPill,
-                                                                            isCorrectSelected && styles.optItemCorrectSelectedText,
-                                                                            isWrongSelected && styles.optItemWrongSelectedText,
-                                                                        ]}
-                                                                    >
-                                                                        {t('your_choice', 'CHOSEN')}
-                                                                    </Text>
-                                                                )}
-                                                                {isCorrectOpt && (
-                                                                    <Text style={[styles.optPill, { opacity: 0.8 }]}>
-                                                                        ({t('correct_answer', 'Correct')})
-                                                                    </Text>
-                                                                )}
-                                                            </View>
-                                                        </View>
-                                                    );
-                                                })}
                                             </View>
                                         )}
                                     </View>
-                                );
-                            })
-                        )}
 
-                        {/* Back to List Primary Button */}
-                        <TouchableOpacity
-                            style={[styles.backBtn, { backgroundColor: primaryColor }]}
-                            activeOpacity={0.85}
-                            onPress={() => navigation.navigate('QuizList')}
-                        >
-                            <Text style={styles.backBtnText}>{t('back_to_list', 'Back to Quizzes')}</Text>
-                        </TouchableOpacity>
-                    </>
-                )}
-            </ScrollView>
-        </View>
+                                    {/* Question Text */}
+                                    <Text style={styles.questionText}>{question.question_text}</Text>
+
+                                    {/* Essay/Text Answer Display */}
+                                    {(question.question_type === 'text' || question.question_type === 'essay') ? (
+                                        <View style={styles.essayAnswerBox}>
+                                            <Text style={styles.essayAnswerText}>
+                                                {answer?.text_answer || t('no_answer_submitted', 'No answer submitted')}
+                                            </Text>
+                                        </View>
+                                    ) : (
+                                        /* Options Choice Breakdown */
+                                        <View style={styles.optionsList}>
+                                            {question.options?.map((opt: any) => {
+                                                const isSelected = answer?.selected_options
+                                                    ?.map(Number)
+                                                    .includes(Number(opt.id));
+                                                const isCorrectOpt = Boolean(opt.is_correct);
+
+                                                const isCorrectSelected = isSelected && isCorrectOpt;
+                                                const isWrongSelected = isSelected && !isCorrectOpt;
+                                                const isMissedCorrect = !isSelected && isCorrectOpt;
+
+                                                return (
+                                                    <View
+                                                        key={opt.id}
+                                                        style={[
+                                                            styles.optItem,
+                                                            isCorrectSelected && styles.optItemCorrectSelected,
+                                                            isWrongSelected && styles.optItemWrongSelected,
+                                                            isMissedCorrect && styles.optItemMissedCorrect,
+                                                        ]}
+                                                    >
+                                                        <Text
+                                                            style={[
+                                                                styles.optText,
+                                                                isCorrectSelected && styles.optItemCorrectSelectedText,
+                                                                isWrongSelected && styles.optItemWrongSelectedText,
+                                                                isMissedCorrect && styles.optItemMissedCorrectText,
+                                                            ]}
+                                                        >
+                                                            {opt.option_text}
+                                                        </Text>
+                                                        <View style={styles.optBadgeGroup}>
+                                                            {isSelected && (
+                                                                <Text
+                                                                    style={[
+                                                                        styles.optPill,
+                                                                        isCorrectSelected && styles.optItemCorrectSelectedText,
+                                                                        isWrongSelected && styles.optItemWrongSelectedText,
+                                                                    ]}
+                                                                >
+                                                                    {t('your_choice', 'CHOSEN')}
+                                                                </Text>
+                                                            )}
+                                                            {isCorrectOpt && (
+                                                                <Text style={[styles.optPill, { opacity: 0.8 }]}>
+                                                                    ({t('correct_answer', 'Correct')})
+                                                                </Text>
+                                                            )}
+                                                        </View>
+                                                    </View>
+                                                );
+                                            })}
+                                        </View>
+                                    )}
+                                </View>
+                            );
+                        })
+                    )}
+
+                    {/* Back to List Primary Button */}
+                    <TouchableOpacity
+                        style={[styles.backBtn, { backgroundColor: primaryColor }]}
+                        activeOpacity={0.85}
+                        onPress={() => navigation.navigate('QuizList')}
+                    >
+                        <Text style={styles.backBtnText}>{t('back_to_list', 'Back to Quizzes')}</Text>
+                    </TouchableOpacity>
+                </>
+            )}
+        </AppShell>
     );
 };
 
@@ -559,7 +553,8 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textSecondary,
     },
     backBtn: {
-        height: 48,
+        minHeight: 48,
+        paddingVertical: 12,
         borderRadius: theme.borderRadius.md,
         justifyContent: 'center',
         alignItems: 'center',

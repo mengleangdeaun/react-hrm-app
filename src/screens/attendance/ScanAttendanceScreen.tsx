@@ -38,8 +38,13 @@ import { extractBranchQrPayload, BranchQrParseResult } from '../../utils/qrPaylo
 import { getDeviceId } from '../../utils/device';
 import { AttendanceReasonModal } from '../../components/attendance/AttendanceReasonModal';
 
+import { useTranslation } from '../../context/LanguageContext';
+import { lightTheme, darkTheme } from '../../styles/theme';
+
 export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark } = useAppTheme();
+    const { t } = useTranslation();
+    const theme = isDark ? darkTheme : lightTheme;
     const queryClient = useQueryClient();
 
     // Camera & Location Permissions
@@ -142,7 +147,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
             }
 
             if (!loc?.coords) {
-                throw new Error('Unable to retrieve GPS coordinates. Please ensure Location services are turned on.');
+                throw new Error(t('unable_gps_coords', 'Unable to retrieve GPS coordinates. Please ensure Location services are turned on.'));
             }
 
             const deviceId = await getDeviceId();
@@ -180,7 +185,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
 
             setPunchResult({
                 time: response.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                message: response.message || 'Attendance Recorded Successfully',
+                message: response.message || t('attendance_success_desc', 'Attendance Recorded Successfully'),
                 action: response.action || 'success',
             });
 
@@ -190,29 +195,29 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 
             const resData = error?.response?.data;
-            const message = resData?.message || error?.message || 'Attendance recording failed.';
+            const message = resData?.message || error?.message || t('attendance_record_failed', 'Attendance recording failed.');
 
             if (resData?.distance) {
                 Alert.alert(
-                    'Outside Branch Geofence',
-                    `You are ${Math.round(resData.distance)}m away from this branch. Please scan while inside the office premises.`,
-                    [{ text: 'Try Again', onPress: resetScanState }]
+                    t('outside_branch_geofence', 'Outside Branch Geofence'),
+                    `${t('you_are_away_by', 'You are')} ${Math.round(resData.distance)}m ${t('away_from_branch', 'away from this branch. Please scan while inside the office premises.')}`,
+                    [{ text: t('try_again', 'Try Again'), onPress: resetScanState }]
                 );
             } else if (resData?.code === 'BRANCH_NOT_FOUND_QR') {
-                Alert.alert('Invalid QR Code', 'Branch not found. Please scan an authorized branch QR code.', [
-                    { text: 'Try Again', onPress: resetScanState },
+                Alert.alert(t('invalid_qr_code', 'Invalid QR Code'), t('branch_invalid_qr', 'Branch not found. Please scan an authorized branch QR code.'), [
+                    { text: t('try_again', 'Try Again'), onPress: resetScanState },
                 ]);
             } else if (resData?.code === 'ATTENDANCE_ALREADY_COMPLETED') {
-                Alert.alert('Attendance Completed', 'All attendance sessions for today have already been completed.', [
-                    { text: 'OK', onPress: () => navigation.navigate('HomeTab') },
+                Alert.alert(t('attendance_recorded', 'Attendance Completed'), t('attendance_completed_today', 'All attendance sessions for today have already been completed.'), [
+                    { text: t('ok', 'OK'), onPress: () => navigation.navigate('HomeTab') },
                 ]);
             } else if (resData?.code === 'DEVICE_TAKEN') {
-                Alert.alert('Security Error', 'This device is bound to another employee account.', [
-                    { text: 'Try Again', onPress: resetScanState },
+                Alert.alert(t('security_error', 'Security Error'), t('device_registered_to_other', 'This device is bound to another employee account.'), [
+                    { text: t('try_again', 'Try Again'), onPress: resetScanState },
                 ]);
             } else {
-                Alert.alert('Attendance Error', message, [
-                    { text: 'Try Again', onPress: resetScanState },
+                Alert.alert(t('attendance_audit', 'Attendance Error'), message, [
+                    { text: t('try_again', 'Try Again'), onPress: resetScanState },
                 ]);
             }
         } finally {
@@ -230,9 +235,9 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
         if (!parseResult.isValid) {
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             Alert.alert(
-                'Invalid QR Code',
-                parseResult.error || 'Please scan a valid physical Branch Attendance QR code.',
-                [{ text: 'Try Again', onPress: resetScanState }]
+                t('invalid_qr_code', 'Invalid QR Code'),
+                parseResult.error || t('scan_valid_branch_qr', 'Please scan a valid physical Branch Attendance QR code.'),
+                [{ text: t('try_again', 'Try Again'), onPress: resetScanState }]
             );
             return;
         }
@@ -243,8 +248,8 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
     if (!cameraPermission || locationPermission === null || loadingLocation) {
         return (
             <SafeAreaView {...({ style: styles.centerContainer } as any)}>
-                <ActivityIndicator size="large" color="#2563EB" />
-                <AppText style={styles.loadingText}>Initializing GPS & Camera Sensor...</AppText>
+                <ActivityIndicator size="large" color={theme.colors.brand} />
+                <AppText style={styles.loadingText}>{t('initializing_gps_camera', 'Initializing GPS & Camera Sensor...')}</AppText>
             </SafeAreaView>
         );
     }
@@ -253,18 +258,18 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
         return (
             <SafeAreaView {...({ style: styles.centerContainer } as any)}>
                 <View style={styles.permIconCircle}>
-                    <QrCode color="#2563EB" size={48} />
+                    <QrCode color={theme.colors.brand} size={48} />
                 </View>
-                <AppText style={styles.permTitle}>Camera Permission Required</AppText>
+                <AppText style={styles.permTitle}>{t('camera_permission_required', 'Camera Permission Required')}</AppText>
                 <AppText style={styles.permDesc}>
-                    Camera access is required to scan physical branch QR codes for attendance.
+                    {t('camera_perm_desc_attendance', 'Camera access is required to scan physical branch QR codes for attendance.')}
                 </AppText>
                 <TouchableOpacity
-                    style={styles.permButton}
+                    style={[styles.permButton, { backgroundColor: theme.colors.brand }]}
                     onPress={requestCameraPermission}
                     activeOpacity={0.85}
                 >
-                    <AppText style={styles.permBtnText}>Enable Camera</AppText>
+                    <AppText style={styles.permBtnText}>{t('enable_camera', 'Enable Camera')}</AppText>
                 </TouchableOpacity>
             </SafeAreaView>
         );
@@ -276,16 +281,16 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
                 <View style={[styles.permIconCircle, { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}>
                     <MapPin color="#EF4444" size={48} />
                 </View>
-                <AppText style={styles.permTitle}>GPS Location Required</AppText>
+                <AppText style={styles.permTitle}>{t('gps_location_required', 'GPS Location Required')}</AppText>
                 <AppText style={styles.permDesc}>
-                    High-accuracy GPS location is required to verify physical branch presence.
+                    {t('gps_location_desc', 'High-accuracy GPS location is required to verify physical branch presence.')}
                 </AppText>
                 <TouchableOpacity
                     style={[styles.permButton, { backgroundColor: '#EF4444' }]}
                     onPress={acquireLocation}
                     activeOpacity={0.85}
                 >
-                    <AppText style={styles.permBtnText}>Grant Location Access</AppText>
+                    <AppText style={styles.permBtnText}>{t('grant_location_access', 'Grant Location Access')}</AppText>
                 </TouchableOpacity>
             </SafeAreaView>
         );
@@ -316,7 +321,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
                     <View style={styles.gpsChip}>
                         <Navigation color="#10B981" size={14} />
                         <AppText style={styles.gpsChipText}>
-                            {currentLocation ? 'GPS Calibrated' : 'Acquiring GPS...'}
+                            {currentLocation ? t('gps_calibrated', 'GPS Calibrated') : t('acquiring_gps', 'Acquiring GPS...')}
                         </AppText>
                     </View>
 
@@ -358,24 +363,24 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
 
                     {isSubmitting && (
                         <View style={styles.loadingOverlay}>
-                            <ActivityIndicator size="large" color="#3B82F6" />
-                            <AppText style={styles.recordingText}>Verifying Geofence & Punch...</AppText>
+                            <ActivityIndicator size="large" color={theme.colors.brand} />
+                            <AppText style={styles.recordingText}>{t('verifying_geofence_punch', 'Verifying Geofence & Punch...')}</AppText>
                         </View>
                     )}
                 </View>
 
                 <AppText style={styles.instructionText}>
-                    Align Office Branch QR Code to Record Attendance
+                    {t('align_branch_qr_hint', 'Align Office Branch QR Code to Record Attendance')}
                 </AppText>
 
                 {scanned && !isSubmitting && (
                     <TouchableOpacity
-                        style={styles.rescanBtn}
+                        style={[styles.rescanBtn, { backgroundColor: theme.colors.brand }]}
                         onPress={resetScanState}
                         activeOpacity={0.8}
                     >
                         <RefreshCw size={16} color="#FFFFFF" />
-                        <AppText style={styles.rescanBtnText}>Tap to Rescan</AppText>
+                        <AppText style={styles.rescanBtnText}>{t('tap_to_rescan', 'Tap to Rescan')}</AppText>
                     </TouchableOpacity>
                 )}
             </View>
@@ -397,34 +402,34 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
             {/* Success Confirmation Modal */}
             <Modal visible={successModalVisible} transparent animationType="slide">
                 <View style={styles.modalBackdrop}>
-                    <View style={[styles.modalContent, isDark && styles.modalContentDark]}>
+                    <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
                         <View style={styles.successIconCircle}>
                             <CheckCircle2 color="#10B981" size={56} />
                         </View>
-                        <AppText style={[styles.modalTitle, isDark && styles.textLight]}>
-                            Attendance Recorded!
+                        <AppText style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>
+                            {t('attendance_recorded', 'Attendance Recorded!')}
                         </AppText>
-                        <AppText style={styles.modalSub}>
+                        <AppText style={[styles.modalSub, { color: theme.colors.textSecondary }]}>
                             {punchResult?.message}
                         </AppText>
 
-                        <View style={[styles.modalDetailsCard, isDark && styles.modalDetailsCardDark]}>
+                        <View style={[styles.modalDetailsCard, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}>
                             <View style={styles.detailRow}>
-                                <AppText style={styles.detailLabel}>Timestamp</AppText>
-                                <AppText style={[styles.detailVal, isDark && styles.textLight]}>
+                                <AppText style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>{t('timestamp', 'Timestamp')}</AppText>
+                                <AppText style={[styles.detailVal, { color: theme.colors.textPrimary }]}>
                                     {punchResult?.time}
                                 </AppText>
                             </View>
                             <View style={styles.detailRow}>
-                                <AppText style={styles.detailLabel}>Status</AppText>
+                                <AppText style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>{t('status', 'Status')}</AppText>
                                 <AppText style={[styles.detailVal, { color: '#10B981' }]}>
-                                    Verified & Saved
+                                    {t('verified_and_saved', 'Verified & Saved')}
                                 </AppText>
                             </View>
                         </View>
 
                         <TouchableOpacity
-                            style={styles.modalBtn}
+                            style={[styles.modalBtn, { backgroundColor: theme.colors.brand }]}
                             onPress={() => {
                                 setSuccessModalVisible(false);
                                 resetScanState();
@@ -432,7 +437,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
                             }}
                             activeOpacity={0.85}
                         >
-                            <AppText style={styles.modalBtnText}>Done</AppText>
+                            <AppText style={styles.modalBtnText}>{t('done', 'Done')}</AppText>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -458,7 +463,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         alignItems: 'center',
         paddingHorizontal: 20,
-        paddingTop: Platform.OS === 'android' ? 36 : 10,
+        paddingTop: 8,
     },
     iconCircleButton: {
         width: 38,
@@ -531,6 +536,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 28,
         paddingVertical: 14,
         borderRadius: 14,
+        minHeight: 48,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     permBtnText: {
         color: '#FFFFFF',
@@ -630,6 +638,8 @@ const styles = StyleSheet.create({
         paddingHorizontal: 22,
         paddingVertical: 12,
         borderRadius: 14,
+        minHeight: 46,
+        justifyContent: 'center',
     },
     rescanBtnText: {
         color: '#FFFFFF',
@@ -718,6 +728,8 @@ const styles = StyleSheet.create({
         backgroundColor: '#2563EB',
         borderRadius: 16,
         paddingVertical: 14,
+        minHeight: 48,
+        justifyContent: 'center',
         alignItems: 'center',
     },
     modalBtnText: {

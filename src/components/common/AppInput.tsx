@@ -91,9 +91,8 @@ export const AppInput: React.FC<AppInputProps> = ({
                             ? theme.colors.brand
                             : theme.colors.border,
                         minHeight: inputHeight,
-                        height: multiline ? undefined : inputHeight,
                         alignItems: multiline ? 'flex-start' : 'center',
-                        paddingTop: multiline ? 10 : 0,
+                        paddingVertical: multiline ? 10 : 6,
                     },
                 ]}
             >
@@ -169,7 +168,7 @@ const styles = StyleSheet.create({
     input: {
         flex: 1,
         fontSize: 14,
-        paddingVertical: 0,
+        paddingVertical: 2,
     },
     rightActionContainer: {
         marginLeft: 8,

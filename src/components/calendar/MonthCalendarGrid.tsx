@@ -11,10 +11,9 @@ import {
     isSameMonth,
     isSameDay,
     isToday,
-    parseISO,
-    startOfDay,
 } from 'date-fns';
 import { useAppTheme } from '../../context/ThemeContext';
+import { useTranslation } from '../../context/LanguageContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
 import { CalendarMonthData } from '../../api/calendar';
 
@@ -25,7 +24,15 @@ interface MonthCalendarGridProps {
     data?: CalendarMonthData;
 }
 
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const WEEKDAYS = [
+    { key: 'weekday_mon', fallback: 'Mon' },
+    { key: 'weekday_tue', fallback: 'Tue' },
+    { key: 'weekday_wed', fallback: 'Wed' },
+    { key: 'weekday_thu', fallback: 'Thu' },
+    { key: 'weekday_fri', fallback: 'Fri' },
+    { key: 'weekday_sat', fallback: 'Sat' },
+    { key: 'weekday_sun', fallback: 'Sun' },
+];
 
 export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
     currentMonth,
@@ -34,6 +41,7 @@ export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
     data,
 }) => {
     const { isDark } = useAppTheme();
+    const { t } = useTranslation();
     const theme = isDark ? darkTheme : lightTheme;
 
     // Generate grid calendar days (Monday - Sunday)
@@ -109,8 +117,8 @@ export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
             {/* Weekdays Header */}
             <View style={styles.weekdaysRow}>
                 {WEEKDAYS.map((day) => (
-                    <Text key={day} style={[styles.weekdayLabel, { color: theme.colors.textSecondary }]}>
-                        {day}
+                    <Text key={day.key} style={[styles.weekdayLabel, { color: theme.colors.textSecondary }]}>
+                        {t(day.key, day.fallback)}
                     </Text>
                 ))}
             </View>
@@ -127,73 +135,79 @@ export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
                         <TouchableOpacity
                             key={date.toISOString()}
                             style={[
-                                styles.dayCell,
-                                isSelected && {
-                                    backgroundColor: theme.colors.primary,
-                                    borderRadius: 12,
-                                },
-                                !isSelected && isCurrentDay && {
-                                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : theme.colors.surfaceSubtle,
-                                    borderRadius: 12,
-                                    borderWidth: 1,
-                                    borderColor: theme.colors.primary,
-                                },
+                                styles.dayCellWrapper,
                             ]}
                             onPress={() => onSelectDate(date)}
                             activeOpacity={0.7}
                         >
-                            <Text
+                            <View
                                 style={[
-                                    styles.dayText,
-                                    {
-                                        color: isSelected
-                                            ? '#FFFFFF'
-                                            : !isCurrentMonth
-                                            ? theme.colors.textDisabled
-                                            : isCurrentDay
-                                            ? theme.colors.primary
-                                            : theme.colors.textPrimary,
-                                        fontWeight: isSelected || isCurrentDay ? '700' : '500',
+                                    styles.dayCellInner,
+                                    isSelected && {
+                                        backgroundColor: theme.colors.primary,
+                                        borderRadius: 12,
+                                    },
+                                    !isSelected && isCurrentDay && {
+                                        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : theme.colors.surfaceSubtle,
+                                        borderRadius: 12,
+                                        borderWidth: 1,
+                                        borderColor: theme.colors.primary,
                                     },
                                 ]}
                             >
-                                {format(date, 'd')}
-                            </Text>
+                                <Text
+                                    style={[
+                                        styles.dayText,
+                                        {
+                                            color: isSelected
+                                                ? '#FFFFFF'
+                                                : !isCurrentMonth
+                                                ? theme.colors.textDisabled
+                                                : isCurrentDay
+                                                ? theme.colors.primary
+                                                : theme.colors.textPrimary,
+                                            fontWeight: isSelected || isCurrentDay ? '700' : '500',
+                                        },
+                                    ]}
+                                >
+                                    {format(date, 'd')}
+                                </Text>
 
-                            {/* Status Indicator Dots */}
-                            <View style={styles.dotsRow}>
-                                {isAttended && (
-                                    <View
-                                        style={[
-                                            styles.dot,
-                                            { backgroundColor: isSelected ? '#FFFFFF' : '#10B981' },
-                                        ]}
-                                    />
-                                )}
-                                {isHoliday && (
-                                    <View
-                                        style={[
-                                            styles.dot,
-                                            { backgroundColor: isSelected ? '#FEF08A' : '#F59E0B' },
-                                        ]}
-                                    />
-                                )}
-                                {isLeave && (
-                                    <View
-                                        style={[
-                                            styles.dot,
-                                            { backgroundColor: isSelected ? '#E9D5FF' : '#8B5CF6' },
-                                        ]}
-                                    />
-                                )}
-                                {isDayOff && !isHoliday && (
-                                    <View
-                                        style={[
-                                            styles.dot,
-                                            { backgroundColor: isSelected ? '#FECDD3' : '#F43F5E' },
-                                        ]}
-                                    />
-                                )}
+                                {/* Status Indicator Dots */}
+                                <View style={styles.dotsRow}>
+                                    {isAttended && (
+                                        <View
+                                            style={[
+                                                styles.dot,
+                                                { backgroundColor: isSelected ? '#FFFFFF' : '#10B981' },
+                                            ]}
+                                        />
+                                    )}
+                                    {isHoliday && (
+                                        <View
+                                            style={[
+                                                styles.dot,
+                                                { backgroundColor: isSelected ? '#FEF08A' : '#F59E0B' },
+                                            ]}
+                                        />
+                                    )}
+                                    {isLeave && (
+                                        <View
+                                            style={[
+                                                styles.dot,
+                                                { backgroundColor: isSelected ? '#E9D5FF' : '#8B5CF6' },
+                                            ]}
+                                        />
+                                    )}
+                                    {isDayOff && !isHoliday && (
+                                        <View
+                                            style={[
+                                                styles.dot,
+                                                { backgroundColor: isSelected ? '#FECDD3' : '#F43F5E' },
+                                            ]}
+                                        />
+                                    )}
+                                </View>
                             </View>
                         </TouchableOpacity>
                     );
@@ -204,19 +218,19 @@ export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
             <View style={[styles.legendRow, { borderTopColor: theme.colors.border }]}>
                 <View style={styles.legendItem}>
                     <View style={[styles.legendDot, { backgroundColor: '#F43F5E' }]} />
-                    <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Day Off</Text>
+                    <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>{t('day_off', 'Day Off')}</Text>
                 </View>
                 <View style={styles.legendItem}>
                     <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
-                    <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Present</Text>
+                    <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>{t('present', 'Present')}</Text>
                 </View>
                 <View style={styles.legendItem}>
                     <View style={[styles.legendDot, { backgroundColor: '#F59E0B' }]} />
-                    <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Holiday</Text>
+                    <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>{t('holiday', 'Holiday')}</Text>
                 </View>
                 <View style={styles.legendItem}>
                     <View style={[styles.legendDot, { backgroundColor: '#8B5CF6' }]} />
-                    <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>Leave</Text>
+                    <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>{t('leave', 'Leave')}</Text>
                 </View>
             </View>
         </View>
@@ -229,7 +243,7 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         overflow: 'hidden',
         paddingVertical: 12,
-        paddingHorizontal: 10,
+        paddingHorizontal: 8,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
@@ -238,39 +252,43 @@ const styles = StyleSheet.create({
     },
     weekdaysRow: {
         flexDirection: 'row',
-        justifyContent: 'space-around',
+        justifyContent: 'space-between',
         marginBottom: 8,
-        paddingHorizontal: 2,
     },
     weekdayLabel: {
-        width: 40,
+        width: '14.28%',
         textAlign: 'center',
         fontSize: 11,
         fontWeight: '700',
         textTransform: 'uppercase',
-        letterSpacing: 0.5,
+        letterSpacing: 0.4,
     },
     daysGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        justifyContent: 'space-around',
     },
-    dayCell: {
-        width: 42,
-        height: 46,
+    dayCellWrapper: {
+        width: '14.28%',
+        aspectRatio: 1,
+        padding: 2,
         justifyContent: 'center',
         alignItems: 'center',
-        marginVertical: 2,
+    },
+    dayCellInner: {
+        width: '100%',
+        height: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     dayText: {
-        fontSize: 14,
+        fontSize: 13,
     },
     dotsRow: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: 3,
-        height: 6,
+        gap: 2.5,
+        height: 5,
         marginTop: 2,
     },
     dot: {
@@ -289,7 +307,7 @@ const styles = StyleSheet.create({
     legendItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
+        gap: 5,
     },
     legendDot: {
         width: 7,
@@ -297,7 +315,7 @@ const styles = StyleSheet.create({
         borderRadius: 4,
     },
     legendText: {
-        fontSize: 11,
+        fontSize: 10,
         fontWeight: '600',
         textTransform: 'uppercase',
         letterSpacing: 0.3,

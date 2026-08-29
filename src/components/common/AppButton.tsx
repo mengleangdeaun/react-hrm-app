@@ -51,9 +51,9 @@ export const AppButton: React.FC<AppButtonProps> = ({
     };
 
     const sizeStyles = {
-        sm: { height: 36, paddingHorizontal: 12, borderRadius: 10, fontSize: 12 },
-        md: { height: 44, paddingHorizontal: 16, borderRadius: 12, fontSize: 14 },
-        lg: { height: 50, paddingHorizontal: 20, borderRadius: 14, fontSize: 15 },
+        sm: { minHeight: 36, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10, fontSize: 12 },
+        md: { minHeight: 44, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, fontSize: 14 },
+        lg: { minHeight: 50, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 14, fontSize: 15 },
     }[size];
 
     let backgroundColor: string = theme.colors.brand;
@@ -91,7 +91,8 @@ export const AppButton: React.FC<AppButtonProps> = ({
             style={[
                 styles.baseButton,
                 {
-                    height: sizeStyles.height,
+                    minHeight: sizeStyles.minHeight,
+                    paddingVertical: sizeStyles.paddingVertical,
                     paddingHorizontal: sizeStyles.paddingHorizontal,
                     borderRadius: sizeStyles.borderRadius,
                     backgroundColor,
@@ -114,6 +115,8 @@ export const AppButton: React.FC<AppButtonProps> = ({
                             {
                                 color: textColor,
                                 fontSize: sizeStyles.fontSize,
+                                flexShrink: 1,
+                                textAlign: 'center',
                             },
                             textStyle,
                         ]}
@@ -137,6 +140,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
+        flexShrink: 1,
     },
     iconLeft: {
         marginRight: 8,

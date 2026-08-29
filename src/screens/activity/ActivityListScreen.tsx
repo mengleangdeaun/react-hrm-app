@@ -35,18 +35,26 @@ import {
     Download,
 } from 'lucide-react-native';
 
-const FILTER_CATEGORIES = [
-    { id: 'all', label: 'All Categories' },
-    ...OFFICIAL_ACTIVITY_TYPES.map((t) => ({ id: t.id, label: t.label })),
-];
+import { useTranslation } from '../../context/LanguageContext';
 
 export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark } = useAppTheme();
+    const { t } = useTranslation();
     const { theme } = useUnistyles();
     const { width: screenWidth } = useWindowDimensions();
     const cardImageWidth = Math.max(screenWidth - 32, 280);
     const styles = stylesheet;
     const queryClient = useQueryClient();
+
+    const FILTER_CATEGORIES = [
+        { id: 'all', label: t('all_categories', 'All Categories') },
+        ...OFFICIAL_ACTIVITY_TYPES.map((type) => ({ id: type.id, label: type.label })),
+    ];
+
+    const TAB_ITEMS = [
+        { id: 'all', label: t('all', 'All') },
+        ...OFFICIAL_ACTIVITY_TYPES.map((type) => ({ id: type.id, label: type.label })),
+    ];
 
     // Applied Filters
     const currentMonthStr = format(new Date(), 'yyyy-MM');
@@ -188,7 +196,7 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
             }
         } else {
             Linking.openURL(url).catch(() => {
-                Alert.alert('Unable to open image link');
+                Alert.alert(t('unable_open_image_link', 'Unable to open image link'));
             });
         }
     };
@@ -219,7 +227,7 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
     };
 
     const formatCategoryName = (typeStr: string) => {
-        if (!typeStr) return 'Activity';
+        if (!typeStr) return t('activity', 'Activity');
         return typeStr;
     };
 
@@ -230,7 +238,7 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                     bg: 'rgba(16, 185, 129, 0.1)',
                     border: 'rgba(16, 185, 129, 0.2)',
                     text: theme.colors.status.success,
-                    label: 'APPROVED',
+                    label: t('approved', 'APPROVED'),
                     Icon: CheckCircle2,
                 };
             case 'rejected':
@@ -238,7 +246,7 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                     bg: 'rgba(239, 68, 68, 0.1)',
                     border: 'rgba(239, 68, 68, 0.2)',
                     text: theme.colors.status.danger,
-                    label: 'REJECTED',
+                    label: t('rejected', 'REJECTED'),
                     Icon: AlertCircle,
                 };
             default:
@@ -246,7 +254,7 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                     bg: 'rgba(245, 158, 11, 0.1)',
                     border: 'rgba(245, 158, 11, 0.2)',
                     text: '#F59E0B',
-                    label: 'SUBMITTED',
+                    label: t('submitted', 'SUBMITTED'),
                     Icon: Clock,
                 };
         }
@@ -277,11 +285,6 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
             />
         </View>
     );
-
-    const TAB_ITEMS = [
-        { id: 'all', label: 'All' },
-        ...OFFICIAL_ACTIVITY_TYPES.map((t) => ({ id: t.id, label: t.label })),
-    ];
 
     const subHeader = (
         <Animated.View
@@ -335,7 +338,7 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
 
     return (
         <AppShell
-            title="Activity Log"
+            title={t('activity_log', 'Activity Log')}
             onBack={() => navigation.goBack()}
             headerRight={headerRight}
             subHeader={subHeader}
@@ -368,9 +371,9 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
             ) : activities.length === 0 ? (
                 <View style={styles.emptyContainer}>
                     <FileText color={theme.colors.textSecondary} size={48} />
-                    <Text style={styles.emptyTitle}>No Activities Recorded</Text>
+                    <Text style={styles.emptyTitle}>{t('no_activities_recorded', 'No Activities Recorded')}</Text>
                     <Text style={styles.emptySubtitle}>
-                        You have not logged any work activities for this period yet.
+                        {t('no_activities_desc', 'You have not logged any work activities for this period yet.')}
                     </Text>
                     <TouchableOpacity
                         style={styles.createFirstBtn}
@@ -378,7 +381,7 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                         activeOpacity={0.85}
                     >
                         <Plus color="#FFFFFF" size={18} />
-                        <Text style={styles.createFirstBtnText}>Log New Activity</Text>
+                        <Text style={styles.createFirstBtnText}>{t('log_new_activity', 'Log New Activity')}</Text>
                     </TouchableOpacity>
                 </View>
             ) : (
@@ -409,14 +412,14 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                                 ) : (
                                     <View style={styles.heroPlaceholder}>
                                         <ActivityIcon color={theme.colors.textSecondary} size={32} />
-                                        <Text style={styles.heroPlaceholderText}>No Photo Attached</Text>
+                                        <Text style={styles.heroPlaceholderText}>{t('no_photo_attached', 'No Photo Attached')}</Text>
                                     </View>
                                 )}
 
                                 {/* Photos Count Badge Overlay (Top Left) */}
                                 {displayImages.length > 1 && (
                                     <View style={styles.photoCountBadgeOverlay}>
-                                        <Text style={styles.photoCountBadgeText}>{displayImages.length} Photos</Text>
+                                        <Text style={styles.photoCountBadgeText}>{displayImages.length} {t('photos', 'Photos')}</Text>
                                     </View>
                                 )}
 
@@ -428,7 +431,7 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                                         activeOpacity={0.8}
                                     >
                                         <Download color="#FFFFFF" size={13} />
-                                        <Text style={styles.saveBtnOverlayText}>Save</Text>
+                                        <Text style={styles.saveBtnOverlayText}>{t('save', 'Save')}</Text>
                                     </TouchableOpacity>
                                 )}
                             </View>

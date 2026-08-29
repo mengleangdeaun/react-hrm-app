@@ -31,18 +31,21 @@ import {
 } from 'lucide-react-native';
 import { format, differenceInCalendarDays, parseISO } from 'date-fns';
 
-const DURATION_TYPES = [
-    { id: 'full_day', label: 'Full Day' },
-    { id: 'first_half', label: 'Morning' },
-    { id: 'second_half', label: 'Afternoon' },
-    { id: 'multi_day', label: 'Multi-Day' },
-    { id: 'custom_time', label: 'Custom Hours' },
-];
+import { useTranslation } from '../../context/LanguageContext';
 
 export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark } = useAppTheme();
+    const { t } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
+
+    const DURATION_TYPES = [
+        { id: 'full_day', label: t('full_day', 'Full Day') },
+        { id: 'first_half', label: t('morning', 'Morning') },
+        { id: 'second_half', label: t('afternoon', 'Afternoon') },
+        { id: 'multi_day', label: t('multi_day', 'Multi-Day') },
+        { id: 'custom_time', label: t('custom_hours', 'Custom Hours') },
+    ];
 
     const [isLoading, setIsLoading] = useState(true);
     const [balances, setBalances] = useState<LeaveBalance[]>([]);
@@ -93,26 +96,26 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
     };
 
     const calculateTotalDuration = () => {
-        if (durationType === 'full_day') return '1 Day';
-        if (durationType === 'first_half' || durationType === 'second_half') return '0.5 Day';
-        if (durationType === 'custom_time') return 'Custom Time';
+        if (durationType === 'full_day') return `1 ${t('day', 'Day')}`;
+        if (durationType === 'first_half' || durationType === 'second_half') return `0.5 ${t('day', 'Day')}`;
+        if (durationType === 'custom_time') return t('custom_time', 'Custom Time');
         if (durationType === 'multi_day') {
             try {
                 const start = parseISO(startDate);
                 const end = parseISO(endDate);
                 const diff = differenceInCalendarDays(end, start) + 1;
-                if (isNaN(diff) || diff <= 0) return '1 Day';
-                return `${diff} ${diff > 1 ? 'Days' : 'Day'}`;
+                if (isNaN(diff) || diff <= 0) return `1 ${t('day', 'Day')}`;
+                return `${diff} ${diff > 1 ? t('days', 'Days') : t('day', 'Day')}`;
             } catch (e) {
-                return '1 Day';
+                return `1 ${t('day', 'Day')}`;
             }
         }
-        return '1 Day';
+        return `1 ${t('day', 'Day')}`;
     };
 
     const handleSubmit = async () => {
         if (!reason.trim()) {
-            Alert.alert('Reason Required', 'Please provide a clear reason for your leave request.');
+            Alert.alert(t('reason_required', 'Reason Required'), t('provide_reason_desc', 'Please provide a clear reason for your leave request.'));
             return;
         }
 
@@ -131,15 +134,15 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
             });
 
             if (Platform.OS === 'web') {
-                window.alert('Application Submitted: Your leave request has been submitted to your line manager for review.');
+                window.alert(t('application_submitted_msg', 'Application Submitted: Your leave request has been submitted to your line manager for review.'));
                 navigation.navigate('LeaveList');
             } else {
-                Alert.alert('Application Submitted', 'Your leave request has been submitted to your line manager for review.', [
-                    { text: 'OK', onPress: () => navigation.navigate('LeaveList') },
+                Alert.alert(t('application_submitted', 'Application Submitted'), t('leave_submitted_mgr', 'Your leave request has been submitted to your line manager for review.'), [
+                    { text: t('ok', 'OK'), onPress: () => navigation.navigate('LeaveList') },
                 ]);
             }
         } catch (err: any) {
-            Alert.alert('Submission Error', err?.message || 'Failed to submit leave request.');
+            Alert.alert(t('submission_error', 'Submission Error'), err?.message || t('fail_submit_leave', 'Failed to submit leave request.'));
         } finally {
             setIsSubmitting(false);
         }
@@ -154,13 +157,13 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
     );
 
     return (
-        <AppShell title="Apply Leave" onBack={() => navigation.goBack()} headerRight={headerRight}>
+        <AppShell title={t('apply_leave', 'Apply Leave')} onBack={() => navigation.goBack()} headerRight={headerRight}>
             {isLoading ? (
                 <CreateLeaveSkeleton />
             ) : (
                 <>
                     {/* 1. Leave Category Selector (Matches Leave Balances carousel style) */}
-                    <Text style={styles.sectionTitle}>Select Leave Category</Text>
+                    <Text style={styles.sectionTitle}>{t('select_leave_category', 'Select Leave Category')}</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.balanceCarousel}>
                         {balances.map((b) => {
                             const lType = b.leave_type || (b as any).leaveType;
@@ -188,9 +191,9 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
                                             </View>
                                         )}
                                     </View>
-                                    <Text style={styles.balanceRemaining}>{remDays} Days</Text>
+                                    <Text style={styles.balanceRemaining}>{remDays} {t('days', 'Days')}</Text>
                                     <Text style={styles.balanceSub}>
-                                        Used {usedDays} of {allocDays} days
+                                        {t('used_days_of_total', `Used ${usedDays} of ${allocDays} days`)}
                                     </Text>
                                 </TouchableOpacity>
                             );
@@ -198,7 +201,7 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
                     </ScrollView>
 
                     {/* 2. Duration Type Switcher (Horizontal Scrollable Pills) */}
-                    <Text style={styles.sectionTitle}>Duration Mode</Text>
+                    <Text style={styles.sectionTitle}>{t('duration_mode', 'Duration Mode')}</Text>
                     <ScrollView
                         horizontal
                         showsHorizontalScrollIndicator={false}
@@ -227,7 +230,7 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
                 <View style={styles.cardHeader}>
                     <View style={styles.typeGroup}>
                         <Calendar color={theme.colors.primary} size={16} />
-                        <Text style={styles.cardHeaderTitle}>Leave Schedule</Text>
+                        <Text style={styles.cardHeaderTitle}>{t('leave_schedule', 'Leave Schedule')}</Text>
                     </View>
                     <View style={styles.durationPill}>
                         <Text style={styles.durationPillText}>{calculateTotalDuration()}</Text>
@@ -237,7 +240,7 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
                 <View style={styles.dateRow}>
                     <View style={styles.dateField}>
                         <NativeDatePickerField
-                            label="Start Date"
+                            label={t('start_date', 'Start Date')}
                             value={startDate}
                             onChange={setStartDate}
                         />
@@ -246,7 +249,7 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
                     {durationType === 'multi_day' && (
                         <View style={styles.dateField}>
                             <NativeDatePickerField
-                                label="End Date"
+                                label={t('end_date', 'End Date')}
                                 value={endDate}
                                 onChange={setEndDate}
                                 minDate={startDate}
@@ -259,14 +262,14 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
                     <View style={[styles.dateRow, { marginTop: 4 }]}>
                         <View style={styles.dateField}>
                             <NativeTimePickerField
-                                label="Start Time"
+                                label={t('start_time', 'Start Time')}
                                 value={startTime}
                                 onChange={setStartTime}
                             />
                         </View>
                         <View style={styles.dateField}>
                             <NativeTimePickerField
-                                label="End Time"
+                                label={t('end_time', 'End Time')}
                                 value={endTime}
                                 onChange={setEndTime}
                             />
@@ -280,14 +283,14 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
                 <View style={styles.cardHeader}>
                     <View style={styles.typeGroup}>
                         <FileText color={theme.colors.primary} size={16} />
-                        <Text style={styles.cardHeaderTitle}>Reason for Application</Text>
+                        <Text style={styles.cardHeaderTitle}>{t('reason_for_application', 'Reason for Application')}</Text>
                     </View>
                 </View>
                 <TextInput
                     style={[styles.input, styles.textArea]}
                     value={reason}
                     onChangeText={setReason}
-                    placeholder="Describe clear reason for leave application..."
+                    placeholder={t('describe_reason_placeholder', 'Describe clear reason for leave application...')}
                     placeholderTextColor={theme.colors.textSecondary}
                     multiline
                     numberOfLines={4}
@@ -299,7 +302,7 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
                 <View style={styles.cardHeader}>
                     <View style={styles.typeGroup}>
                         <Paperclip color={theme.colors.primary} size={16} />
-                        <Text style={styles.cardHeaderTitle}>Proof / Supporting Document</Text>
+                        <Text style={styles.cardHeaderTitle}>{t('proof_document', 'Proof / Supporting Document')}</Text>
                     </View>
                 </View>
 
@@ -318,7 +321,7 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
                 ) : (
                     <TouchableOpacity style={styles.attachBox} onPress={pickDocument} activeOpacity={0.8}>
                         <Paperclip color={theme.colors.primary} size={18} />
-                        <Text style={styles.attachBoxText}>Upload Medical Certificate or Proof</Text>
+                        <Text style={styles.attachBoxText}>{t('upload_cert_proof', 'Upload Medical Certificate or Proof')}</Text>
                     </TouchableOpacity>
                 )}
             </View>
@@ -333,7 +336,7 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
                 {isSubmitting ? (
                     <ActivityIndicator color="#FFFFFF" />
                 ) : (
-                    <Text style={styles.submitBtnText}>Submit Leave Application</Text>
+                    <Text style={styles.submitBtnText}>{t('submit_leave_application', 'Submit Leave Application')}</Text>
                 )}
             </TouchableOpacity>
                 </>

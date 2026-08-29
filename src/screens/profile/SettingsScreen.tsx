@@ -23,6 +23,7 @@ import { profileApi, UserPreferences, PwaInfo } from '../../api/profile';
 import { AppText as Text } from '../../components/AppText';
 import { AppFeedbackSheet } from '../../components/AppFeedbackSheet';
 import { LegalDocumentSheet } from '../../components/common/LegalDocumentSheet';
+import { AppShell } from '../../components/common/AppShell';
 import { AppHeader } from '../../components/common/AppHeader';
 import {
     ArrowLeft,
@@ -224,30 +225,12 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     const isDarkModeActive = prefs?.dark_mode !== undefined ? prefs.dark_mode : isDark;
 
     return (
-        <View style={[styles.safeArea, { paddingTop: insets.top }]}>
-            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-
-            {/* Standard Native Header Bar */}
-            <AppHeader
-                title={t('settings', 'App Settings')}
-                onBack={() => navigation.goBack()}
-            />
-
-            <ScrollView
-                style={styles.container}
-                contentContainerStyle={styles.scrollContent}
-                showsVerticalScrollIndicator={false}
-                keyboardShouldPersistTaps="handled"
-                nestedScrollEnabled={true}
-                refreshControl={
-                    <RefreshControl
-                        refreshing={isFetchingPrefs}
-                        onRefresh={() => queryClient.invalidateQueries({ queryKey: ['userPreferences'] })}
-                        tintColor={primaryColor}
-                        colors={[primaryColor]}
-                    />
-                }
-            >
+        <AppShell
+            title={t('settings', 'App Settings')}
+            onBack={() => navigation.goBack()}
+            refreshing={isFetchingPrefs}
+            onRefresh={() => queryClient.invalidateQueries({ queryKey: ['userPreferences'] })}
+        >
                 {/* 1. Appearance & Customization Section */}
                 <Text style={styles.sectionHeaderTitle}>{t('appearance_theme', 'Appearance & Theme')}</Text>
                 <View style={styles.card}>
@@ -549,7 +532,6 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                         SCCG APP • {t('version', 'Version')} {pwaInfo?.version || '1.1.1'}
                     </Text>
                 </View>
-            </ScrollView>
 
             {/* Native Bottom Sheet App Feedback */}
             <AppFeedbackSheet
@@ -646,7 +628,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 type="terms"
                 customContent={pwaInfo?.terms_of_service}
             />
-        </View>
+        </AppShell>
     );
 };
 

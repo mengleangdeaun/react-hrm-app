@@ -85,26 +85,33 @@ function ProfileStack() {
     );
 }
 
-const TAB_CONFIGS: Record<string, { label: string; icon: any; isHero?: boolean }> = {
+import { useTranslation } from '../context/LanguageContext';
+
+const TAB_CONFIGS: Record<string, { key: string; fallback: string; icon: any; isHero?: boolean }> = {
     HomeTab: {
-        label: 'Home',
+        key: 'nav_home',
+        fallback: 'Home',
         icon: Home,
     },
     CalendarTab: {
-        label: 'Calendar',
+        key: 'calendar',
+        fallback: 'Calendar',
         icon: CalendarDays,
     },
     ScanTab: {
-        label: 'Scan',
+        key: 'scan',
+        fallback: 'Scan',
         icon: QrCode,
         isHero: true,
     },
     NotiTab: {
-        label: 'Notices',
+        key: 'nav_notices',
+        fallback: 'Notices',
         icon: Bell,
     },
     ProfileTab: {
-        label: 'Profile',
+        key: 'nav_profile',
+        fallback: 'Profile',
         icon: User,
     },
 };
@@ -112,6 +119,7 @@ const TAB_CONFIGS: Record<string, { label: string; icon: any; isHero?: boolean }
 function CustomTabBar({ state, descriptors, navigation }: any) {
     const insets = useSafeAreaInsets();
     const { isDark } = useAppTheme();
+    const { t } = useTranslation();
     const theme = isDark ? darkTheme : lightTheme;
 
     const backgroundColor = theme.colors.surface;
@@ -153,9 +161,11 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
             {state.routes.map((route: any, index: number) => {
                 const isFocused = state.index === index;
                 const config = TAB_CONFIGS[route.name] || {
-                    label: route.name,
+                    key: route.name,
+                    fallback: route.name,
                     icon: Home,
                 };
+                const tabLabel = t(config.key, config.fallback);
                 const IconComponent = config.icon;
 
                 const onPress = () => {
@@ -209,7 +219,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                                     { color: isFocused ? activeColor : inactiveColor },
                                 ]}
                             >
-                                {config.label}
+                                {tabLabel}
                             </Text>
                         </TouchableOpacity>
                     );
@@ -243,7 +253,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                             ]}
                             numberOfLines={1}
                         >
-                            {config.label}
+                            {tabLabel}
                         </Text>
                     </TouchableOpacity>
                 );

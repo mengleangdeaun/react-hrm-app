@@ -66,11 +66,13 @@ const formatAnnouncementDate = (rawStr?: string) => {
     }
 };
 
+import { AppShell } from '../../components/common/AppShell';
+import { HeaderIconButton } from '../../components/common/AppHeader';
+
 export const AnnouncementDetailScreen: React.FC<{ route: any; navigation: any }> = ({
     route,
     navigation,
 }) => {
-    const insets = useSafeAreaInsets();
     const { isDark, primaryColor } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
@@ -142,14 +144,14 @@ export const AnnouncementDetailScreen: React.FC<{ route: any; navigation: any }>
     const handleOpenAttachment = (url?: string) => {
         if (!url) return;
         Linking.openURL(url).catch(() => {
-            Alert.alert(t('error', 'Error'), 'Unable to open attachment link.');
+            Alert.alert(t('error', 'Error'), t('unable_open_attachment', 'Unable to open attachment link.'));
         });
     };
 
     const announcement = announcementData || notificationItem;
     const isLoading = isLoadingQuery && !announcement;
 
-    const title = cleanHtml(announcement?.title || notificationItem?.title) || 'Company Announcement';
+    const title = cleanHtml(announcement?.title || notificationItem?.title) || t('company_announcement', 'Company Announcement');
     const dateStr = formatAnnouncementDate(announcement?.published_at || announcement?.created_at || notificationItem?.created_at);
     const typeStr = (announcement?.type || notificationItem?.type || 'info').toLowerCase();
     const shortDesc = cleanHtml(announcement?.short_description);
@@ -169,115 +171,106 @@ export const AnnouncementDetailScreen: React.FC<{ route: any; navigation: any }>
         return <Info color={primaryColor} size={14} />;
     };
 
+    const headerRight = (notificationId || notificationItem?.id) ? (
+        <HeaderIconButton
+            icon={<Trash2 color={theme.colors.status.danger} size={18} />}
+            onPress={handleDeleteNotification}
+            accessibilityLabel="Delete notification"
+        />
+    ) : undefined;
+
     return (
-        <View style={[styles.safeArea, { paddingTop: insets.top }]}>
-            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+        <AppShell
+            title={t('tab_announcement', 'Announcement Details')}
+            onBack={() => navigation.goBack()}
+            headerRight={headerRight}
+        >
+            {isLoading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={primaryColor} />
+                </View>
+            ) : (
+                <>
+                    {/* Hero Featured Image Banner */}
+                    {featuredImageUrl && (
+                        <TouchableOpacity
+                            style={styles.heroImageWrapper}
+                            activeOpacity={0.9}
+                            onPress={() => {
+                                setPreviewImageUrl(featuredImageUrl);
+                                setImagePreviewVisible(true);
+                            }}
+                        >
+                            <Image source={{ uri: featuredImageUrl }} style={styles.heroImage} resizeMode="cover" />
+                        </TouchableOpacity>
+                    )}
 
-            {/* Standard Native Header Bar */}
-            <AppHeader
-                title={t('tab_announcement', 'Announcement Details')}
-                onBack={() => navigation.goBack()}
-                rightActions={
-                    notificationId || notificationItem?.id
-                        ? [
-                              {
-                                  icon: <Trash2 color={theme.colors.status.danger} size={18} />,
-                                  onPress: handleDeleteNotification,
-                                  accessibilityLabel: 'Delete notification',
-                              },
-                          ]
-                        : []
-                }
-            />
+                    {/* Category & Featured Badge Row */}
+                    <View style={styles.badgeRow}>
+                        <View style={styles.typeBadge}>
+                            {getTypeIcon()}
+                            <Text style={styles.typeBadgeText}>{typeStr.toUpperCase()}</Text>
+                        </View>
 
-            <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
-                {isLoading ? (
-                    <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color={primaryColor} />
+                        {isFeatured && (
+                            <View style={styles.featuredBadge}>
+                                <Sparkles color="#D97706" size={13} />
+                                <Text style={styles.featuredBadgeText}>{t('featured', 'FEATURED')}</Text>
+                            </View>
+                        )}
                     </View>
-                ) : (
-                    <>
-                        {/* Hero Featured Image Banner */}
-                        {featuredImageUrl && (
-                            <TouchableOpacity
-                                style={styles.heroImageWrapper}
-                                activeOpacity={0.9}
-                                onPress={() => {
-                                    setPreviewImageUrl(featuredImageUrl);
-                                    setImagePreviewVisible(true);
-                                }}
-                            >
-                                <Image source={{ uri: featuredImageUrl }} style={styles.heroImage} resizeMode="cover" />
-                            </TouchableOpacity>
-                        )}
 
-                        {/* Category & Featured Badge Row */}
-                        <View style={styles.badgeRow}>
-                            <View style={styles.typeBadge}>
-                                {getTypeIcon()}
-                                <Text style={styles.typeBadgeText}>{typeStr.toUpperCase()}</Text>
-                            </View>
+                    {/* Title */}
+                    <Text style={styles.title}>{title}</Text>
 
-                            {isFeatured && (
-                                <View style={styles.featuredBadge}>
-                                    <Sparkles color="#D97706" size={13} />
-                                    <Text style={styles.featuredBadgeText}>{t('featured', 'FEATURED')}</Text>
-                                </View>
-                            )}
+                    {/* Metadata Row */}
+                    <View style={styles.metaRow}>
+                        <View style={styles.metaItem}>
+                            <Calendar color={primaryColor} size={14} />
+                            <Text style={styles.metaText}>{dateStr}</Text>
                         </View>
 
-                        {/* Title */}
-                        <Text style={styles.title}>{title}</Text>
-
-                        {/* Metadata Row */}
-                        <View style={styles.metaRow}>
+                        {viewsCount !== undefined && viewsCount > 0 && (
                             <View style={styles.metaItem}>
-                                <Calendar color={primaryColor} size={14} />
-                                <Text style={styles.metaText}>{dateStr}</Text>
+                                <Eye color={theme.colors.status.success} size={14} />
+                                <Text style={styles.metaText}>{viewsCount} {t('views', 'views')}</Text>
                             </View>
-
-                            {viewsCount !== undefined && viewsCount > 0 && (
-                                <View style={styles.metaItem}>
-                                    <Eye color={theme.colors.status.success} size={14} />
-                                    <Text style={styles.metaText}>{viewsCount} {t('views', 'views')}</Text>
-                                </View>
-                            )}
-                        </View>
-
-                        <View style={styles.divider} />
-
-                        {/* Short Description Highlight Callout Box */}
-                        {shortDesc ? (
-                            <View style={[styles.shortDescCard, { borderLeftColor: primaryColor }]}>
-                                <Text style={styles.shortDescText}>{shortDesc}</Text>
-                            </View>
-                        ) : null}
-
-                        {/* Main Article Body */}
-                        <Text style={styles.bodyText}>{bodyContent}</Text>
-
-                        {/* File Attachment Card */}
-                        {attachmentName && (
-                            <TouchableOpacity
-                                style={styles.attachCard}
-                                activeOpacity={0.8}
-                                onPress={() => handleOpenAttachment(attachmentUrl)}
-                            >
-                                <View style={styles.attachIconBox}>
-                                    <Paperclip color={primaryColor} size={18} />
-                                </View>
-                                <View style={styles.attachInfo}>
-                                    <Text style={styles.attachName}>{attachmentName}</Text>
-                                    <Text style={styles.attachSize}>
-                                        {announcement?.attachment_size || 'Attached Document'}
-                                    </Text>
-                                </View>
-                                <Download color={primaryColor} size={18} />
-                            </TouchableOpacity>
                         )}
-                    </>
-                )}
-            </ScrollView>
+                    </View>
+
+                    <View style={styles.divider} />
+
+                    {/* Short Description Highlight Callout Box */}
+                    {shortDesc ? (
+                        <View style={[styles.shortDescCard, { borderLeftColor: primaryColor }]}>
+                            <Text style={styles.shortDescText}>{shortDesc}</Text>
+                        </View>
+                    ) : null}
+
+                    {/* Main Article Body */}
+                    <Text style={styles.bodyText}>{bodyContent}</Text>
+
+                    {/* File Attachment Card */}
+                    {attachmentName && (
+                        <TouchableOpacity
+                            style={styles.attachCard}
+                            activeOpacity={0.8}
+                            onPress={() => handleOpenAttachment(attachmentUrl)}
+                        >
+                            <View style={styles.attachIconBox}>
+                                <Paperclip color={primaryColor} size={18} />
+                            </View>
+                            <View style={styles.attachInfo}>
+                                <Text style={styles.attachName}>{attachmentName}</Text>
+                                <Text style={styles.attachSize}>
+                                    {announcement?.attachment_size || t('attached_document', 'Attached Document')}
+                                </Text>
+                            </View>
+                            <Download color={primaryColor} size={18} />
+                        </TouchableOpacity>
+                    )}
+                </>
+            )}
 
             {/* Fullscreen Image Preview Modal */}
             {previewImageUrl && (
@@ -303,7 +296,7 @@ export const AnnouncementDetailScreen: React.FC<{ route: any; navigation: any }>
                     </View>
                 </Modal>
             )}
-        </View>
+        </AppShell>
     );
 };
 

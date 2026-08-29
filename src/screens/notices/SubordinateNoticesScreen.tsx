@@ -34,18 +34,22 @@ import {
 } from 'lucide-react-native';
 import { format } from 'date-fns';
 
-const CATEGORY_FILTERS = [
-    { id: 'all', label: 'All Notices' },
-    { id: 'positive', label: 'Positive' },
-    { id: 'negative', label: 'Warnings' },
-    { id: 'progress', label: 'Progress' },
-];
+import { useTranslation } from '../../context/LanguageContext';
+import { HeaderIconButton } from '../../components/common/AppHeader';
+import { AppShell } from '../../components/common/AppShell';
 
 export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-    const insets = useSafeAreaInsets();
     const { isDark } = useAppTheme();
+    const { t } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
+
+    const CATEGORY_FILTERS = [
+        { id: 'all', label: t('all_notices', 'All Notices') },
+        { id: 'positive', label: t('positive', 'Positive') },
+        { id: 'negative', label: t('warnings', 'Warnings') },
+        { id: 'progress', label: t('progress', 'Progress') },
+    ];
 
     const [subordinates, setSubordinates] = useState<Subordinate[]>([]);
     const [selectedSubordinateId, setSelectedSubordinateId] = useState<number | null>(null);
@@ -126,11 +130,11 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
 
     const handleCreateNotice = async () => {
         if (!formSubordinateId) {
-            Alert.alert('Required', 'Please select a subordinate team member.');
+            Alert.alert(t('required', 'Required'), t('select_subordinate_member', 'Please select a subordinate team member.'));
             return;
         }
         if (!formComment.trim()) {
-            Alert.alert('Required', 'Please provide detailed notice comments.');
+            Alert.alert(t('required', 'Required'), t('provide_notice_comments', 'Please provide detailed notice comments.'));
             return;
         }
 
@@ -143,12 +147,12 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
                 comment: formComment,
             });
 
-            Alert.alert('Notice Recorded', 'Subordinate notice logged successfully.');
+            Alert.alert(t('notice_recorded', 'Notice Recorded'), t('notice_logged_desc', 'Subordinate notice logged successfully.'));
             setCreateModalVisible(false);
             setFormComment('');
             loadWorkspaceData();
         } catch (err: any) {
-            Alert.alert('Error', err?.message || 'Failed to record notice.');
+            Alert.alert(t('error', 'Error'), err?.message || t('fail_record_notice', 'Failed to record notice.'));
         } finally {
             setIsSubmitting(false);
         }
@@ -161,7 +165,7 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
                     bg: 'rgba(16, 185, 129, 0.1)',
                     border: 'rgba(16, 185, 129, 0.2)',
                     color: theme.colors.status.success,
-                    label: 'POSITIVE CONDUCT',
+                    label: t('positive_conduct', 'POSITIVE CONDUCT'),
                     Icon: Award,
                 };
             case 'negative':
@@ -169,7 +173,7 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
                     bg: 'rgba(239, 68, 68, 0.1)',
                     border: 'rgba(239, 68, 68, 0.2)',
                     color: theme.colors.status.danger,
-                    label: 'WARNING / NOTICE',
+                    label: t('warning_notice', 'WARNING / NOTICE'),
                     Icon: AlertCircle,
                 };
             default:
@@ -177,170 +181,161 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
                     bg: 'rgba(37, 99, 235, 0.1)',
                     border: 'rgba(37, 99, 235, 0.2)',
                     color: theme.colors.primary,
-                    label: 'PROGRESS / MILESTONE',
+                    label: t('progress_milestone', 'PROGRESS / MILESTONE'),
                     Icon: TrendingUp,
                 };
         }
     };
 
-    return (
-        <View style={[styles.safeArea, { paddingTop: insets.top }]}>
-            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
-
-            {/* Standard Native Header Bar */}
-            <AppHeader
-                title="Team Subordinate Notices"
-                onBack={() => navigation.goBack()}
-                rightActions={[
-                    {
-                        icon: <Plus color={theme.colors.brand} size={20} />,
-                        onPress: () => {
-                            if (subordinates.length > 0 && !formSubordinateId) {
-                                setFormSubordinateId(subordinates[0].id);
-                            }
-                            setCreateModalVisible(true);
-                        },
-                        accessibilityLabel: 'Create notice',
-                    },
-                ]}
-            />
-
-            <ScrollView
-                style={styles.container}
-                contentContainerStyle={styles.scrollContent}
-                refreshControl={
-                    <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+    const headerRight = (
+        <HeaderIconButton
+            icon={<Plus color={theme.colors.brand} size={20} />}
+            onPress={() => {
+                if (subordinates.length > 0 && !formSubordinateId) {
+                    setFormSubordinateId(subordinates[0].id);
                 }
-            >
-                {/* Horizontal Subordinates Selector */}
-                {subordinates.length > 0 && (
-                    <View style={styles.subordinateSection}>
-                        <Text style={styles.sectionLabel}>Team Members ({subordinates.length})</Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subordinateCarousel}>
-                            <TouchableOpacity
-                                style={[
-                                    styles.subordinateChip,
-                                    selectedSubordinateId === null && styles.subordinateChipSelected,
-                                ]}
-                                onPress={() => setSelectedSubordinateId(null)}
-                                activeOpacity={0.8}
-                            >
-                                <Text
-                                    style={[
-                                        styles.subordinateChipText,
-                                        selectedSubordinateId === null && styles.subordinateChipTextSelected,
-                                    ]}
-                                >
-                                    All Subordinates
-                                </Text>
-                            </TouchableOpacity>
+                setCreateModalVisible(true);
+            }}
+            accessibilityLabel="Create notice"
+        />
+    );
 
-                            {subordinates.map((sub) => {
-                                const isSelected = selectedSubordinateId === sub.id;
-                                return (
-                                    <TouchableOpacity
-                                        key={sub.id}
-                                        style={[styles.subordinateChip, isSelected && styles.subordinateChipSelected]}
-                                        onPress={() => setSelectedSubordinateId(sub.id)}
-                                        activeOpacity={0.8}
-                                    >
-                                        <Text
-                                            style={[
-                                                styles.subordinateChipText,
-                                                isSelected && styles.subordinateChipTextSelected,
-                                            ]}
-                                        >
-                                            {sub.full_name}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </ScrollView>
-                    </View>
-                )}
-
-                {/* Category Filters */}
-                <View style={styles.categoryBar}>
-                    {CATEGORY_FILTERS.map((cat) => (
+    return (
+        <AppShell
+            title={t('team_subordinate_notices', 'Team Subordinate Notices')}
+            onBack={() => navigation.goBack()}
+            headerRight={headerRight}
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+        >
+            {/* Horizontal Subordinates Selector */}
+            {subordinates.length > 0 && (
+                <View style={styles.subordinateSection}>
+                    <Text style={styles.sectionLabel}>{t('team_members_count', `Team Members (${subordinates.length})`)}</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subordinateCarousel}>
                         <TouchableOpacity
-                            key={cat.id}
-                            style={[styles.categoryChip, selectedCategory === cat.id && styles.categoryChipActive]}
-                            onPress={() => setSelectedCategory(cat.id)}
+                            style={[
+                                styles.subordinateChip,
+                                selectedSubordinateId === null && styles.subordinateChipSelected,
+                            ]}
+                            onPress={() => setSelectedSubordinateId(null)}
                             activeOpacity={0.8}
                         >
                             <Text
                                 style={[
-                                    styles.categoryChipText,
-                                    selectedCategory === cat.id && styles.categoryChipTextActive,
+                                    styles.subordinateChipText,
+                                    selectedSubordinateId === null && styles.subordinateChipTextSelected,
                                 ]}
                             >
-                                {cat.label}
+                                {t('all_subordinates', 'All Subordinates')}
                             </Text>
                         </TouchableOpacity>
-                    ))}
-                </View>
 
-                {/* Notice Timeline List */}
-                {isLoading ? (
-                    <View style={styles.loadingContainer}>
-                        <ActivityIndicator size="large" color={theme.colors.primary} />
-                    </View>
-                ) : notices.length === 0 ? (
-                    <View style={styles.emptyCard}>
-                        <FileText color={theme.colors.textSecondary} size={44} />
-                        <Text style={styles.emptyTitle}>No Team Notices Recorded</Text>
-                        <Text style={styles.emptySub}>No behavioral or progress notices found for this selection.</Text>
-                    </View>
-                ) : (
-                    notices.map((item) => {
-                        const typeObj = getTypeStyle(item.type);
-                        const TypeIcon = typeObj.Icon;
-
-                        const employeeName = item.employee?.full_name || 'Subordinate';
-                        const creatorName = item.creator?.full_name || 'Manager';
-
-                        return (
-                            <View key={item.id} style={styles.noticeCard}>
-                                <View style={styles.cardHeader}>
-                                    <View style={styles.userGroup}>
-                                        <View style={styles.userAvatar}>
-                                            <Text style={styles.userAvatarText}>
-                                                {employeeName.charAt(0).toUpperCase()}
-                                            </Text>
-                                        </View>
-                                        <View style={styles.userTextGroup}>
-                                            <Text style={styles.userName}>{employeeName}</Text>
-                                            <Text style={styles.userCode}>{item.employee?.employee_id || ''}</Text>
-                                        </View>
-                                    </View>
-
-                                    <View
+                        {subordinates.map((sub) => {
+                            const isSelected = selectedSubordinateId === sub.id;
+                            return (
+                                <TouchableOpacity
+                                    key={sub.id}
+                                    style={[styles.subordinateChip, isSelected && styles.subordinateChipSelected]}
+                                    onPress={() => setSelectedSubordinateId(sub.id)}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text
                                         style={[
-                                            styles.typeBadge,
-                                            { backgroundColor: typeObj.bg, borderColor: typeObj.border },
+                                            styles.subordinateChipText,
+                                            isSelected && styles.subordinateChipTextSelected,
                                         ]}
                                     >
-                                        <TypeIcon color={typeObj.color} size={12} />
-                                        <Text style={[styles.typeBadgeText, { color: typeObj.color }]}>
-                                            {typeObj.label}
+                                        {sub.full_name}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
+                </View>
+            )}
+
+            {/* Category Filters */}
+            <View style={styles.categoryBar}>
+                {CATEGORY_FILTERS.map((cat) => (
+                    <TouchableOpacity
+                        key={cat.id}
+                        style={[styles.categoryChip, selectedCategory === cat.id && styles.categoryChipActive]}
+                        onPress={() => setSelectedCategory(cat.id)}
+                        activeOpacity={0.8}
+                    >
+                        <Text
+                            style={[
+                                styles.categoryChipText,
+                                selectedCategory === cat.id && styles.categoryChipTextActive,
+                            ]}
+                        >
+                            {cat.label}
+                        </Text>
+                    </TouchableOpacity>
+                ))}
+            </View>
+
+            {/* Notice Timeline List */}
+            {isLoading ? (
+                <View style={styles.loadingContainer}>
+                    <ActivityIndicator size="large" color={theme.colors.primary} />
+                </View>
+            ) : notices.length === 0 ? (
+                <View style={styles.emptyCard}>
+                    <FileText color={theme.colors.textSecondary} size={44} />
+                    <Text style={styles.emptyTitle}>{t('no_team_notices', 'No Team Notices Recorded')}</Text>
+                    <Text style={styles.emptySub}>{t('no_team_notices_desc', 'No behavioral or progress notices found for this selection.')}</Text>
+                </View>
+            ) : (
+                notices.map((item) => {
+                    const typeObj = getTypeStyle(item.type);
+                    const TypeIcon = typeObj.Icon;
+
+                    const employeeName = item.employee?.full_name || t('subordinate', 'Subordinate');
+                    const creatorName = item.creator?.full_name || t('manager', 'Manager');
+
+                    return (
+                        <View key={item.id} style={styles.noticeCard}>
+                            <View style={styles.cardHeader}>
+                                <View style={styles.userGroup}>
+                                    <View style={styles.userAvatar}>
+                                        <Text style={styles.userAvatarText}>
+                                            {employeeName.charAt(0).toUpperCase()}
                                         </Text>
                                     </View>
-                                </View>
-
-                                <Text style={styles.commentText}>{item.comment}</Text>
-
-                                <View style={styles.cardFooter}>
-                                    <Text style={styles.creatorText}>Logged by {creatorName}</Text>
-                                    <View style={styles.dateGroup}>
-                                        <Calendar color={theme.colors.textSecondary} size={12} />
-                                        <Text style={styles.dateText}>{item.notice_date || item.created_at || 'Recent'}</Text>
+                                    <View style={styles.userTextGroup}>
+                                        <Text style={styles.userName}>{employeeName}</Text>
+                                        <Text style={styles.userCode}>{item.employee?.employee_id || ''}</Text>
                                     </View>
                                 </View>
+
+                                <View
+                                    style={[
+                                        styles.typeBadge,
+                                        { backgroundColor: typeObj.bg, borderColor: typeObj.border },
+                                    ]}
+                                >
+                                    <TypeIcon color={typeObj.color} size={12} />
+                                    <Text style={[styles.typeBadgeText, { color: typeObj.color }]}>
+                                        {typeObj.label}
+                                    </Text>
+                                </View>
                             </View>
-                        );
-                    })
-                )}
-            </ScrollView>
+
+                            <Text style={styles.commentText}>{item.comment}</Text>
+
+                            <View style={styles.cardFooter}>
+                                <Text style={styles.creatorText}>{t('logged_by', 'Logged by')} {creatorName}</Text>
+                                <View style={styles.dateGroup}>
+                                    <Calendar color={theme.colors.textSecondary} size={12} />
+                                    <Text style={styles.dateText}>{item.notice_date || item.created_at || 'Recent'}</Text>
+                                </View>
+                            </View>
+                        </View>
+                    );
+                })
+            )}
 
             {/* Log New Notice Modal */}
             <Modal visible={createModalVisible} transparent animationType="fade">
@@ -351,14 +346,14 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
                 >
                     <View style={styles.modalSheet}>
                         <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Log Subordinate Notice</Text>
+                            <Text style={styles.modalTitle}>{t('log_subordinate_notice', 'Log Subordinate Notice')}</Text>
                             <TouchableOpacity onPress={() => setCreateModalVisible(false)}>
                                 <X color={theme.colors.textPrimary} size={20} />
                             </TouchableOpacity>
                         </View>
 
                         {/* Select Subordinate */}
-                        <Text style={styles.inputLabel}>Target Team Member</Text>
+                        <Text style={styles.inputLabel}>{t('target_team_member', 'Target Team Member')}</Text>
                         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subPickerRow}>
                             {subordinates.map((sub) => {
                                 const isSelected = formSubordinateId === sub.id;
@@ -382,15 +377,15 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
                         </ScrollView>
 
                         {/* Select Type */}
-                        <Text style={styles.inputLabel}>Notice Type</Text>
+                        <Text style={styles.inputLabel}>{t('notice_type', 'Notice Type')}</Text>
                         <View style={styles.typeSelectorRow}>
-                            {(['positive', 'negative', 'progress'] as const).map((t) => {
-                                const isSelected = formType === t;
+                            {(['positive', 'negative', 'progress'] as const).map((tType) => {
+                                const isSelected = formType === tType;
                                 return (
                                     <TouchableOpacity
-                                        key={t}
+                                        key={tType}
                                         style={[styles.typeOption, isSelected && styles.typeOptionSelected]}
-                                        onPress={() => setFormType(t)}
+                                        onPress={() => setFormType(tType)}
                                     >
                                         <Text
                                             style={[
@@ -398,7 +393,7 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
                                                 isSelected && styles.typeOptionTextSelected,
                                             ]}
                                         >
-                                            {t.toUpperCase()}
+                                            {tType.toUpperCase()}
                                         </Text>
                                     </TouchableOpacity>
                                 );
@@ -407,18 +402,18 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
 
                         {/* Incident / Notice Date */}
                         <NativeDatePickerField
-                            label="Notice / Incident Date"
+                            label={t('notice_incident_date', 'Notice / Incident Date')}
                             value={formDate}
                             onChange={setFormDate}
                         />
 
                         {/* Notice Comment */}
-                        <Text style={styles.inputLabel}>Notice Details / Comments</Text>
+                        <Text style={styles.inputLabel}>{t('notice_details_comments', 'Notice Details / Comments')}</Text>
                         <TextInput
                             style={styles.textArea}
                             value={formComment}
                             onChangeText={setFormComment}
-                            placeholder="Describe employee feedback, praise, or warning details..."
+                            placeholder={t('describe_notice_placeholder', 'Describe employee feedback, praise, or warning details...')}
                             placeholderTextColor={theme.colors.textSecondary}
                             multiline
                             numberOfLines={4}
@@ -432,13 +427,13 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
                             {isSubmitting ? (
                                 <ActivityIndicator color="#FFFFFF" />
                             ) : (
-                                <Text style={styles.submitBtnText}>Record Subordinate Notice</Text>
+                                <Text style={styles.submitBtnText}>{t('record_subordinate_notice', 'Record Subordinate Notice')}</Text>
                             )}
                         </TouchableOpacity>
                     </View>
                 </TouchableOpacity>
             </Modal>
-        </View>
+        </AppShell>
     );
 };
 
@@ -750,7 +745,8 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     submitBtn: {
         backgroundColor: theme.colors.primary,
-        height: 50,
+        minHeight: 48,
+        paddingVertical: 12,
         borderRadius: theme.borderRadius.md,
         justifyContent: 'center',
         alignItems: 'center',

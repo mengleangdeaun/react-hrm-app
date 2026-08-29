@@ -5,8 +5,8 @@ import {
     TouchableOpacity,
     Alert,
     ActivityIndicator,
-    Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import Animated, {
@@ -24,6 +24,7 @@ import { AppText } from '../../components/AppText';
 import { extractEmployeeQrPayload } from '../../utils/qrPayload';
 
 export const QrLoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+    const insets = useSafeAreaInsets();
     const [permission, requestPermission] = useCameraPermissions();
     const [scanned, setScanned] = useState(false);
     const [torch, setTorch] = useState(false);
@@ -70,16 +71,16 @@ export const QrLoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 <View style={styles.permIconCircle}>
                     <QrCode color="#3B82F6" size={48} />
                 </View>
-                <AppText style={styles.permTitle}>Camera Permission Required</AppText>
+                <AppText style={styles.permTitle}>{t('camera_permission_required', 'Camera Permission Required')}</AppText>
                 <AppText style={styles.permDesc}>
-                    We need camera access to scan your Employee Badge QR code for quick login.
+                    {t('camera_perm_desc_login', 'We need camera access to scan your Employee Badge QR code for quick login.')}
                 </AppText>
                 <TouchableOpacity
                     style={styles.permButton}
                     onPress={requestPermission}
                     activeOpacity={0.85}
                 >
-                    <AppText style={styles.permBtnText}>Grant Permission</AppText>
+                    <AppText style={styles.permBtnText}>{t('grant_permission', 'Grant Permission')}</AppText>
                 </TouchableOpacity>
             </View>
         );
@@ -99,8 +100,8 @@ export const QrLoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         const parseCheck = extractEmployeeQrPayload(data);
         if (!parseCheck.isValid) {
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-            Alert.alert('Invalid QR Code', parseCheck.error || 'Please scan a valid Employee Personal QR badge.', [
-                { text: 'Try Again', onPress: resetScanState },
+            Alert.alert(t('invalid_qr_code', 'Invalid QR Code'), parseCheck.error || t('scan_valid_employee_qr', 'Please scan a valid Employee Personal QR badge.'), [
+                { text: t('try_again', 'Try Again'), onPress: resetScanState },
             ]);
             return;
         }
@@ -112,25 +113,25 @@ export const QrLoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
             if (error?.code === 'DEVICE_MISMATCH') {
                 Alert.alert(
-                    'Device Transfer Required',
+                    t('device_transfer_required', 'Device Transfer Required'),
                     error.message ||
-                        'This account is registered to another device. Would you like to transfer your account to this device?',
+                        t('device_transfer_prompt', 'This account is registered to another device. Would you like to transfer your account to this device?'),
                     [
-                        { text: 'Cancel', style: 'cancel', onPress: resetScanState },
+                        { text: t('cancel', 'Cancel'), style: 'cancel', onPress: resetScanState },
                         {
-                            text: 'Transfer Account',
+                            text: t('transfer_account', 'Transfer Account'),
                             style: 'destructive',
                             onPress: () => handleBarcodeScanned({ data }, true),
                         },
                     ]
                 );
             } else if (error?.code === 'DEVICE_TAKEN') {
-                Alert.alert('Security Error', error.message || 'This device is registered to another employee.', [
-                    { text: 'Try Again', onPress: resetScanState },
+                Alert.alert(t('security_error', 'Security Error'), error.message || t('device_registered_to_other', 'This device is registered to another employee.'), [
+                    { text: t('try_again', 'Try Again'), onPress: resetScanState },
                 ]);
             } else {
-                Alert.alert('Login Failed', error?.message || 'Invalid Employee QR credentials.', [
-                    { text: 'Try Again', onPress: resetScanState },
+                Alert.alert(t('login_failed', 'Login Failed'), error?.message || t('invalid_employee_qr', 'Invalid Employee QR credentials.'), [
+                    { text: t('try_again', 'Try Again'), onPress: resetScanState },
                 ]);
             }
         }
@@ -139,7 +140,7 @@ export const QrLoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     return (
         <View style={styles.container}>
             {/* Top Bar Controls */}
-            <View style={styles.topControls}>
+            <View style={[styles.topControls, { top: insets.top + 12 }]}>
                 <TouchableOpacity
                     style={styles.iconCircleButton}
                     onPress={() => navigation.goBack()}
@@ -189,14 +190,14 @@ export const QrLoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                         <View style={styles.loadingOverlay}>
                             <ActivityIndicator size="large" color="#3B82F6" />
                             <AppText style={styles.authenticatingText}>
-                                Authenticating Device...
+                                {t('authenticating_device', 'Authenticating Device...')}
                             </AppText>
                         </View>
                     )}
                 </View>
 
                 <AppText style={styles.instructionText}>
-                    Align your Employee QR Code inside the box to sign in automatically
+                    {t('align_qr_login_hint', 'Align your Employee QR Code inside the box to sign in automatically')}
                 </AppText>
 
                 {scanned && !isLoading && (
@@ -206,7 +207,7 @@ export const QrLoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                         activeOpacity={0.8}
                     >
                         <RefreshCw size={16} color="#FFFFFF" />
-                        <AppText style={styles.rescanBtnText}>Tap to Rescan</AppText>
+                        <AppText style={styles.rescanBtnText}>{t('tap_to_rescan', 'Tap to Rescan')}</AppText>
                     </TouchableOpacity>
                 )}
             </View>
@@ -221,7 +222,6 @@ const styles = StyleSheet.create({
     },
     topControls: {
         position: 'absolute',
-        top: Platform.OS === 'ios' ? 56 : 36,
         left: 20,
         right: 20,
         zIndex: 20,
@@ -278,6 +278,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 28,
         paddingVertical: 14,
         borderRadius: 14,
+        minHeight: 48,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     permBtnText: {
         color: '#FFFFFF',
@@ -366,7 +369,7 @@ const styles = StyleSheet.create({
         marginTop: 28,
         paddingHorizontal: 40,
         fontWeight: '500',
-        lineHeight: 20,
+        lineHeight: 22,
     },
     rescanBtn: {
         flexDirection: 'row',
@@ -377,6 +380,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 22,
         paddingVertical: 12,
         borderRadius: 14,
+        minHeight: 46,
     },
     rescanBtnText: {
         color: '#FFFFFF',

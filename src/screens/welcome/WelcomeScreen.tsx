@@ -56,9 +56,9 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     };
 
     const features = [
-        { icon: MapPin, text: 'Smart Attendance' },
-        { icon: Calendar, text: 'Leave Management' },
-        { icon: Bell, text: 'Instant Notices' },
+        { icon: MapPin, text: t('smart_attendance', 'Smart Attendance') },
+        { icon: Calendar, text: t('leave_management', 'Leave Management') },
+        { icon: Bell, text: t('instant_notices', 'Instant Notices') },
     ];
 
     return (
@@ -117,13 +117,7 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 <View style={styles.heroSection}>
                     <Animated.View
                         entering={FadeInDown.duration(700).delay(200)}
-                        style={[
-                            styles.logoContainer,
-                            {
-                                backgroundColor: isDark ? 'rgba(255, 51, 51, 0.12)' : 'rgba(223, 0, 0, 0.08)',
-                                borderColor: isDark ? 'rgba(255, 51, 51, 0.25)' : 'rgba(223, 0, 0, 0.2)',
-                            },
-                        ]}
+                        style={styles.logoContainer}
                     >
                         <Image
                             source={require('../../../assets/icon.png')}
@@ -133,14 +127,8 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                     </Animated.View>
 
                     <Animated.View entering={FadeInDown.duration(700).delay(300)} style={styles.brandTitleContainer}>
-                        <View style={styles.badgeRow}>
-                            <Sparkles size={13} color={theme.colors.primary} />
-                            <AppText style={[styles.badgeText, { color: theme.colors.primary }]}>
-                                Enterprise Suite
-                            </AppText>
-                        </View>
                         <AppText style={[styles.brandTitle, { color: theme.colors.textPrimary }]}>
-                            {ENV.APP_NAME || 'HRMS Portal'}
+                            {ENV.APP_NAME || 'SCCG Mobile App'}
                         </AppText>
                     </Animated.View>
 
@@ -274,33 +262,18 @@ const styles = StyleSheet.create({
         paddingVertical: 16,
     },
     logoContainer: {
-        width: 88,
-        height: 88,
-        borderRadius: 24,
-        borderWidth: 1,
-        justifyContent: 'center',
         alignItems: 'center',
+        justifyContent: 'center',
         marginBottom: 16,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#DF0000',
-                shadowOffset: { width: 0, height: 6 },
-                shadowOpacity: 0.15,
-                shadowRadius: 10,
-            },
-            android: {
-                elevation: 4,
-            },
-        }),
     },
     logoImage: {
-        width: 60,
-        height: 60,
-        borderRadius: 14,
+        width: 72,
+        height: 72,
+        borderRadius: 16,
     },
     brandTitleContainer: {
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: 16,
     },
     badgeRow: {
         flexDirection: 'row',
@@ -323,12 +296,12 @@ const styles = StyleSheet.create({
         fontSize: 26,
         fontWeight: '800',
         textAlign: 'center',
-        lineHeight: 32,
+        lineHeight: 34,
         marginBottom: 10,
     },
     heroSubtitle: {
         fontSize: 14,
-        lineHeight: 21,
+        lineHeight: 22,
         textAlign: 'center',
         paddingHorizontal: 12,
         marginBottom: 20,
@@ -348,6 +321,7 @@ const styles = StyleSheet.create({
         borderRadius: 16,
         borderWidth: 1,
         gap: 6,
+        minHeight: 34,
     },
     featurePillText: {
         fontSize: 12,
@@ -362,7 +336,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        height: 52,
+        minHeight: 52,
+        paddingVertical: 12,
         borderRadius: 14,
         gap: 8,
         ...Platform.select({
@@ -385,7 +360,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        height: 50,
+        minHeight: 50,
+        paddingVertical: 12,
         borderRadius: 14,
         borderWidth: 1,
         gap: 8,
@@ -398,7 +374,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 8,
+        paddingVertical: 10,
+        minHeight: 40,
         gap: 6,
     },
     qrButtonText: {

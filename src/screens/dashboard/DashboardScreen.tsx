@@ -39,9 +39,12 @@ import {
 } from 'lucide-react-native';
 import { format } from 'date-fns';
 
+import { useTranslation } from '../../context/LanguageContext';
+
 export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { user } = useAuth();
     const { isDark, toggleTheme } = useAppTheme();
+    const { t } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
 
@@ -134,17 +137,17 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
     const getGreeting = () => {
         const hour = currentTime.getHours();
-        if (hour < 12) return 'Good Morning';
-        if (hour < 18) return 'Good Afternoon';
-        return 'Good Evening';
+        if (hour < 12) return t('good_morning', 'Good Morning');
+        if (hour < 18) return t('good_afternoon', 'Good Afternoon');
+        return t('good_evening', 'Good Evening');
     };
 
     const topBannerAnnouncement = announcements.find(
         (item) => item.pwa_display_type === 'top_banner' || item.is_pinned || item.is_urgent
     );
 
-    const displayName = employeeInfo?.full_name || user?.name || 'Employee';
-    const displayRole = employeeInfo?.designation || user?.position || 'Staff';
+    const displayName = employeeInfo?.full_name || user?.name || t('employee', 'Employee');
+    const displayRole = employeeInfo?.designation || user?.position || t('staff', 'Staff');
 
     const rawAvatarUrl = employeeInfo?.profile_image_url || user?.avatar;
     const avatarUrl = typeof rawAvatarUrl === 'string' && rawAvatarUrl.trim().length > 0 && rawAvatarUrl !== 'null' && rawAvatarUrl !== 'undefined'
@@ -161,8 +164,8 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     const quickActions = [
         {
             id: 'attendance',
-            title: 'Attendance Log',
-            subtitle: 'Past Punch Records',
+            title: t('attendance_log', 'Attendance Log'),
+            subtitle: t('past_punch_records', 'Past Punch Records'),
             icon: History,
             iconColor: '#10B981',
             bgColor: 'rgba(16, 185, 129, 0.12)',
@@ -170,8 +173,8 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         },
         {
             id: 'activity',
-            title: 'Activity Log',
-            subtitle: 'Log Daily Tasks',
+            title: t('activity_log', 'Activity Log'),
+            subtitle: t('log_daily_tasks', 'Log Daily Tasks'),
             icon: Activity,
             iconColor: '#F97316',
             bgColor: 'rgba(249, 115, 22, 0.12)',
@@ -179,8 +182,8 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         },
         {
             id: 'leave',
-            title: 'Leave Requests',
-            subtitle: 'Apply & Balances',
+            title: t('leave_requests', 'Leave Requests'),
+            subtitle: t('apply_and_balances', 'Apply & Balances'),
             icon: Calendar,
             iconColor: '#8B5CF6',
             bgColor: 'rgba(139, 92, 246, 0.12)',
@@ -188,8 +191,8 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         },
         {
             id: 'day_off',
-            title: 'Day Off',
-            subtitle: 'Rest Schedule',
+            title: t('day_off', 'Day Off'),
+            subtitle: t('rest_schedule', 'Rest Schedule'),
             icon: CalendarOff,
             iconColor: '#EF4444',
             bgColor: 'rgba(239, 68, 68, 0.12)',
@@ -197,8 +200,8 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         },
         {
             id: 'calendar',
-            title: 'Schedule Calendar',
-            subtitle: 'Shifts & Holidays',
+            title: t('schedule_calendar', 'Schedule Calendar'),
+            subtitle: t('shifts_and_holidays', 'Shifts & Holidays'),
             icon: Calendar,
             iconColor: '#0EA5E9',
             bgColor: 'rgba(14, 165, 233, 0.12)',
@@ -206,8 +209,8 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         },
         {
             id: 'quizzes',
-            title: 'Quizzes',
-            subtitle: 'Training & Tests',
+            title: t('quizzes', 'Quizzes'),
+            subtitle: t('training_and_tests', 'Training & Tests'),
             icon: Award,
             iconColor: '#6366F1',
             bgColor: 'rgba(99, 102, 241, 0.12)',
@@ -219,8 +222,8 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     if (employeeInfo?.is_top_management || (employeeInfo?.subordinates_count ?? 0) > 0) {
         quickActions.push({
             id: 'subordinate_notices',
-            title: 'Staff Notices',
-            subtitle: 'Subordinate Feed',
+            title: t('staff_notices', 'Staff Notices'),
+            subtitle: t('subordinate_feed', 'Subordinate Feed'),
             icon: FileText,
             iconColor: '#D946EF',
             bgColor: 'rgba(217, 70, 239, 0.12)',
@@ -242,7 +245,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                         onPress={() => navigation.navigate('AnnouncementDetail', { id: topBannerAnnouncement.id })}
                         style={styles.topBannerBtn}
                     >
-                        <Text style={styles.topBannerBtnText}>View</Text>
+                        <Text style={styles.topBannerBtnText}>{t('view', 'View')}</Text>
                     </TouchableOpacity>
                 </View>
             )}
@@ -330,7 +333,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                                     },
                                 ]}
                             >
-                                {isClockedIn ? 'CLOCKED IN' : clockOutTime ? 'CLOCKED OUT' : 'NOT CLOCKED IN'}
+                                {isClockedIn ? t('clocked_in_badge', 'CLOCKED IN') : clockOutTime ? t('clocked_out_badge', 'CLOCKED OUT') : t('not_clocked_in_badge', 'NOT CLOCKED IN')}
                             </Text>
                         </View>
                     </View>
@@ -342,14 +345,14 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                     {/* Attendance Info Details */}
                     <View style={styles.attendanceDetailsRow}>
                         <View>
-                            <Text style={styles.detailLabel}>Clock In</Text>
+                            <Text style={styles.detailLabel}>{t('clock_in', 'Clock In')}</Text>
                             <Text style={styles.detailValue}>
                                 {clockInTime || '--:--'}
                             </Text>
                         </View>
 
                         <View style={styles.itemsCenter}>
-                            <Text style={styles.detailLabel}>Clock Out</Text>
+                            <Text style={styles.detailLabel}>{t('clock_out', 'Clock Out')}</Text>
                             <Text style={styles.detailValue}>
                                 {clockOutTime || '--:--'}
                             </Text>
@@ -357,11 +360,11 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
                         {daysPresent > 0 && (
                             <View style={styles.itemsEnd}>
-                                <Text style={styles.detailLabel}>This Week</Text>
+                                <Text style={styles.detailLabel}>{t('this_week', 'This Week')}</Text>
                                 <View style={styles.rowCentered}>
                                     <Sparkles color={theme.colors.status.success} size={12} />
                                     <Text style={styles.daysPresentText}>
-                                        {daysPresent} Days
+                                        {daysPresent} {t('days', 'Days')}
                                     </Text>
                                 </View>
                             </View>
@@ -375,13 +378,13 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                     >
                         <QrCode color="#FFFFFF" size={20} />
                         <Text style={styles.clockButtonText}>
-                            {isClockedIn ? 'Scan Clock Out' : 'Scan Clock In Now'}
+                            {isClockedIn ? t('scan_clock_out', 'Scan Clock Out') : t('scan_clock_in_now', 'Scan Clock In Now')}
                         </Text>
                     </TouchableOpacity>
                 </View>
 
                 {/* Dynamic Quick Access Menu matching PWA parity */}
-                <Text style={styles.sectionTitle}>Quick Actions</Text>
+                <Text style={styles.sectionTitle}>{t('quick_actions', 'Quick Actions')}</Text>
                 <View style={styles.quickGrid}>
                     {quickActions.map((action) => {
                         const IconComponent = action.icon;
@@ -409,7 +412,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                             <View style={styles.rowCentered}>
                                 <Bell color={theme.colors.primary} size={18} />
                                 <Text style={styles.sectionHeaderTitle}>
-                                    Company Announcements
+                                    {t('company_announcements', 'Company Announcements')}
                                 </Text>
                             </View>
                         </View>
@@ -425,10 +428,10 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                                     {item.title || item.pwa_title}
                                 </Text>
                                 <Text style={styles.announcementSummary} numberOfLines={2}>
-                                    {item.summary || item.content || item.description || 'Tap to view announcement details.'}
+                                    {item.summary || item.content || item.description || t('tap_to_view_announcement', 'Tap to view announcement details.')}
                                 </Text>
                                 <View style={styles.announcementFooter}>
-                                    <Text style={styles.announcementDate}>{item.created_at || 'Company News'}</Text>
+                                    <Text style={styles.announcementDate}>{item.created_at || t('company_news', 'Company News')}</Text>
                                     <ChevronRight color={theme.colors.textSecondary} size={16} />
                                 </View>
                             </TouchableOpacity>
@@ -446,10 +449,10 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                         <Gift color="#EC4899" size={26} />
                         <View style={styles.celebrationTextGroup}>
                             <Text style={styles.celebrationTitle}>
-                                {celebration.message || celebration.title || celebration.milestone || 'Work Celebration!'}
+                                {celebration.message || celebration.title || celebration.milestone || t('work_celebration', 'Work Celebration!')}
                             </Text>
                             <Text style={styles.celebrationSubtitle}>
-                                Tap to send or view celebratory wishes 🎉
+                                {t('tap_send_view_wishes', 'Tap to send or view celebratory wishes 🎉')}
                             </Text>
                         </View>
                         <ChevronRight color="#EC4899" size={18} />
@@ -689,7 +692,8 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     clockButton: {
         backgroundColor: theme.colors.primary,
-        height: 52,
+        minHeight: 52,
+        paddingVertical: 12,
         borderRadius: theme.borderRadius.md,
         flexDirection: 'row',
         justifyContent: 'center',
@@ -716,6 +720,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     gridTile: {
         width: '48%',
+        minHeight: 114,
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg,
         padding: theme.spacing.md,

@@ -144,7 +144,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                     variant="h2"
                     weight="bold"
                     color="primary"
-                    numberOfLines={1}
+                    numberOfLines={2}
                     style={isCentered ? styles.centerText : undefined}
                 >
                     {title}
@@ -183,11 +183,12 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
 
 const styles = StyleSheet.create({
     headerContainer: {
-        height: 52,
+        minHeight: 52,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
+        paddingVertical: 6,
         zIndex: 10,
     },
     leftSlot: {
@@ -198,6 +199,7 @@ const styles = StyleSheet.create({
     titleContainer: {
         flex: 1,
         justifyContent: 'center',
+        paddingVertical: 2,
     },
     titleCentered: {
         alignItems: 'center',
@@ -256,3 +258,4 @@ const styles = StyleSheet.create({
         height: 38,
     },
 });
+

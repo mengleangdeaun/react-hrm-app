@@ -26,6 +26,8 @@ interface AppShellProps {
     style?: any;
     contentContainerStyle?: any;
     showHeader?: boolean;
+    includeTopInset?: boolean;
+    includeBottomInset?: boolean;
     onScroll?: (event: any) => void;
     scrollEventThrottle?: number;
 }
@@ -44,6 +46,8 @@ export const AppShell: React.FC<AppShellProps> = ({
     style,
     contentContainerStyle,
     showHeader = true,
+    includeTopInset = true,
+    includeBottomInset = true,
     onScroll,
     scrollEventThrottle = 16,
 }) => {
@@ -52,9 +56,11 @@ export const AppShell: React.FC<AppShellProps> = ({
     const theme = isDark ? darkTheme : lightTheme;
 
     const hasHeader = showHeader && (title || onBack || onClose || headerRight);
+    const topInset = includeTopInset ? insets.top : 0;
+    const bottomInset = includeBottomInset ? insets.bottom : 0;
 
     return (
-        <View style={[styles.safeArea, { paddingTop: insets.top, backgroundColor: theme.colors.background }, style]}>
+        <View style={[styles.safeArea, { paddingTop: topInset, backgroundColor: theme.colors.background }, style]}>
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
 
             <OfflineBanner />
@@ -79,7 +85,11 @@ export const AppShell: React.FC<AppShellProps> = ({
             {scrollable ? (
                 <ScrollView
                     style={styles.scrollContainer}
-                    contentContainerStyle={[styles.scrollContent, contentContainerStyle]}
+                    contentContainerStyle={[
+                        styles.scrollContent,
+                        { paddingBottom: Math.max(32, bottomInset + 16) },
+                        contentContainerStyle,
+                    ]}
                     onScroll={onScroll}
                     scrollEventThrottle={scrollEventThrottle}
                     refreshControl={
@@ -91,7 +101,9 @@ export const AppShell: React.FC<AppShellProps> = ({
                     {children}
                 </ScrollView>
             ) : (
-                <View style={[styles.fixedContainer, contentContainerStyle]}>{children}</View>
+                <View style={[styles.fixedContainer, { paddingBottom: bottomInset }, contentContainerStyle]}>
+                    {children}
+                </View>
             )}
         </View>
     );

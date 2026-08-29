@@ -69,7 +69,9 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
                 {
                     backgroundColor: config.bg,
                     paddingHorizontal: isSmall ? 6 : 8,
-                    paddingVertical: isSmall ? 2 : 3,
+                    paddingVertical: isSmall ? 3 : 4,
+                    minHeight: isSmall ? 20 : 24,
+                    minWidth: isSmall ? 48 : 56,
                 },
                 style,
             ]}
@@ -82,6 +84,7 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
                         color: config.text,
                         fontSize: isSmall ? 9 : 10,
                         letterSpacing: 0.4,
+                        textAlign: 'center',
                     },
                     textStyle,
                 ]}
@@ -99,5 +102,6 @@ const styles = StyleSheet.create({
         alignSelf: 'flex-start',
         justifyContent: 'center',
         alignItems: 'center',
+        flexDirection: 'row',
     },
 });
