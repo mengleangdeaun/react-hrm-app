@@ -81,6 +81,7 @@ function ProfileStack() {
             <Stack.Screen name="ProfileMain" component={ProfileScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
             <Stack.Screen name="OnboardingTour" component={OnboardingScreen} />
+            <Stack.Screen name="AppTour" component={OnboardingScreen} />
         </Stack.Navigator>
     );
 }

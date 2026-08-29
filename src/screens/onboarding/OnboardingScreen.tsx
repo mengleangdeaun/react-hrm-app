@@ -1,45 +1,48 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useCallback } from 'react';
 import {
     View,
     TouchableOpacity,
     StatusBar,
     StyleSheet,
-    FlatList as RNFlatList,
+    Animated,
     useWindowDimensions,
     Platform,
+    ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUnistyles } from 'react-native-unistyles';
-import Animated, {
-    FadeIn,
-    FadeInDown,
-    FadeInUp,
-} from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import {
-    MapPin,
-    CalendarCheck,
-    Megaphone,
     ArrowRight,
+    ArrowLeft,
     Check,
     X,
-    Shield,
-    Clock,
-    Award,
+    Globe,
+    Sun,
+    Moon,
+    ChevronRight,
 } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 import { AppText } from '../../components/AppText';
 import { HeaderIconButton } from '../../components/common/AppHeader';
+import {
+    AttendanceIllustration,
+    ActivityIllustration,
+    LeaveIllustration,
+    QuizIllustration,
+    ProgressIllustration,
+    CalendarIllustration,
+    AnnouncementIllustration,
+} from './components/OnboardingIllustrations';
 
 interface SlideItem {
     id: string;
+    featureKey: string;
     titleKey: string;
     descKey: string;
-    badge: string;
-    icon: React.ComponentType<{ size: number; color: string }>;
-    accentColor: string;
-    highlights: Array<{ icon: React.ComponentType<{ size: number; color: string }>; label: string }>;
+    illustration: React.ComponentType<{ size?: number; accentColor?: string; isDark?: boolean }>;
 }
 
 export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
@@ -47,68 +50,142 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
     route,
 }) => {
     const { width } = useWindowDimensions();
-    const { isDark } = useAppTheme();
+    const { isDark, toggleTheme } = useAppTheme();
     const { theme } = useUnistyles();
-    const { t } = useTranslation();
+    const { t, locale, setLocale } = useTranslation();
     const { completeOnboarding } = useAuth();
 
     const isReviewMode = route?.params?.isReviewMode === true;
     const [activeIndex, setActiveIndex] = useState(0);
     const flatListRef = useRef<any>(null);
+    const scrollX = useRef(new Animated.Value(0)).current;
 
+    // ── 7 Core Application Features Slides ──────────────────────────────────
     const slides: SlideItem[] = [
         {
             id: '1',
+            featureKey: 'attendance',
             titleKey: 'onboarding_1_title',
             descKey: 'onboarding_1_desc',
-            badge: 'GPS & Geofencing',
-            icon: MapPin,
-            accentColor: '#3B82F6',
-            highlights: [
-                { icon: Clock, label: 'One-Tap Clock In/Out' },
-                { icon: Shield, label: 'Anti-Spoofing GPS' },
-            ],
+            illustration: AttendanceIllustration,
         },
         {
             id: '2',
+            featureKey: 'activity',
             titleKey: 'onboarding_2_title',
             descKey: 'onboarding_2_desc',
-            badge: 'Fast Approvals',
-            icon: CalendarCheck,
-            accentColor: '#10B981',
-            highlights: [
-                { icon: CalendarCheck, label: 'Real-time Balance' },
-                { icon: Award, label: 'Manager Notifications' },
-            ],
+            illustration: ActivityIllustration,
         },
         {
             id: '3',
+            featureKey: 'leave',
             titleKey: 'onboarding_3_title',
             descKey: 'onboarding_3_desc',
-            badge: 'Stay Connected',
-            icon: Megaphone,
-            accentColor: '#F59E0B',
-            highlights: [
-                { icon: Megaphone, label: 'Instant Announcements' },
-                { icon: Award, label: 'Interactive Quizzes' },
-            ],
+            illustration: LeaveIllustration,
+        },
+        {
+            id: '4',
+            featureKey: 'quizzes',
+            titleKey: 'onboarding_4_title',
+            descKey: 'onboarding_4_desc',
+            illustration: QuizIllustration,
+        },
+        {
+            id: '5',
+            featureKey: 'progress',
+            titleKey: 'onboarding_5_title',
+            descKey: 'onboarding_5_desc',
+            illustration: ProgressIllustration,
+        },
+        {
+            id: '6',
+            featureKey: 'schedule',
+            titleKey: 'onboarding_6_title',
+            descKey: 'onboarding_6_desc',
+            illustration: CalendarIllustration,
+        },
+        {
+            id: '7',
+            featureKey: 'notices',
+            titleKey: 'onboarding_7_title',
+            descKey: 'onboarding_7_desc',
+            illustration: AnnouncementIllustration,
         },
     ];
 
     const isLastSlide = activeIndex === slides.length - 1;
 
+    // ── Reliable Slide Visibility & Sync Tracking ───────────────────────────
+    const viewabilityConfig = useRef({
+        itemVisiblePercentThreshold: 50,
+        waitForInteraction: false,
+    }).current;
+
+    const onViewableItemsChanged = useRef(({ viewableItems }: any) => {
+        if (viewableItems && viewableItems.length > 0) {
+            const firstVisible = viewableItems[0];
+            if (
+                firstVisible.index !== null &&
+                firstVisible.index !== undefined &&
+                typeof firstVisible.index === 'number'
+            ) {
+                setActiveIndex(firstVisible.index);
+            }
+        }
+    }).current;
+
+    const updateIndexFromOffset = useCallback(
+        (offsetX: number) => {
+            const idx = Math.round(offsetX / width);
+            if (idx >= 0 && idx < slides.length && idx !== activeIndex) {
+                setActiveIndex(idx);
+            }
+        },
+        [width, slides.length, activeIndex]
+    );
+
+    const scrollToIndex = useCallback(
+        (index: number) => {
+            if (index < 0 || index >= slides.length) return;
+            setActiveIndex(index);
+            try {
+                flatListRef.current?.scrollToOffset({
+                    offset: index * width,
+                    animated: true,
+                });
+            } catch (e) {
+                try {
+                    flatListRef.current?.scrollToIndex({
+                        index,
+                        animated: true,
+                    });
+                } catch (err) {
+                    // Ignore
+                }
+            }
+            Haptics.selectionAsync();
+        },
+        [slides.length, width]
+    );
+
     const handleNext = () => {
-        if (isLastSlide) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        if (activeIndex >= slides.length - 1) {
             handleFinish();
         } else {
-            flatListRef.current?.scrollToIndex({
-                index: activeIndex + 1,
-                animated: true,
-            });
+            scrollToIndex(activeIndex + 1);
+        }
+    };
+
+    const handlePrevious = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+        if (activeIndex > 0) {
+            scrollToIndex(activeIndex - 1);
         }
     };
 
     const handleSkip = async () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
         await handleFinish();
     };
 
@@ -121,99 +198,48 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
         navigation.replace('Login');
     };
 
-    const onMomentumScrollEnd = (e: any) => {
-        const slideIndex = Math.round(e.nativeEvent.contentOffset.x / width);
-        setActiveIndex(slideIndex);
+    const toggleLanguage = () => {
+        Haptics.selectionAsync();
+        setLocale(locale === 'en' ? 'kh' : 'en');
     };
 
     const renderSlide = ({ item }: { item: SlideItem }) => {
-        const IconComponent = item.icon;
+        const IllustrationComponent = item.illustration;
+        const illustrationSize = Math.min(width * 0.72, 260);
 
         return (
-            <View style={[styles.slideContainer, { width }]}>
-                {/* Visual Illustration Card */}
-                <View
-                    style={[
-                        styles.illustrationCard,
-                        {
-                            backgroundColor: isDark ? '#1A1D24' : '#F1F5F9',
-                            borderColor: isDark ? '#2D333F' : '#E2E8F0',
-                        },
-                    ]}
+            <View style={[styles.slideWrapper, { width }]}>
+                <ScrollView
+                    contentContainerStyle={styles.slideScrollContent}
+                    showsVerticalScrollIndicator={false}
+                    bounces={false}
                 >
-                    {/* Glow backdrop circle */}
-                    <View
-                        style={[
-                            styles.glowCircle,
-                            {
-                                backgroundColor: item.accentColor,
-                                opacity: isDark ? 0.15 : 0.1,
-                            },
-                        ]}
-                    />
-
-                    {/* Central Icon */}
-                    <View
-                        style={[
-                            styles.iconWrapper,
-                            {
-                                backgroundColor: isDark ? '#232936' : '#FFFFFF',
-                                borderColor: isDark ? '#333B4E' : '#E2E8F0',
-                            },
-                        ]}
-                    >
-                        <IconComponent size={44} color={item.accentColor} />
+                    {/* SVG Vector Illustration (Centered) */}
+                    <View style={styles.illustrationWrapper}>
+                        <IllustrationComponent
+                            size={illustrationSize}
+                            isDark={isDark}
+                        />
                     </View>
 
-                    {/* Badge */}
-                    <View
-                        style={[
-                            styles.slideBadge,
-                            {
-                                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
-                                borderColor: isDark ? 'rgba(255, 255, 255, 0.12)' : 'rgba(0, 0, 0, 0.08)',
-                            },
-                        ]}
-                    >
-                        <AppText style={[styles.slideBadgeText, { color: item.accentColor }]}>
-                            {item.badge}
+                    {/* Text Details: Title & Description (Centered) */}
+                    <View style={styles.textContent}>
+                        <AppText
+                            variant="h1"
+                            weight="bold"
+                            style={[styles.slideTitle, { color: theme.colors.textPrimary }]}
+                        >
+                            {t(item.titleKey)}
+                        </AppText>
+
+                        <AppText
+                            variant="body"
+                            style={[styles.slideDesc, { color: theme.colors.textSecondary }]}
+                        >
+                            {t(item.descKey)}
                         </AppText>
                     </View>
-
-                    {/* Highlights chips */}
-                    <View style={styles.highlightsContainer}>
-                        {item.highlights.map((h, i) => {
-                            const HIcon = h.icon;
-                            return (
-                                <View
-                                    key={i}
-                                    style={[
-                                        styles.highlightChip,
-                                        {
-                                            backgroundColor: isDark ? '#252C3A' : '#FFFFFF',
-                                            borderColor: isDark ? '#374151' : '#E5E7EB',
-                                        },
-                                    ]}
-                                >
-                                    <HIcon size={14} color={item.accentColor} />
-                                    <AppText style={[styles.highlightChipText, { color: theme.colors.textSecondary }]}>
-                                        {h.label}
-                                    </AppText>
-                                </View>
-                            );
-                        })}
-                    </View>
-                </View>
-
-                {/* Text Content */}
-                <View style={styles.textWrapper}>
-                    <AppText style={[styles.slideTitle, { color: theme.colors.textPrimary }]}>
-                        {t(item.titleKey)}
-                    </AppText>
-                    <AppText style={[styles.slideDesc, { color: theme.colors.textSecondary }]}>
-                        {t(item.descKey)}
-                    </AppText>
-                </View>
+                </ScrollView>
             </View>
         );
     };
@@ -225,37 +251,62 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                 backgroundColor={theme.colors.background}
             />
 
-            {/* Top Navigation Bar */}
+            {/* ── Top Utility Bar: Clean Header with only Language & Theme ── */}
             <View style={styles.topBar}>
-                {isReviewMode ? (
-                    <HeaderIconButton
-                        icon={<X size={18} color={theme.colors.textPrimary} />}
-                        onPress={() => navigation.goBack()}
-                        accessibilityLabel="Close tour"
-                    />
-                ) : (
-                    <View style={styles.stepIndicator}>
-                        <AppText style={[styles.stepText, { color: theme.colors.textSecondary }]}>
-                            {activeIndex + 1} / {slides.length}
-                        </AppText>
-                    </View>
-                )}
-
-                {!isReviewMode && (
+                {/* Left Side: Language Switcher (plus Close button if in review mode) */}
+                <View style={styles.topLeft}>
+                    {isReviewMode && (
+                        <HeaderIconButton
+                            icon={<X size={18} color={theme.colors.textPrimary} />}
+                            onPress={() => navigation.goBack()}
+                            accessibilityLabel="Close tour"
+                        />
+                    )}
                     <TouchableOpacity
-                        style={styles.skipButton}
-                        onPress={handleSkip}
+                        style={[
+                            styles.utilityButton,
+                            {
+                                backgroundColor: theme.colors.surface,
+                                borderColor: theme.colors.border,
+                            },
+                        ]}
+                        onPress={toggleLanguage}
                         activeOpacity={0.7}
+                        accessibilityLabel="Change Language"
                     >
-                        <AppText style={[styles.skipText, { color: theme.colors.textSecondary }]}>
-                            {t('skip')}
+                        <Globe size={16} color={theme.colors.textPrimary} />
+                        <AppText style={[styles.utilityButtonText, { color: theme.colors.textPrimary }]}>
+                            {locale === 'en' ? 'ភាសាខ្មែរ' : 'English'}
                         </AppText>
                     </TouchableOpacity>
-                )}
+                </View>
+
+                {/* Right Side: Theme Mode Switcher */}
+                <TouchableOpacity
+                    style={[
+                        styles.iconButton,
+                        {
+                            backgroundColor: theme.colors.surface,
+                            borderColor: theme.colors.border,
+                        },
+                    ]}
+                    onPress={() => {
+                        Haptics.selectionAsync();
+                        toggleTheme();
+                    }}
+                    activeOpacity={0.7}
+                    accessibilityLabel="Toggle Theme"
+                >
+                    {isDark ? (
+                        <Sun size={18} color="#FBBF24" />
+                    ) : (
+                        <Moon size={18} color="#6366F1" />
+                    )}
+                </TouchableOpacity>
             </View>
 
-            {/* Slide Carousel */}
-            <RNFlatList
+            {/* ── Main Feature Carousel ───────────────────────────────────────── */}
+            <Animated.FlatList
                 ref={flatListRef}
                 data={slides}
                 keyExtractor={(item: SlideItem) => item.id}
@@ -263,59 +314,164 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                 pagingEnabled
                 showsHorizontalScrollIndicator={false}
                 bounces={false}
-                onMomentumScrollEnd={onMomentumScrollEnd}
-                renderItem={({ item }: { item: SlideItem }) => renderSlide({ item })}
+                scrollEventThrottle={16}
+                decelerationRate="fast"
+                snapToInterval={width}
+                snapToAlignment="center"
+                disableIntervalMomentum={Platform.OS !== 'web'}
+                initialNumToRender={slides.length}
+                maxToRenderPerBatch={slides.length}
+                windowSize={slides.length}
+                onScroll={Animated.event(
+                    [{ nativeEvent: { contentOffset: { x: scrollX } } }],
+                    { useNativeDriver: false }
+                )}
+                onViewableItemsChanged={onViewableItemsChanged}
+                viewabilityConfig={viewabilityConfig}
+                onMomentumScrollEnd={(e: any) => {
+                    updateIndexFromOffset(e.nativeEvent.contentOffset.x);
+                }}
+                onScrollEndDrag={(e: any) => {
+                    updateIndexFromOffset(e.nativeEvent.contentOffset.x);
+                }}
+                getItemLayout={(_data: any, index: number) => ({
+                    length: width,
+                    offset: width * index,
+                    index,
+                })}
+                onScrollToIndexFailed={(info: { index: number }) => {
+                    flatListRef.current?.scrollToOffset({
+                        offset: info.index * width,
+                        animated: true,
+                    });
+                }}
+                renderItem={renderSlide}
                 style={styles.carousel}
             />
 
-            {/* Bottom Controls */}
-            <View style={styles.bottomControls}>
-                {/* Pagination Dots */}
+            {/* ── Floating Skip Button at Bottom Right (before last slide) ──── */}
+            {!isReviewMode && !isLastSlide && (
+                <View style={styles.floatingSkipContainer} pointerEvents="box-none">
+                    <TouchableOpacity
+                        style={[
+                            styles.floatingSkipButton,
+                            {
+                                backgroundColor: isDark ? 'rgba(35, 41, 54, 0.92)' : 'rgba(255, 255, 255, 0.95)',
+                                borderColor: isDark ? '#333C4F' : '#E2E8F0',
+                            },
+                        ]}
+                        onPress={handleSkip}
+                        activeOpacity={0.75}
+                        accessibilityLabel="Skip Onboarding"
+                    >
+                        <AppText variant="caption" weight="bold" style={{ color: theme.colors.textSecondary }}>
+                            {t('skip')}
+                        </AppText>
+                        <ChevronRight size={13} color={theme.colors.textSecondary} />
+                    </TouchableOpacity>
+                </View>
+            )}
+
+            {/* ── Bottom Controls ────────────────────────────────────────────── */}
+            <View
+                style={[
+                    styles.bottomBar,
+                    {
+                        backgroundColor: theme.colors.background,
+                    },
+                ]}
+            >
+                {/* Pagination Dots Row: Smooth Real-Time Interpolation */}
                 <View style={styles.paginationRow}>
                     {slides.map((_, idx) => {
-                        const isActive = idx === activeIndex;
+                        const inputRange = [
+                            (idx - 1) * width,
+                            idx * width,
+                            (idx + 1) * width,
+                        ];
+
+                        const dotWidth = scrollX.interpolate({
+                            inputRange,
+                            outputRange: [6, 24, 6],
+                            extrapolate: 'clamp',
+                        });
+
+                        const dotOpacity = scrollX.interpolate({
+                            inputRange,
+                            outputRange: [0.3, 1, 0.3],
+                            extrapolate: 'clamp',
+                        });
+
                         return (
-                            <View
+                            <TouchableOpacity
                                 key={idx}
-                                style={[
-                                    styles.dot,
-                                    isActive
-                                        ? [
-                                              styles.activeDot,
-                                              { backgroundColor: theme.colors.primary },
-                                          ]
-                                        : [
-                                              styles.inactiveDot,
-                                              {
-                                                  backgroundColor: isDark
-                                                      ? '#374151'
-                                                      : '#CBD5E1',
-                                              },
-                                          ],
-                                ]}
-                            />
+                                onPress={() => scrollToIndex(idx)}
+                                hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+                                activeOpacity={0.7}
+                            >
+                                <Animated.View
+                                    style={[
+                                        styles.dot,
+                                        {
+                                            width: dotWidth,
+                                            opacity: dotOpacity,
+                                            backgroundColor: theme.colors.primary,
+                                        },
+                                    ]}
+                                />
+                            </TouchableOpacity>
                         );
                     })}
                 </View>
 
-                {/* Primary Button */}
-                <TouchableOpacity
-                    style={[
-                        styles.primaryButton,
-                        { backgroundColor: theme.colors.primary },
-                    ]}
-                    onPress={handleNext}
-                    activeOpacity={0.85}
-                >
-                    <AppText style={[styles.primaryButtonText, { color: theme.colors.onPrimary }]}>
-                        {isLastSlide ? t('onboarding_finish_btn') : t('next')}
-                    </AppText>
-                    {isLastSlide ? (
-                        <Check size={18} color={theme.colors.onPrimary} />
-                    ) : (
-                        <ArrowRight size={18} color={theme.colors.onPrimary} />
+                {/* Navigation Buttons Row */}
+                <View style={styles.navButtonsRow}>
+                    {/* Previous Button (if past slide 0) */}
+                    {activeIndex > 0 && (
+                        <TouchableOpacity
+                            style={[
+                                styles.secondaryButton,
+                                {
+                                    backgroundColor: isDark ? '#232936' : '#F1F5F9',
+                                    borderColor: isDark ? '#333C4F' : '#E2E8F0',
+                                },
+                            ]}
+                            onPress={handlePrevious}
+                            activeOpacity={0.75}
+                        >
+                            <ArrowLeft size={16} color={theme.colors.textPrimary} />
+                            <AppText variant="button" weight="bold" style={{ color: theme.colors.textPrimary }}>
+                                {t('onboarding_previous', 'Back')}
+                            </AppText>
+                        </TouchableOpacity>
                     )}
-                </TouchableOpacity>
+
+                    {/* Primary Action Button (Next / Get Started) - Unified Brand Color */}
+                    <TouchableOpacity
+                        style={[
+                            styles.primaryButton,
+                            {
+                                backgroundColor: theme.colors.primary,
+                                flex: 1,
+                            },
+                        ]}
+                        onPress={handleNext}
+                        activeOpacity={0.85}
+                    >
+                        <AppText variant="button" weight="bold" style={{ color: '#FFFFFF' }}>
+                            {isLastSlide
+                                ? isReviewMode
+                                    ? t('onboarding_finish_tour', 'Done Exploring')
+                                    : t('onboarding_finish_btn', 'Start Using')
+                                : t('next', 'Next')}
+                        </AppText>
+                        {isLastSlide ? (
+                            <Check size={18} color="#FFFFFF" />
+                        ) : (
+                            <ArrowRight size={18} color="#FFFFFF" />
+                        )}
+                    </TouchableOpacity>
+                </View>
             </View>
         </SafeAreaView>
     );
@@ -331,181 +487,152 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 24,
         paddingTop: 8,
-        paddingBottom: 4,
-        minHeight: 44,
+        paddingBottom: 8,
     },
-    stepIndicator: {
-        paddingHorizontal: 10,
-        paddingVertical: 4,
-        borderRadius: 12,
+    topLeft: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
     },
-    stepText: {
+    utilityButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 20,
+        borderWidth: 1,
+        gap: 6,
+    },
+    utilityButtonText: {
         fontSize: 13,
         fontWeight: '600',
     },
-    closeButton: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
+    iconButton: {
+        width: 38,
+        height: 38,
+        borderRadius: 19,
         borderWidth: 1,
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    skipButton: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-    },
-    skipText: {
-        fontSize: 14,
-        fontWeight: '600',
     },
     carousel: {
         flex: 1,
     },
-    slideContainer: {
+    slideWrapper: {
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        paddingHorizontal: 28,
     },
-    illustrationCard: {
-        width: '100%',
-        height: 250,
-        borderRadius: 24,
-        borderWidth: 1,
+    slideScrollContent: {
+        flexGrow: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        position: 'relative',
-        overflow: 'hidden',
-        marginBottom: 28,
+        paddingHorizontal: 28,
+        paddingTop: 10,
+        paddingBottom: 30,
+        gap: 24,
+    },
+    illustrationWrapper: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+        marginVertical: 10,
+    },
+    textContent: {
+        alignItems: 'center',
+        justifyContent: 'center',
+        width: '100%',
+        paddingHorizontal: 12,
+        gap: 12,
+    },
+    slideTitle: {
+        textAlign: 'center',
+        fontSize: 23,
+        lineHeight: 30,
+        letterSpacing: -0.2,
+    },
+    slideDesc: {
+        textAlign: 'center',
+        paddingHorizontal: 8,
+        fontSize: 15,
+        lineHeight: 23,
+    },
+    floatingSkipContainer: {
+        position: 'absolute',
+        right: 20,
+        bottom: 86,
+        zIndex: 10,
+    },
+    floatingSkipButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+        borderRadius: 16,
+        borderWidth: 1,
+        gap: 3,
         ...Platform.select({
             ios: {
                 shadowColor: '#000000',
-                shadowOffset: { width: 0, height: 6 },
-                shadowOpacity: 0.08,
-                shadowRadius: 12,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.1,
+                shadowRadius: 4,
             },
             android: {
                 elevation: 3,
             },
         }),
     },
-    glowCircle: {
-        position: 'absolute',
-        width: 180,
-        height: 180,
-        borderRadius: 90,
-    },
-    iconWrapper: {
-        width: 84,
-        height: 84,
-        borderRadius: 28,
-        borderWidth: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 12,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.1,
-                shadowRadius: 8,
-            },
-            android: {
-                elevation: 2,
-            },
-        }),
-    },
-    slideBadge: {
-        paddingHorizontal: 12,
-        paddingVertical: 4,
-        borderRadius: 12,
-        borderWidth: 1,
-        marginBottom: 14,
-    },
-    slideBadgeText: {
-        fontSize: 12,
-        fontWeight: '700',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
-    highlightsContainer: {
-        flexDirection: 'row',
-        gap: 8,
-    },
-    highlightChip: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-        borderRadius: 12,
-        borderWidth: 1,
-        gap: 6,
-    },
-    highlightChipText: {
-        fontSize: 11,
-        fontWeight: '600',
-    },
-    textWrapper: {
-        alignItems: 'center',
-        paddingHorizontal: 8,
-    },
-    slideTitle: {
-        fontSize: 22,
-        fontWeight: '800',
-        textAlign: 'center',
-        lineHeight: 28,
-        marginBottom: 10,
-    },
-    slideDesc: {
-        fontSize: 14,
-        lineHeight: 22,
-        textAlign: 'center',
-        paddingHorizontal: 12,
-    },
-    bottomControls: {
-        paddingHorizontal: 24,
-        paddingBottom: 24,
-        paddingTop: 12,
-        gap: 20,
+    bottomBar: {
+        paddingHorizontal: 20,
+        paddingBottom: Platform.OS === 'ios' ? 12 : 18,
+        paddingTop: 10,
+        gap: 12,
     },
     paginationRow: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
         gap: 6,
+        height: 10,
     },
     dot: {
-        height: 7,
-        borderRadius: 4,
+        height: 6,
+        borderRadius: 3,
     },
-    activeDot: {
-        width: 24,
+    navButtonsRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
     },
-    inactiveDot: {
-        width: 7,
+    secondaryButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: 48,
+        paddingHorizontal: 16,
+        borderRadius: 14,
+        borderWidth: 1,
+        gap: 6,
     },
     primaryButton: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        height: 52,
+        height: 48,
+        paddingHorizontal: 20,
         borderRadius: 14,
         gap: 8,
         ...Platform.select({
             ios: {
-                shadowColor: '#DF0000',
+                shadowColor: '#000000',
                 shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.25,
-                shadowRadius: 8,
+                shadowOpacity: 0.2,
+                shadowRadius: 6,
             },
             android: {
                 elevation: 3,
             },
         }),
-    },
-    primaryButtonText: {
-        fontSize: 16,
-        fontWeight: '700',
     },
 });

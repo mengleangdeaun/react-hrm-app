@@ -17,10 +17,6 @@ import {
     ArrowRight,
     Sun,
     Moon,
-    MapPin,
-    Calendar,
-    Bell,
-    Sparkles,
     Globe,
 } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
@@ -54,12 +50,6 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     const toggleLanguage = () => {
         setLocale(locale === 'en' ? 'kh' : 'en');
     };
-
-    const features = [
-        { icon: MapPin, text: t('smart_attendance', 'Smart Attendance') },
-        { icon: Calendar, text: t('leave_management', 'Leave Management') },
-        { icon: Bell, text: t('instant_notices', 'Instant Notices') },
-    ];
 
     return (
         <SafeAreaView {...({ style: [styles.container, { backgroundColor: theme.colors.background }] } as any)}>
@@ -140,34 +130,10 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                             {t('welcome_subtitle')}
                         </AppText>
                     </Animated.View>
-
-                    {/* Highlights Badges */}
-                    <Animated.View entering={FadeInDown.duration(700).delay(500)} style={styles.featuresRow}>
-                        {features.map((feat, idx) => {
-                            const IconComponent = feat.icon;
-                            return (
-                                <View
-                                    key={idx}
-                                    style={[
-                                        styles.featurePill,
-                                        {
-                                            backgroundColor: theme.colors.surface,
-                                            borderColor: theme.colors.border,
-                                        },
-                                    ]}
-                                >
-                                    <IconComponent size={14} color={theme.colors.primary} />
-                                    <AppText style={[styles.featurePillText, { color: theme.colors.textSecondary }]}>
-                                        {feat.text}
-                                    </AppText>
-                                </View>
-                            );
-                        })}
-                    </Animated.View>
                 </View>
 
                 {/* Action Buttons Section */}
-                <Animated.View entering={FadeInUp.duration(700).delay(600)} style={styles.actionsSection}>
+                <Animated.View entering={FadeInUp.duration(700).delay(500)} style={styles.actionsSection}>
                     {/* Primary Button */}
                     <TouchableOpacity
                         style={[
@@ -233,7 +199,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 20,
+        marginBottom: 16,
     },
     utilityButton: {
         flexDirection: 'row',
@@ -259,33 +225,32 @@ const styles = StyleSheet.create({
     heroSection: {
         alignItems: 'center',
         justifyContent: 'center',
-        paddingVertical: 16,
+        paddingVertical: 12,
     },
     logoContainer: {
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 16,
+        marginBottom: 18,
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000000',
+                shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: 0.12,
+                shadowRadius: 10,
+            },
+            android: {
+                elevation: 4,
+            },
+        }),
     },
     logoImage: {
-        width: 72,
-        height: 72,
-        borderRadius: 16,
+        width: 100,
+        height: 100,
+        borderRadius: 22,
     },
     brandTitleContainer: {
         alignItems: 'center',
-        marginBottom: 16,
-    },
-    badgeRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-        marginBottom: 4,
-    },
-    badgeText: {
-        fontSize: 12,
-        fontWeight: '700',
-        textTransform: 'uppercase',
-        letterSpacing: 0.8,
+        marginBottom: 14,
     },
     brandTitle: {
         fontSize: 22,
@@ -297,40 +262,18 @@ const styles = StyleSheet.create({
         fontWeight: '800',
         textAlign: 'center',
         lineHeight: 34,
-        marginBottom: 10,
+        marginBottom: 12,
     },
     heroSubtitle: {
         fontSize: 14,
         lineHeight: 22,
         textAlign: 'center',
-        paddingHorizontal: 12,
-        marginBottom: 20,
-    },
-    featuresRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'center',
-        gap: 8,
-        marginTop: 6,
-    },
-    featurePill: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 7,
-        borderRadius: 16,
-        borderWidth: 1,
-        gap: 6,
-        minHeight: 34,
-    },
-    featurePillText: {
-        fontSize: 12,
-        fontWeight: '600',
+        paddingHorizontal: 16,
     },
     actionsSection: {
         width: '100%',
         gap: 12,
-        marginTop: 24,
+        marginTop: 20,
     },
     primaryButton: {
         flexDirection: 'row',

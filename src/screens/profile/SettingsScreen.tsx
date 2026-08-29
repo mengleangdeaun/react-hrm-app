@@ -455,7 +455,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                     {/* App Tour Trigger */}
                     <TouchableOpacity
                         style={styles.row}
-                        onPress={() => navigation.navigate('AppTour', { isReviewMode: true })}
+                        onPress={() => navigation.navigate('OnboardingTour', { isReviewMode: true })}
                         activeOpacity={0.8}
                     >
                         <View style={styles.rowInfo}>

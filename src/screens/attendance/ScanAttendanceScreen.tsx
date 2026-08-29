@@ -6,30 +6,17 @@ import {
     Alert,
     ActivityIndicator,
     Modal,
-    Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
-import Animated, {
-    useSharedValue,
-    useAnimatedStyle,
-    withRepeat,
-    withTiming,
-    Easing,
-} from 'react-native-reanimated';
 import { useQueryClient } from '@tanstack/react-query';
 import {
     MapPin,
-    Navigation,
+    Navigation as NavigationIcon,
     CheckCircle2,
     QrCode,
-    ArrowLeft,
-    Zap,
-    ZapOff,
-    RefreshCw,
-    ShieldAlert,
 } from 'lucide-react-native';
 import { attendanceApi, AttendanceClockInResponse } from '../../api/attendance';
 import { useAppTheme } from '../../context/ThemeContext';
@@ -37,9 +24,10 @@ import { AppText } from '../../components/AppText';
 import { extractBranchQrPayload, BranchQrParseResult } from '../../utils/qrPayload';
 import { getDeviceId } from '../../utils/device';
 import { AttendanceReasonModal } from '../../components/attendance/AttendanceReasonModal';
-
 import { useTranslation } from '../../context/LanguageContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
+import { ModernScannerCanvas } from '../../components/scanner/ModernScannerCanvas';
+import { useImageQrDecoder } from '../../components/scanner/useImageQrDecoder';
 
 export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark } = useAppTheme();
@@ -57,7 +45,6 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
 
     // Scanner UI States
     const [scanned, setScanned] = useState<boolean>(false);
-    const [torch, setTorch] = useState<boolean>(false);
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
     // Reason Modal State
@@ -76,23 +63,6 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
 
     // Anti-race condition lock
     const isProcessingRef = useRef<boolean>(false);
-
-    // Laser scan animation
-    const translateY = useSharedValue(0);
-
-    useEffect(() => {
-        translateY.value = withRepeat(
-            withTiming(230, { duration: 2500, easing: Easing.inOut(Easing.quad) }),
-            -1,
-            true
-        );
-    }, []);
-
-    const laserAnimatedStyle = useAnimatedStyle(() => {
-        return {
-            transform: [{ translateY: translateY.value }],
-        };
-    });
 
     useEffect(() => {
         acquireLocation();
@@ -225,8 +195,8 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
         }
     };
 
-    const handleBarCodeScanned = async ({ data }: { data: string }) => {
-        if (isProcessingRef.current || scanned || isSubmitting) return;
+    const handleBarCodeScanned = async ({ data }: { data: string }, force: boolean = false) => {
+        if ((isProcessingRef.current && !force) || (scanned && !force) || isSubmitting) return;
         isProcessingRef.current = true;
         setScanned(true);
 
@@ -243,6 +213,25 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
         }
 
         await executePunch(parseResult);
+    };
+
+    // Photo QR Decoder
+    const { pickAndDecodeImage, isDecoding } = useImageQrDecoder({
+        onQrDecoded: async (data) => {
+            resetScanState();
+            await handleBarCodeScanned({ data }, true);
+        },
+        onError: () => {
+            resetScanState();
+        },
+    });
+
+    const handleBackNavigation = () => {
+        if (navigation.canGoBack()) {
+            navigation.goBack();
+        } else {
+            navigation.navigate('HomeTab');
+        }
     };
 
     if (!cameraPermission || locationPermission === null || loadingLocation) {
@@ -298,92 +287,27 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
 
     return (
         <View style={styles.container}>
-            {/* Top Bar Controls */}
-            <SafeAreaView {...({ edges: ['top'], style: styles.topControlsSafeArea } as any)}>
-                <View style={styles.topControls}>
-                    <TouchableOpacity
-                        style={styles.iconCircleButton}
-                        onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-                            if (navigation.canGoBack()) {
-                                navigation.goBack();
-                            } else {
-                                navigation.navigate('HomeTab');
-                            }
-                        }}
-                        activeOpacity={0.7}
-                        accessibilityLabel="Go back"
-                    >
-                        <ArrowLeft color="#FFFFFF" size={19} />
-                    </TouchableOpacity>
-
-                    {/* GPS Status Chip */}
+            {/* Modern Scanner Canvas */}
+            <ModernScannerCanvas
+                onBarcodeScanned={handleBarCodeScanned}
+                onUploadPhotoPress={pickAndDecodeImage}
+                onBackPress={handleBackNavigation}
+                isScanned={scanned}
+                isLoading={isSubmitting}
+                isDecodingImage={isDecoding}
+                loadingText={t('verifying_geofence_punch', 'Verifying Geofence & Punch...')}
+                instructionText={t('align_branch_qr_hint', 'Align Office Branch QR Code to Record Attendance')}
+                accentColor={theme.colors.brand}
+                onRescanPress={resetScanState}
+                topContent={
                     <View style={styles.gpsChip}>
-                        <Navigation color="#10B981" size={14} />
+                        <NavigationIcon color="#10B981" size={13} />
                         <AppText style={styles.gpsChipText}>
                             {currentLocation ? t('gps_calibrated', 'GPS Calibrated') : t('acquiring_gps', 'Acquiring GPS...')}
                         </AppText>
                     </View>
-
-                    <TouchableOpacity
-                        style={[
-                            styles.iconCircleButton,
-                            torch && { backgroundColor: 'rgba(251, 191, 36, 0.35)', borderColor: '#FBBF24' },
-                        ]}
-                        onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-                            setTorch((prev) => !prev);
-                        }}
-                        activeOpacity={0.7}
-                        accessibilityLabel="Toggle torch"
-                    >
-                        {torch ? <Zap size={18} color="#FBBF24" /> : <ZapOff size={18} color="#FFFFFF" />}
-                    </TouchableOpacity>
-                </View>
-            </SafeAreaView>
-
-            {/* Live Camera View */}
-            <CameraView
-                style={StyleSheet.absoluteFill}
-                enableTorch={torch}
-                barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-                onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
+                }
             />
-
-            {/* Overlay Viewfinder */}
-            <View style={styles.overlay}>
-                <View style={styles.scannerFrame}>
-                    <View style={[styles.corner, styles.topLeft]} />
-                    <View style={[styles.corner, styles.topRight]} />
-                    <View style={[styles.corner, styles.bottomLeft]} />
-                    <View style={[styles.corner, styles.bottomRight]} />
-
-                    {/* Animated Laser Beam */}
-                    {!scanned && <Animated.View style={[styles.laserBeam, laserAnimatedStyle]} />}
-
-                    {isSubmitting && (
-                        <View style={styles.loadingOverlay}>
-                            <ActivityIndicator size="large" color={theme.colors.brand} />
-                            <AppText style={styles.recordingText}>{t('verifying_geofence_punch', 'Verifying Geofence & Punch...')}</AppText>
-                        </View>
-                    )}
-                </View>
-
-                <AppText style={styles.instructionText}>
-                    {t('align_branch_qr_hint', 'Align Office Branch QR Code to Record Attendance')}
-                </AppText>
-
-                {scanned && !isSubmitting && (
-                    <TouchableOpacity
-                        style={[styles.rescanBtn, { backgroundColor: theme.colors.brand }]}
-                        onPress={resetScanState}
-                        activeOpacity={0.8}
-                    >
-                        <RefreshCw size={16} color="#FFFFFF" />
-                        <AppText style={styles.rescanBtnText}>{t('tap_to_rescan', 'Tap to Rescan')}</AppText>
-                    </TouchableOpacity>
-                )}
-            </View>
 
             {/* Reason Modal for Late / Early Departure */}
             <AttendanceReasonModal
@@ -451,40 +375,21 @@ const styles = StyleSheet.create({
         flex: 1,
         backgroundColor: '#000000',
     },
-    topControlsSafeArea: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        zIndex: 20,
-    },
-    topControls: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingTop: 8,
-    },
-    iconCircleButton: {
-        width: 38,
-        height: 38,
-        borderRadius: 12,
-        backgroundColor: 'rgba(15, 23, 42, 0.75)',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.2)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
     gpsChip: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 6,
-        backgroundColor: 'rgba(15, 23, 42, 0.8)',
+        backgroundColor: 'rgba(15, 23, 42, 0.82)',
         paddingHorizontal: 14,
-        paddingVertical: 8,
+        paddingVertical: 7,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: 'rgba(16, 185, 129, 0.3)',
+        borderColor: 'rgba(16, 185, 129, 0.35)',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 3,
     },
     gpsChipText: {
         color: '#F8FAFC',
@@ -508,9 +413,9 @@ const styles = StyleSheet.create({
         width: 88,
         height: 88,
         borderRadius: 44,
-        backgroundColor: 'rgba(37, 99, 235, 0.15)',
+        backgroundColor: 'rgba(223, 0, 0, 0.12)',
         borderWidth: 1,
-        borderColor: 'rgba(37, 99, 235, 0.3)',
+        borderColor: 'rgba(223, 0, 0, 0.28)',
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 16,
@@ -532,7 +437,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
     },
     permButton: {
-        backgroundColor: '#2563EB',
         paddingHorizontal: 28,
         paddingVertical: 14,
         borderRadius: 14,
@@ -545,107 +449,6 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         fontSize: 15,
     },
-    overlay: {
-        ...StyleSheet.absoluteFillObject,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.45)',
-    },
-    scannerFrame: {
-        width: 250,
-        height: 250,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.2)',
-        borderRadius: 24,
-        position: 'relative',
-        overflow: 'hidden',
-    },
-    corner: {
-        position: 'absolute',
-        width: 32,
-        height: 32,
-        borderColor: '#2563EB',
-    },
-    topLeft: {
-        top: -1,
-        left: -1,
-        borderTopWidth: 4,
-        borderLeftWidth: 4,
-        borderTopLeftRadius: 20,
-    },
-    topRight: {
-        top: -1,
-        right: -1,
-        borderTopWidth: 4,
-        borderRightWidth: 4,
-        borderTopRightRadius: 20,
-    },
-    bottomLeft: {
-        bottom: -1,
-        left: -1,
-        borderBottomWidth: 4,
-        borderLeftWidth: 4,
-        borderBottomLeftRadius: 20,
-    },
-    bottomRight: {
-        bottom: -1,
-        right: -1,
-        borderBottomWidth: 4,
-        borderRightWidth: 4,
-        borderBottomRightRadius: 20,
-    },
-    laserBeam: {
-        position: 'absolute',
-        left: 8,
-        right: 8,
-        top: 8,
-        height: 2,
-        backgroundColor: '#60A5FA',
-        shadowColor: '#2563EB',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.9,
-        shadowRadius: 8,
-        elevation: 4,
-    },
-    loadingOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(15, 23, 42, 0.88)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 16,
-    },
-    recordingText: {
-        color: '#F8FAFC',
-        fontSize: 13,
-        fontWeight: '600',
-        marginTop: 12,
-    },
-    instructionText: {
-        color: '#F8FAFC',
-        fontSize: 14,
-        textAlign: 'center',
-        marginTop: 28,
-        paddingHorizontal: 40,
-        fontWeight: '500',
-        lineHeight: 20,
-    },
-    rescanBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        marginTop: 24,
-        backgroundColor: '#2563EB',
-        paddingHorizontal: 22,
-        paddingVertical: 12,
-        borderRadius: 14,
-        minHeight: 46,
-        justifyContent: 'center',
-    },
-    rescanBtnText: {
-        color: '#FFFFFF',
-        fontWeight: '700',
-        fontSize: 14,
-    },
     modalBackdrop: {
         flex: 1,
         backgroundColor: 'rgba(0, 0, 0, 0.65)',
@@ -654,7 +457,6 @@ const styles = StyleSheet.create({
         padding: 24,
     },
     modalContent: {
-        backgroundColor: '#FFFFFF',
         borderRadius: 24,
         padding: 24,
         width: '100%',
@@ -665,9 +467,6 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.2,
         shadowRadius: 20,
         elevation: 10,
-    },
-    modalContentDark: {
-        backgroundColor: '#0F172A',
     },
     successIconCircle: {
         width: 80,
@@ -681,32 +480,21 @@ const styles = StyleSheet.create({
     modalTitle: {
         fontSize: 20,
         fontWeight: '700',
-        color: '#0F172A',
         textAlign: 'center',
     },
     modalSub: {
         fontSize: 14,
-        color: '#64748B',
         textAlign: 'center',
         marginTop: 6,
         marginBottom: 20,
     },
-    textLight: {
-        color: '#F8FAFC',
-    },
     modalDetailsCard: {
         width: '100%',
-        backgroundColor: '#F8FAFC',
         borderRadius: 16,
         padding: 16,
         marginBottom: 20,
         borderWidth: 1,
-        borderColor: '#E2E8F0',
         gap: 10,
-    },
-    modalDetailsCardDark: {
-        backgroundColor: 'rgba(30, 41, 59, 0.5)',
-        borderColor: '#334155',
     },
     detailRow: {
         flexDirection: 'row',
@@ -715,17 +503,14 @@ const styles = StyleSheet.create({
     },
     detailLabel: {
         fontSize: 13,
-        color: '#64748B',
         fontWeight: '500',
     },
     detailVal: {
         fontSize: 14,
         fontWeight: '700',
-        color: '#0F172A',
     },
     modalBtn: {
         width: '100%',
-        backgroundColor: '#2563EB',
         borderRadius: 16,
         paddingVertical: 14,
         minHeight: 48,

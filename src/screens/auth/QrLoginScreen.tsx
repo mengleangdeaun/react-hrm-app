@@ -6,85 +6,31 @@ import {
     Alert,
     ActivityIndicator,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { CameraView, useCameraPermissions } from 'expo-camera';
+import { useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
-import Animated, {
-    useSharedValue,
-    useAnimatedStyle,
-    withRepeat,
-    withTiming,
-    Easing,
-} from 'react-native-reanimated';
-import { ArrowLeft, QrCode, Zap, ZapOff, RefreshCw } from 'lucide-react-native';
+import { QrCode } from 'lucide-react-native';
 import { useAuth } from '../../context/AuthContext';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { AppText } from '../../components/AppText';
 import { extractEmployeeQrPayload } from '../../utils/qrPayload';
+import { ModernScannerCanvas } from '../../components/scanner/ModernScannerCanvas';
+import { useImageQrDecoder } from '../../components/scanner/useImageQrDecoder';
 
 export const QrLoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-    const insets = useSafeAreaInsets();
     const [permission, requestPermission] = useCameraPermissions();
     const [scanned, setScanned] = useState(false);
-    const [torch, setTorch] = useState(false);
     const isProcessingRef = useRef(false);
 
     const { loginWithQr, isLoading } = useAuth();
     const { isDark } = useAppTheme();
     const { t } = useTranslation();
 
-    // Laser scan animation
-    const translateY = useSharedValue(0);
-
-    useEffect(() => {
-        translateY.value = withRepeat(
-            withTiming(230, { duration: 2500, easing: Easing.inOut(Easing.quad) }),
-            -1,
-            true
-        );
-    }, []);
-
-    const laserAnimatedStyle = useAnimatedStyle(() => {
-        return {
-            transform: [{ translateY: translateY.value }],
-        };
-    });
-
     useEffect(() => {
         if (!permission) {
             requestPermission();
         }
     }, [permission]);
-
-    if (!permission) {
-        return (
-            <View style={styles.centerContainer}>
-                <ActivityIndicator size="large" color="#3B82F6" />
-            </View>
-        );
-    }
-
-    if (!permission.granted) {
-        return (
-            <View style={styles.centerContainer}>
-                <View style={styles.permIconCircle}>
-                    <QrCode color="#3B82F6" size={48} />
-                </View>
-                <AppText style={styles.permTitle}>{t('camera_permission_required', 'Camera Permission Required')}</AppText>
-                <AppText style={styles.permDesc}>
-                    {t('camera_perm_desc_login', 'We need camera access to scan your Employee Badge QR code for quick login.')}
-                </AppText>
-                <TouchableOpacity
-                    style={styles.permButton}
-                    onPress={requestPermission}
-                    activeOpacity={0.85}
-                >
-                    <AppText style={styles.permBtnText}>{t('grant_permission', 'Grant Permission')}</AppText>
-                </TouchableOpacity>
-            </View>
-        );
-    }
 
     const resetScanState = () => {
         isProcessingRef.current = false;
@@ -100,9 +46,11 @@ export const QrLoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         const parseCheck = extractEmployeeQrPayload(data);
         if (!parseCheck.isValid) {
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-            Alert.alert(t('invalid_qr_code', 'Invalid QR Code'), parseCheck.error || t('scan_valid_employee_qr', 'Please scan a valid Employee Personal QR badge.'), [
-                { text: t('try_again', 'Try Again'), onPress: resetScanState },
-            ]);
+            Alert.alert(
+                t('invalid_qr_code', 'Invalid QR Code'),
+                parseCheck.error || t('scan_valid_employee_qr', 'Please scan a valid Employee Personal QR badge.'),
+                [{ text: t('try_again', 'Try Again'), onPress: resetScanState }]
+            );
             return;
         }
 
@@ -126,119 +74,78 @@ export const QrLoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                     ]
                 );
             } else if (error?.code === 'DEVICE_TAKEN') {
-                Alert.alert(t('security_error', 'Security Error'), error.message || t('device_registered_to_other', 'This device is registered to another employee.'), [
-                    { text: t('try_again', 'Try Again'), onPress: resetScanState },
-                ]);
+                Alert.alert(
+                    t('security_error', 'Security Error'),
+                    error.message || t('device_registered_to_other', 'This device is registered to another employee.'),
+                    [{ text: t('try_again', 'Try Again'), onPress: resetScanState }]
+                );
             } else {
-                Alert.alert(t('login_failed', 'Login Failed'), error?.message || t('invalid_employee_qr', 'Invalid Employee QR credentials.'), [
-                    { text: t('try_again', 'Try Again'), onPress: resetScanState },
-                ]);
+                Alert.alert(
+                    t('login_failed', 'Login Failed'),
+                    error?.message || t('invalid_employee_qr', 'Invalid Employee QR credentials.'),
+                    [{ text: t('try_again', 'Try Again'), onPress: resetScanState }]
+                );
             }
         }
     };
 
-    return (
-        <View style={styles.container}>
-            {/* Top Bar Controls */}
-            <View style={[styles.topControls, { top: insets.top + 12 }]}>
-                <TouchableOpacity
-                    style={styles.iconCircleButton}
-                    onPress={() => navigation.goBack()}
-                    activeOpacity={0.7}
-                >
-                    <ArrowLeft color="#FFFFFF" size={20} />
-                </TouchableOpacity>
+    // Photo QR Decoder
+    const { pickAndDecodeImage, isDecoding } = useImageQrDecoder({
+        onQrDecoded: async (data) => {
+            resetScanState();
+            await handleBarcodeScanned({ data }, true);
+        },
+        onError: () => {
+            resetScanState();
+        },
+    });
 
-                <TouchableOpacity
-                    style={[
-                        styles.iconCircleButton,
-                        torch && { backgroundColor: 'rgba(251, 191, 36, 0.35)', borderColor: '#FBBF24' },
-                    ]}
-                    onPress={() => setTorch((prev) => !prev)}
-                    activeOpacity={0.7}
-                >
-                    {torch ? (
-                        <Zap size={20} color="#FBBF24" />
-                    ) : (
-                        <ZapOff size={20} color="#FFFFFF" />
-                    )}
-                </TouchableOpacity>
+    if (!permission) {
+        return (
+            <View style={styles.centerContainer}>
+                <ActivityIndicator size="large" color="#DF0000" />
             </View>
+        );
+    }
 
-            {/* Live Camera View */}
-            <CameraView
-                style={StyleSheet.absoluteFill}
-                enableTorch={torch}
-                barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-                onBarcodeScanned={scanned ? undefined : handleBarcodeScanned}
-            />
-
-            {/* Overlay Viewfinder */}
-            <View style={styles.overlay}>
-                <View style={styles.scannerFrame}>
-                    <View style={[styles.corner, styles.topLeft]} />
-                    <View style={[styles.corner, styles.topRight]} />
-                    <View style={[styles.corner, styles.bottomLeft]} />
-                    <View style={[styles.corner, styles.bottomRight]} />
-
-                    {/* Animated Laser Beam */}
-                    {!scanned && (
-                        <Animated.View style={[styles.laserBeam, laserAnimatedStyle]} />
-                    )}
-
-                    {isLoading && (
-                        <View style={styles.loadingOverlay}>
-                            <ActivityIndicator size="large" color="#3B82F6" />
-                            <AppText style={styles.authenticatingText}>
-                                {t('authenticating_device', 'Authenticating Device...')}
-                            </AppText>
-                        </View>
-                    )}
+    if (!permission.granted) {
+        return (
+            <View style={styles.centerContainer}>
+                <View style={styles.permIconCircle}>
+                    <QrCode color="#DF0000" size={48} />
                 </View>
-
-                <AppText style={styles.instructionText}>
-                    {t('align_qr_login_hint', 'Align your Employee QR Code inside the box to sign in automatically')}
+                <AppText style={styles.permTitle}>{t('camera_permission_required', 'Camera Permission Required')}</AppText>
+                <AppText style={styles.permDesc}>
+                    {t('camera_perm_desc_login', 'We need camera access to scan your Employee Badge QR code for quick login.')}
                 </AppText>
-
-                {scanned && !isLoading && (
-                    <TouchableOpacity
-                        style={styles.rescanBtn}
-                        onPress={resetScanState}
-                        activeOpacity={0.8}
-                    >
-                        <RefreshCw size={16} color="#FFFFFF" />
-                        <AppText style={styles.rescanBtnText}>{t('tap_to_rescan', 'Tap to Rescan')}</AppText>
-                    </TouchableOpacity>
-                )}
+                <TouchableOpacity
+                    style={styles.permButton}
+                    onPress={requestPermission}
+                    activeOpacity={0.85}
+                >
+                    <AppText style={styles.permBtnText}>{t('grant_permission', 'Grant Permission')}</AppText>
+                </TouchableOpacity>
             </View>
-        </View>
+        );
+    }
+
+    return (
+        <ModernScannerCanvas
+            onBarcodeScanned={handleBarcodeScanned}
+            onUploadPhotoPress={pickAndDecodeImage}
+            onBackPress={() => navigation.goBack()}
+            isScanned={scanned}
+            isLoading={isLoading}
+            isDecodingImage={isDecoding}
+            loadingText={t('authenticating_device', 'Authenticating Device...')}
+            instructionText={t('align_qr_login_hint', 'Align your Employee QR Code inside the box to sign in automatically')}
+            accentColor="#DF0000"
+            onRescanPress={resetScanState}
+        />
     );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#000000',
-    },
-    topControls: {
-        position: 'absolute',
-        left: 20,
-        right: 20,
-        zIndex: 20,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-    },
-    iconCircleButton: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: 'rgba(15, 23, 42, 0.75)',
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.2)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
     centerContainer: {
         flex: 1,
         backgroundColor: '#0F172A',
@@ -250,9 +157,9 @@ const styles = StyleSheet.create({
         width: 88,
         height: 88,
         borderRadius: 44,
-        backgroundColor: 'rgba(59, 130, 246, 0.15)',
+        backgroundColor: 'rgba(223, 0, 0, 0.12)',
         borderWidth: 1,
-        borderColor: 'rgba(59, 130, 246, 0.3)',
+        borderColor: 'rgba(223, 0, 0, 0.28)',
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 16,
@@ -274,7 +181,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
     },
     permButton: {
-        backgroundColor: '#2563EB',
+        backgroundColor: '#DF0000',
         paddingHorizontal: 28,
         paddingVertical: 14,
         borderRadius: 14,
@@ -286,105 +193,5 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontWeight: '700',
         fontSize: 15,
-    },
-    overlay: {
-        ...StyleSheet.absoluteFillObject,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.45)',
-    },
-    scannerFrame: {
-        width: 250,
-        height: 250,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.2)',
-        borderRadius: 24,
-        position: 'relative',
-        overflow: 'hidden',
-    },
-    corner: {
-        position: 'absolute',
-        width: 32,
-        height: 32,
-        borderColor: '#3B82F6',
-    },
-    topLeft: {
-        top: -1,
-        left: -1,
-        borderTopWidth: 4,
-        borderLeftWidth: 4,
-        borderTopLeftRadius: 20,
-    },
-    topRight: {
-        top: -1,
-        right: -1,
-        borderTopWidth: 4,
-        borderRightWidth: 4,
-        borderTopRightRadius: 20,
-    },
-    bottomLeft: {
-        bottom: -1,
-        left: -1,
-        borderBottomWidth: 4,
-        borderLeftWidth: 4,
-        borderBottomLeftRadius: 20,
-    },
-    bottomRight: {
-        bottom: -1,
-        right: -1,
-        borderBottomWidth: 4,
-        borderRightWidth: 4,
-        borderBottomRightRadius: 20,
-    },
-    laserBeam: {
-        position: 'absolute',
-        left: 8,
-        right: 8,
-        top: 8,
-        height: 2,
-        backgroundColor: '#60A5FA',
-        shadowColor: '#3B82F6',
-        shadowOffset: { width: 0, height: 0 },
-        shadowOpacity: 0.9,
-        shadowRadius: 8,
-        elevation: 4,
-    },
-    loadingOverlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(15, 23, 42, 0.85)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 16,
-    },
-    authenticatingText: {
-        color: '#F8FAFC',
-        fontSize: 13,
-        fontWeight: '600',
-        marginTop: 12,
-    },
-    instructionText: {
-        color: '#F8FAFC',
-        fontSize: 14,
-        textAlign: 'center',
-        marginTop: 28,
-        paddingHorizontal: 40,
-        fontWeight: '500',
-        lineHeight: 22,
-    },
-    rescanBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        marginTop: 24,
-        backgroundColor: '#2563EB',
-        paddingHorizontal: 22,
-        paddingVertical: 12,
-        borderRadius: 14,
-        minHeight: 46,
-    },
-    rescanBtnText: {
-        color: '#FFFFFF',
-        fontWeight: '700',
-        fontSize: 14,
     },
 });
