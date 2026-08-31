@@ -9,17 +9,24 @@ import {
     Linking,
     Alert,
     Animated,
+    ActivityIndicator,
     useWindowDimensions,
 } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as MediaLibrary from 'expo-media-library';
+import * as Sharing from 'expo-sharing';
+import * as Haptics from 'expo-haptics';
 import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
-import { format, parseISO, isValid } from 'date-fns';
+import { format, formatDateDisplay, formatTimeDisplay } from '../../utils/dateTime';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { activityApi, ActivityItem, OFFICIAL_ACTIVITY_TYPES } from '../../api/activity';
 import { useAppTheme } from '../../context/ThemeContext';
 import { AppShell } from '../../components/common/AppShell';
 import { HeaderIconButton } from '../../components/common/AppHeader';
 import { ActivityListSkeleton } from '../../components/common/Skeletons';
+import { EmptyState } from '../../components/common/EmptyState';
+import { AppBottomSheet } from '../../components/common/AppBottomSheet';
 import { ENV } from '../../config/env';
 import {
     Plus,
@@ -28,17 +35,38 @@ import {
     MapPin,
     Filter,
     X,
+    Check,
     CheckCircle2,
     Clock,
     AlertCircle,
     FileText,
     Download,
+    Layers,
+    Building2,
+    MessageSquare,
+    Package,
+    Wrench,
+    GraduationCap,
+    Headset,
+    MoreHorizontal,
 } from 'lucide-react-native';
+
+const CATEGORY_ICONS: Record<string, any> = {
+    all: Layers,
+    'Sale Outdoor': MapPin,
+    'Site Visit': Building2,
+    'Meeting / Discussion': MessageSquare,
+    'Delivery / Collection': Package,
+    'On-Site Service': Wrench,
+    'Training': GraduationCap,
+    'Support': Headset,
+    'Other': MoreHorizontal,
+};
 
 import { useTranslation } from '../../context/LanguageContext';
 
 export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-    const { isDark } = useAppTheme();
+    const { isDark, primaryColor } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
     const { width: screenWidth } = useWindowDimensions();
@@ -65,6 +93,7 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
     const [draftCategory, setDraftCategory] = useState<string>('all');
     const [draftMonth, setDraftMonth] = useState<string>(currentMonthStr);
     const [filterModalVisible, setFilterModalVisible] = useState<boolean>(false);
+    const [savingUrl, setSavingUrl] = useState<string | null>(null);
 
     // 5-Minute In-Memory Caching for Activities
     const {
@@ -167,21 +196,13 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
 
     const formatActivityDateTime = (rawStr?: string) => {
         if (!rawStr) return 'Recent';
-        try {
-            const dateObj = parseISO(rawStr);
-            if (!isValid(dateObj)) {
-                const parsed = new Date(rawStr);
-                if (isNaN(parsed.getTime())) return rawStr;
-                return format(parsed, 'EEE, dd MMM • hh:mm a');
-            }
-            return format(dateObj, 'EEE, dd MMM • hh:mm a');
-        } catch (e) {
-            return rawStr;
-        }
+        return `${formatDateDisplay(rawStr, 'dayMonth')} • ${formatTimeDisplay(rawStr)}`;
     };
 
-    const handleSaveImage = (url: string) => {
+    const handleSaveImage = async (url: string) => {
         if (!url) return;
+        if (savingUrl) return;
+
         if (Platform.OS === 'web') {
             try {
                 const a = document.createElement('a');
@@ -192,12 +213,58 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                 a.click();
                 document.body.removeChild(a);
             } catch (e) {
-                window.open(url, '_blank');
+                if (typeof window !== 'undefined') {
+                    window.open(url, '_blank');
+                }
             }
-        } else {
-            Linking.openURL(url).catch(() => {
-                Alert.alert(t('unable_open_image_link', 'Unable to open image link'));
-            });
+            return;
+        }
+
+        try {
+            setSavingUrl(url);
+
+            // 1. Request Media Library permissions
+            const { status } = await MediaLibrary.requestPermissionsAsync();
+
+            // 2. Determine file extension and destination
+            const rawExt = url.split('.').pop()?.split('?')[0]?.toLowerCase();
+            const fileExt = rawExt && ['jpg', 'jpeg', 'png', 'webp'].includes(rawExt) ? rawExt : 'jpg';
+            const filename = `activity_${Date.now()}.${fileExt}`;
+            const localUri = `${FileSystem.cacheDirectory}${filename}`;
+
+            // 3. Download the image file into local cache
+            const downloadRes = await FileSystem.downloadAsync(url, localUri);
+
+            if (status === 'granted') {
+                // 4. Save directly into device Photos / Gallery
+                await MediaLibrary.saveToLibraryAsync(downloadRes.uri);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                Alert.alert(
+                    t('photo_saved_title', 'Photo Saved'),
+                    t('photo_saved_desc', 'The activity photo has been saved to your device Photo Gallery.')
+                );
+            } else {
+                // Fallback: If direct gallery permission is restricted, offer native share/save sheet
+                if (await Sharing.isAvailableAsync()) {
+                    await Sharing.shareAsync(downloadRes.uri, {
+                        mimeType: `image/${fileExt === 'png' ? 'png' : 'jpeg'}`,
+                        dialogTitle: t('save_activity_photo', 'Save Activity Photo'),
+                    });
+                } else {
+                    Alert.alert(
+                        t('permission_needed', 'Permission Required'),
+                        t('photo_permission_denied_desc', 'Please grant Photo Library permissions in device Settings to save photos directly.')
+                    );
+                }
+            }
+        } catch (error: any) {
+            console.warn('Failed to save image:', error);
+            Alert.alert(
+                t('save_failed', 'Save Failed'),
+                t('save_photo_error_desc', 'Could not save photo to your gallery. Please try again.')
+            );
+        } finally {
+            setSavingUrl(null);
         }
     };
 
@@ -353,7 +420,7 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                 <View style={styles.activeMonthChip}>
                     <Clock color="#FFFFFF" size={14} />
                     <Text style={styles.activeMonthChipText}>
-                        {format(parseISO(selectedMonth + '-01'), 'MMMM yyyy')}
+                        {formatDateDisplay(selectedMonth + '-01', 'monthYear')}
                     </Text>
                     <TouchableOpacity
                         onPress={() => setSelectedMonth(currentMonthStr)}
@@ -369,21 +436,13 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
             {isLoading ? (
                 <ActivityListSkeleton />
             ) : activities.length === 0 ? (
-                <View style={styles.emptyContainer}>
-                    <FileText color={theme.colors.textSecondary} size={48} />
-                    <Text style={styles.emptyTitle}>{t('no_activities_recorded', 'No Activities Recorded')}</Text>
-                    <Text style={styles.emptySubtitle}>
-                        {t('no_activities_desc', 'You have not logged any work activities for this period yet.')}
-                    </Text>
-                    <TouchableOpacity
-                        style={styles.createFirstBtn}
-                        onPress={() => navigation.navigate('CreateActivity')}
-                        activeOpacity={0.85}
-                    >
-                        <Plus color="#FFFFFF" size={18} />
-                        <Text style={styles.createFirstBtnText}>{t('log_new_activity', 'Log New Activity')}</Text>
-                    </TouchableOpacity>
-                </View>
+                <EmptyState
+                    icon={<FileText color={theme.colors.textSecondary} size={36} />}
+                    title={t('no_activities_recorded', 'No Activities Recorded')}
+                    description={t('no_activities_desc', 'You have not logged any work activities for this period yet.')}
+                    actionTitle={t('log_new_activity', 'Log New Activity')}
+                    onAction={() => navigation.navigate('CreateActivity')}
+                />
             ) : (
                 activities.map((item) => {
                     const statusObj = getStatusStyle(item.status);
@@ -426,12 +485,23 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                                 {/* Save to Photos Download Button Overlay (Bottom Left) */}
                                 {displayImages.length > 0 && (
                                     <TouchableOpacity
-                                        style={styles.saveBtnOverlay}
+                                        style={[
+                                            styles.saveBtnOverlay,
+                                            savingUrl === displayImages[0] && { opacity: 0.8 },
+                                        ]}
                                         onPress={() => handleSaveImage(displayImages[0])}
+                                        disabled={savingUrl === displayImages[0]}
                                         activeOpacity={0.8}
+                                        accessibilityLabel={t('save_to_gallery', 'Save to Gallery')}
                                     >
-                                        <Download color="#FFFFFF" size={13} />
-                                        <Text style={styles.saveBtnOverlayText}>{t('save', 'Save')}</Text>
+                                        {savingUrl === displayImages[0] ? (
+                                            <ActivityIndicator color="#FFFFFF" size="small" style={{ transform: [{ scale: 0.75 }] }} />
+                                        ) : (
+                                            <Download color="#FFFFFF" size={13} />
+                                        )}
+                                        <Text style={styles.saveBtnOverlayText}>
+                                            {savingUrl === displayImages[0] ? t('saving', 'Saving...') : t('save', 'Save')}
+                                        </Text>
                                     </TouchableOpacity>
                                 )}
                             </View>
@@ -474,83 +544,125 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
             )}
 
             {/* Filter Bottom Sheet Modal */}
-            <Modal visible={filterModalVisible} transparent animationType="fade">
-                <TouchableOpacity
-                    style={styles.modalOverlay}
-                    activeOpacity={1}
-                    onPress={() => setFilterModalVisible(false)}
-                >
-                    <TouchableOpacity activeOpacity={1} style={styles.modalSheet}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Filter Activities</Text>
-                            {(draftCategory !== 'all' || draftMonth !== currentMonthStr) ? (
-                                <TouchableOpacity onPress={handleResetFilters}>
-                                    <Text style={styles.resetBtnText}>Reset All</Text>
-                                </TouchableOpacity>
-                            ) : (
-                                <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
-                                    <X color={theme.colors.textPrimary} size={20} />
-                                </TouchableOpacity>
-                            )}
-                        </View>
-
-                        {/* 1. Review Month Picker */}
-                        <Text style={styles.filterSectionLabel}>Review Month</Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.monthPillsRow}>
-                            {getMonthOptions().map((m) => {
-                                const isSel = draftMonth === m.value;
-                                return (
-                                    <TouchableOpacity
-                                        key={m.value}
-                                        style={[styles.monthPill, isSel && styles.monthPillSelected]}
-                                        onPress={() => setDraftMonth(m.value)}
-                                        activeOpacity={0.8}
-                                    >
-                                        <Text style={[styles.monthPillText, isSel && styles.monthPillTextSelected]}>
-                                            {m.label}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </ScrollView>
-
-                        {/* 2. Category Selection */}
-                        <Text style={styles.filterSectionLabel}>Activity Category</Text>
-                        <ScrollView style={{ maxHeight: 220 }}>
-                            {FILTER_CATEGORIES.map((cat) => (
-                                <TouchableOpacity
-                                    key={cat.id}
-                                    style={[
-                                        styles.filterOption,
-                                        draftCategory === cat.id && styles.filterOptionSelected,
-                                    ]}
-                                    onPress={() => setDraftCategory(cat.id)}
-                                >
-                                    <Text
-                                        style={[
-                                            styles.filterOptionText,
-                                            draftCategory === cat.id && styles.filterOptionTextSelected,
-                                        ]}
-                                    >
-                                        {cat.label}
-                                    </Text>
-                                    {draftCategory === cat.id && (
-                                        <CheckCircle2 color={theme.colors.primary} size={18} />
-                                    )}
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
-
-                        <TouchableOpacity
-                            style={styles.applyFilterBtn}
-                            onPress={handleApplyFilters}
-                            activeOpacity={0.85}
-                        >
-                            <Text style={styles.applyFilterBtnText}>Apply Filter</Text>
+            <AppBottomSheet
+                visible={filterModalVisible}
+                onClose={() => setFilterModalVisible(false)}
+                title={t('filter_activities', 'Filter Activities')}
+                headerRight={
+                    (draftCategory !== 'all' || draftMonth !== currentMonthStr) ? (
+                        <TouchableOpacity onPress={handleResetFilters} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                            <Text style={styles.resetBtnText}>{t('reset_all', 'Reset All')}</Text>
                         </TouchableOpacity>
+                    ) : undefined
+                }
+                footer={
+                    <TouchableOpacity
+                        style={styles.applyFilterBtn}
+                        onPress={handleApplyFilters}
+                        activeOpacity={0.85}
+                    >
+                        <Text style={styles.applyFilterBtnText}>{t('apply_filter', 'Apply Filter')}</Text>
                     </TouchableOpacity>
-                </TouchableOpacity>
-            </Modal>
+                }
+            >
+                {/* 1. Review Month Picker */}
+                <Text style={styles.filterSectionLabel}>{t('review_month', 'Review Month')}</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.monthPillsRow}>
+                    {getMonthOptions().map((m) => {
+                        const isSel = draftMonth === m.value;
+                        return (
+                            <TouchableOpacity
+                                key={m.value}
+                                style={[styles.monthPill, isSel && styles.monthPillSelected]}
+                                onPress={() => setDraftMonth(m.value)}
+                                activeOpacity={0.8}
+                            >
+                                <Text style={[styles.monthPillText, isSel && styles.monthPillTextSelected]}>
+                                    {m.label}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </ScrollView>
+
+                {/* 2. Category Selection */}
+                <View style={styles.filterSectionHeaderRow}>
+                    <Text style={styles.filterSectionLabel}>{t('activity_category', 'Activity Category')}</Text>
+                    {draftCategory !== 'all' && (
+                        <Text style={[styles.filterActiveBadgeText, { color: primaryColor }]}>
+                            {FILTER_CATEGORIES.find((c) => c.id === draftCategory)?.label}
+                        </Text>
+                    )}
+                </View>
+
+                <View style={styles.categoryGroupContainer}>
+                    {FILTER_CATEGORIES.map((cat, index) => {
+                        const isSel = draftCategory === cat.id;
+                        const CatIcon = CATEGORY_ICONS[cat.id] || MoreHorizontal;
+                        const isLast = index === FILTER_CATEGORIES.length - 1;
+
+                        return (
+                            <TouchableOpacity
+                                key={cat.id}
+                                style={[
+                                    styles.categoryRow,
+                                    isSel && { backgroundColor: `${primaryColor}14` },
+                                    !isLast && !isSel && styles.categoryRowBorder,
+                                ]}
+                                onPress={() => {
+                                    setDraftCategory(cat.id);
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                                }}
+                                activeOpacity={0.7}
+                            >
+                                <View
+                                    style={[
+                                        styles.categoryIconCircle,
+                                        {
+                                            backgroundColor: isSel
+                                                ? primaryColor
+                                                : theme.colors.surface,
+                                            borderColor: isSel ? primaryColor : theme.colors.border,
+                                        },
+                                    ]}
+                                >
+                                    <CatIcon
+                                        color={isSel ? '#FFFFFF' : theme.colors.textSecondary}
+                                        size={17}
+                                    />
+                                </View>
+
+                                <Text
+                                    style={[
+                                        styles.categoryLabel,
+                                        isSel && [styles.categoryLabelSelected, { color: primaryColor }],
+                                    ]}
+                                >
+                                    {cat.label}
+                                </Text>
+
+                                <View style={styles.trailingContainer}>
+                                    {isSel ? (
+                                        <View
+                                            style={[
+                                                styles.selectedCheckBadge,
+                                                {
+                                                    backgroundColor: primaryColor,
+                                                    borderColor: primaryColor,
+                                                },
+                                            ]}
+                                        >
+                                            <Check color="#FFFFFF" size={13} strokeWidth={3} />
+                                        </View>
+                                    ) : (
+                                        <View style={styles.unselectedIndicator} />
+                                    )}
+                                </View>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+            </AppBottomSheet>
         </AppShell>
     );
 };
@@ -926,29 +1038,79 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontWeight: '700',
         color: theme.colors.textPrimary,
     },
+    filterSectionHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: theme.spacing.xs + 4,
+        marginTop: theme.spacing.sm,
+    },
+    filterActiveBadgeText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
     filterSectionLabel: {
         fontSize: 12,
         fontWeight: '700',
         color: theme.colors.textSecondary,
         textTransform: 'uppercase',
-        marginBottom: theme.spacing.xs + 2,
+        letterSpacing: 0.5,
     },
-    filterOption: {
+    categoryGroupContainer: {
+        backgroundColor: theme.colors.surfaceSubtle,
+        borderRadius: theme.borderRadius.lg,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        overflow: 'hidden',
+        marginBottom: theme.spacing.md,
+    },
+    categoryRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingVertical: theme.spacing.sm + 2,
+        paddingVertical: 12,
+        paddingHorizontal: 14,
+        backgroundColor: 'transparent',
+    },
+    categoryRowBorder: {
         borderBottomWidth: 1,
         borderBottomColor: theme.colors.border,
     },
-    filterOptionSelected: {
-        backgroundColor: theme.colors.surfaceSubtle,
-        paddingHorizontal: theme.spacing.sm,
-        borderRadius: theme.borderRadius.sm,
+    categoryIconCircle: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        borderWidth: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 12,
     },
-    filterOptionText: {
+    categoryLabel: {
+        flex: 1,
         fontSize: 14,
+        fontWeight: '600',
         color: theme.colors.textPrimary,
     },
-
+    categoryLabelSelected: {
+        fontWeight: '800',
+    },
+    trailingContainer: {
+        marginLeft: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    selectedCheckBadge: {
+        width: 22,
+        height: 22,
+        borderRadius: 11,
+        borderWidth: 1.5,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    unselectedIndicator: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        borderWidth: 1.5,
+        borderColor: theme.colors.border,
+    },
 }));

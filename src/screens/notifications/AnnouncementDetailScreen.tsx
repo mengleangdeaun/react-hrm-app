@@ -14,13 +14,14 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { format, parseISO, isValid } from 'date-fns';
+import { format, parseISO, isValid, formatDateDisplay, formatTimeDisplay } from '../../utils/dateTime';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { apiClient } from '../../api/client';
 import { notificationApi } from '../../api/notification';
 import { AppText as Text } from '../../components/AppText';
 import { AppHeader } from '../../components/common/AppHeader';
+import { AppMarkdown } from '../../components/common/AppMarkdown';
 import {
     ArrowLeft,
     Download,
@@ -57,13 +58,7 @@ const cleanHtml = (htmlStr?: string) => {
 
 const formatAnnouncementDate = (rawStr?: string) => {
     if (!rawStr) return 'Recent';
-    try {
-        const d = parseISO(rawStr);
-        if (!isValid(d)) return rawStr;
-        return format(d, 'MMM d, yyyy • hh:mm a');
-    } catch {
-        return rawStr;
-    }
+    return `${formatDateDisplay(rawStr, 'short')} • ${formatTimeDisplay(rawStr)}`;
 };
 
 import { AppShell } from '../../components/common/AppShell';
@@ -151,11 +146,16 @@ export const AnnouncementDetailScreen: React.FC<{ route: any; navigation: any }>
     const announcement = announcementData || notificationItem;
     const isLoading = isLoadingQuery && !announcement;
 
-    const title = cleanHtml(announcement?.title || notificationItem?.title) || t('company_announcement', 'Company Announcement');
+    const rawTitle = announcement?.title || notificationItem?.title;
+    const translatedTitle = rawTitle ? t(rawTitle, rawTitle, notificationItem?.data || announcement?.data) : '';
+    const title = cleanHtml(translatedTitle) || t('company_announcement', 'Company Announcement');
     const dateStr = formatAnnouncementDate(announcement?.published_at || announcement?.created_at || notificationItem?.created_at);
     const typeStr = (announcement?.type || notificationItem?.type || 'info').toLowerCase();
     const shortDesc = cleanHtml(announcement?.short_description);
-    const rawBody = announcement?.content || announcement?.body || announcement?.message || notificationItem?.message || '';
+    const rawUnprocessedBody = announcement?.content || announcement?.body || announcement?.message || notificationItem?.message || '';
+    const rawBody = (notificationItem?.data || announcement?.data)
+        ? t(rawUnprocessedBody, rawUnprocessedBody, notificationItem?.data || announcement?.data)
+        : rawUnprocessedBody;
     const bodyContent = cleanHtml(rawBody);
     const featuredImageUrl = announcement?.featured_image_url || announcement?.image_url;
     const viewsCount = announcement?.views_count;
@@ -248,7 +248,7 @@ export const AnnouncementDetailScreen: React.FC<{ route: any; navigation: any }>
                     ) : null}
 
                     {/* Main Article Body */}
-                    <Text style={styles.bodyText}>{bodyContent}</Text>
+                    <AppMarkdown content={rawBody} />
 
                     {/* File Attachment Card */}
                     {attachmentName && (

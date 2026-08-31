@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     View,
     TouchableOpacity,
-    Modal,
     StyleSheet,
 } from 'react-native';
 import { AppText as Text } from '../AppText';
+import { AppBottomSheet } from './AppBottomSheet';
 import * as Haptics from 'expo-haptics';
 import { Clock, X, Check, ChevronUp, ChevronDown } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
+import { formatTimeDisplay } from '../../utils/dateTime';
 
 export interface NativeTimePickerFieldProps {
     label?: string;
@@ -33,22 +34,30 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
 
     const [modalVisible, setModalVisible] = useState(false);
 
-    // Parse Initial HH and mm
-    const initialParts = (value || '08:00').split(':');
-    const [hours, setHours] = useState<number>(parseInt(initialParts[0], 10) || 8);
-    const [minutes, setMinutes] = useState<number>(parseInt(initialParts[1], 10) || 0);
+    // Parse Initial HH and mm from value prop safely
+    const parsedTime = useMemo(() => {
+        const parts = (value || '08:00').split(':');
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        return {
+            hours: isNaN(h) ? 8 : Math.min(23, Math.max(0, h)),
+            minutes: isNaN(m) ? 0 : Math.min(59, Math.max(0, m)),
+        };
+    }, [value]);
 
-    const formatDisplay = (h: number, m: number) => {
-        const period = h >= 12 ? 'PM' : 'AM';
-        const displayH = h % 12 === 0 ? 12 : h % 12;
-        const displayM = m < 10 ? `0${m}` : m;
-        return `${displayH < 10 ? '0' : ''}${displayH}:${displayM} ${period}`;
-    };
+    const [hours, setHours] = useState<number>(parsedTime.hours);
+    const [minutes, setMinutes] = useState<number>(parsedTime.minutes);
+
+    useEffect(() => {
+        setHours(parsedTime.hours);
+        setMinutes(parsedTime.minutes);
+    }, [parsedTime]);
+
+    const formattedDisplay = value ? formatTimeDisplay(value) : 'Select Time';
 
     const handleOpen = () => {
-        const parts = (value || '08:00').split(':');
-        setHours(parseInt(parts[0], 10) || 8);
-        setMinutes(parseInt(parts[1], 10) || 0);
+        setHours(parsedTime.hours);
+        setMinutes(parsedTime.minutes);
         setModalVisible(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     };
@@ -88,6 +97,17 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     };
 
+    const toggleAmPm = () => {
+        setHours((prev) => (prev >= 12 ? prev - 12 : prev + 12));
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    };
+
+    const modalDisplayTime = useMemo(() => {
+        const hStr = hours < 10 ? `0${hours}` : `${hours}`;
+        const mStr = minutes < 10 ? `0${minutes}` : `${minutes}`;
+        return formatTimeDisplay(`${hStr}:${mStr}`);
+    }, [hours, minutes]);
+
     return (
         <View style={[styles.container, containerStyle]}>
             {label && (
@@ -99,6 +119,8 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
             <TouchableOpacity
                 onPress={handleOpen}
                 activeOpacity={0.75}
+                accessibilityRole="button"
+                accessibilityLabel={`${label || 'Select Time'}: ${formattedDisplay}`}
                 style={[
                     styles.fieldWrapper,
                     {
@@ -118,7 +140,7 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                         },
                     ]}
                 >
-                    {value ? formatDisplay(hours, minutes) : 'Select Time'}
+                    {formattedDisplay}
                 </Text>
             </TouchableOpacity>
 
@@ -129,140 +151,122 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
             )}
 
             {/* Native Time Picker Bottom Sheet Modal */}
-            <Modal
+            <AppBottomSheet
                 visible={modalVisible}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setModalVisible(false)}
-            >
-                <View style={styles.modalBackdrop}>
+                onClose={() => setModalVisible(false)}
+                title={label || 'Select Time'}
+                footer={
                     <TouchableOpacity
-                        style={styles.backdropDismiss}
-                        activeOpacity={1}
-                        onPress={() => setModalVisible(false)}
-                    />
-
-                    <View style={[styles.sheetContainer, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                        {/* Sheet Handle */}
-                        <View style={styles.sheetHandle} />
-
-                        {/* Sheet Header */}
-                        <View style={styles.sheetHeader}>
+                        onPress={handleConfirm}
+                        style={[styles.confirmBtn, { backgroundColor: theme.colors.primary }]}
+                        activeOpacity={0.8}
+                    >
+                        <Text style={styles.confirmBtnText}>
+                            Select {modalDisplayTime}
+                        </Text>
+                    </TouchableOpacity>
+                }
+            >
+                {/* Quick Presets */}
+                <View style={styles.presetsWrapper}>
+                    {COMMON_PRESETS.map((p) => {
+                        const isCurrent = value === p;
+                        return (
                             <TouchableOpacity
-                                onPress={() => setModalVisible(false)}
-                                style={[styles.circleBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
+                                key={p}
+                                onPress={() => handlePreset(p)}
+                                style={[
+                                    styles.presetChip,
+                                    {
+                                        backgroundColor: isCurrent ? theme.colors.primary : theme.colors.surfaceSubtle,
+                                        borderColor: isCurrent ? theme.colors.primary : theme.colors.border,
+                                    },
+                                ]}
                             >
-                                <X color={theme.colors.textPrimary} size={18} />
-                            </TouchableOpacity>
-                            <Text style={[styles.sheetTitle, { color: theme.colors.textPrimary }]}>
-                                {label || 'Select Time'}
-                            </Text>
-                            <TouchableOpacity
-                                onPress={handleConfirm}
-                                style={[styles.circleBtn, { backgroundColor: theme.colors.primary }]}
-                            >
-                                <Check color="#FFFFFF" size={18} />
-                            </TouchableOpacity>
-                        </View>
-
-                        {/* Quick Presets */}
-                        <View style={styles.presetsWrapper}>
-                            {COMMON_PRESETS.map((p) => {
-                                const isCurrent = value === p;
-                                return (
-                                    <TouchableOpacity
-                                        key={p}
-                                        onPress={() => handlePreset(p)}
-                                        style={[
-                                            styles.presetChip,
-                                            {
-                                                backgroundColor: isCurrent ? theme.colors.primarySubtle : theme.colors.surfaceSubtle,
-                                                borderColor: isCurrent ? theme.colors.primary : 'transparent',
-                                            },
-                                        ]}
-                                    >
-                                        <Text
-                                            style={[
-                                                styles.presetText,
-                                                { color: isCurrent ? theme.colors.primary : theme.colors.textPrimary },
-                                            ]}
-                                        >
-                                            {p}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
-
-                        {/* Stepper Controls for Hours & Minutes */}
-                        <View style={styles.stepperContainer}>
-                            {/* Hours Column */}
-                            <View style={styles.stepperCol}>
-                                <TouchableOpacity
-                                    onPress={() => stepHour(1)}
-                                    style={[styles.stepperArrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
+                                <Text
+                                    style={[
+                                        styles.presetText,
+                                        { color: isCurrent ? '#FFFFFF' : theme.colors.textPrimary },
+                                    ]}
                                 >
-                                    <ChevronUp color={theme.colors.textPrimary} size={20} />
-                                </TouchableOpacity>
-                                <View style={[styles.stepperValueBox, { backgroundColor: theme.colors.surfaceSubtle }]}>
-                                    <Text style={[styles.stepperValueText, { color: theme.colors.textPrimary }]}>
-                                        {hours < 10 ? `0${hours}` : hours}
-                                    </Text>
-                                    <Text style={[styles.stepperUnitLabel, { color: theme.colors.textSecondary }]}>HR</Text>
-                                </View>
-                                <TouchableOpacity
-                                    onPress={() => stepHour(-1)}
-                                    style={[styles.stepperArrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
-                                >
-                                    <ChevronDown color={theme.colors.textPrimary} size={20} />
-                                </TouchableOpacity>
-                            </View>
-
-                            <Text style={[styles.stepperColon, { color: theme.colors.textPrimary }]}>:</Text>
-
-                            {/* Minutes Column */}
-                            <View style={styles.stepperCol}>
-                                <TouchableOpacity
-                                    onPress={() => stepMinute(5)}
-                                    style={[styles.stepperArrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
-                                >
-                                    <ChevronUp color={theme.colors.textPrimary} size={20} />
-                                </TouchableOpacity>
-                                <View style={[styles.stepperValueBox, { backgroundColor: theme.colors.surfaceSubtle }]}>
-                                    <Text style={[styles.stepperValueText, { color: theme.colors.textPrimary }]}>
-                                        {minutes < 10 ? `0${minutes}` : minutes}
-                                    </Text>
-                                    <Text style={[styles.stepperUnitLabel, { color: theme.colors.textSecondary }]}>MIN</Text>
-                                </View>
-                                <TouchableOpacity
-                                    onPress={() => stepMinute(-5)}
-                                    style={[styles.stepperArrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
-                                >
-                                    <ChevronDown color={theme.colors.textPrimary} size={20} />
-                                </TouchableOpacity>
-                            </View>
-
-                            {/* Period Badge (AM / PM) */}
-                            <View style={[styles.periodBadge, { backgroundColor: theme.colors.primarySubtle }]}>
-                                <Text style={[styles.periodText, { color: theme.colors.primary }]}>
-                                    {hours >= 12 ? 'PM' : 'AM'}
+                                    {formatTimeDisplay(p)}
                                 </Text>
-                            </View>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+
+                {/* Interactive Time Selector */}
+                <View style={styles.pickerBody}>
+                    {/* Hours Column */}
+                    <View style={styles.pickerCol}>
+                        <TouchableOpacity
+                            onPress={() => stepHour(1)}
+                            style={[styles.arrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Increment hour"
+                        >
+                            <ChevronUp color={theme.colors.textPrimary} size={22} />
+                        </TouchableOpacity>
+
+                        <View style={[styles.numberBox, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}>
+                            <Text style={[styles.numberText, { color: theme.colors.textPrimary }]}>
+                                {hours < 10 ? `0${hours}` : `${hours}`}
+                            </Text>
                         </View>
 
-                        {/* Confirm Button */}
                         <TouchableOpacity
-                            onPress={handleConfirm}
-                            style={[styles.confirmBtn, { backgroundColor: theme.colors.primary }]}
-                            activeOpacity={0.8}
+                            onPress={() => stepHour(-1)}
+                            style={[styles.arrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Decrement hour"
                         >
-                            <Text style={styles.confirmBtnText}>
-                                Select {formatDisplay(hours, minutes)}
-                            </Text>
+                            <ChevronDown color={theme.colors.textPrimary} size={22} />
                         </TouchableOpacity>
                     </View>
+
+                    <Text style={[styles.colonText, { color: theme.colors.textPrimary }]}>:</Text>
+
+                    {/* Minutes Column */}
+                    <View style={styles.pickerCol}>
+                        <TouchableOpacity
+                            onPress={() => stepMinute(5)}
+                            style={[styles.arrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Increment minutes by 5"
+                        >
+                            <ChevronUp color={theme.colors.textPrimary} size={22} />
+                        </TouchableOpacity>
+
+                        <View style={[styles.numberBox, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}>
+                            <Text style={[styles.numberText, { color: theme.colors.textPrimary }]}>
+                                {minutes < 10 ? `0${minutes}` : `${minutes}`}
+                            </Text>
+                        </View>
+
+                        <TouchableOpacity
+                            onPress={() => stepMinute(-5)}
+                            style={[styles.arrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Decrement minutes by 5"
+                        >
+                            <ChevronDown color={theme.colors.textPrimary} size={22} />
+                        </TouchableOpacity>
+                    </View>
+
+                    {/* AM / PM Toggle */}
+                    <TouchableOpacity
+                        onPress={toggleAmPm}
+                        style={[styles.periodBadge, { backgroundColor: theme.colors.primarySubtle }]}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Toggle AM PM, currently ${hours >= 12 ? 'PM' : 'AM'}`}
+                    >
+                        <Text style={[styles.periodText, { color: theme.colors.primary }]}>
+                            {hours >= 12 ? 'PM' : 'AM'}
+                        </Text>
+                    </TouchableOpacity>
                 </View>
-            </Modal>
+            </AppBottomSheet>
         </View>
     );
 };

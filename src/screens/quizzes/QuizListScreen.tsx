@@ -9,13 +9,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { format, parseISO, isValid } from 'date-fns';
+import { formatDateDisplay } from '../../utils/dateTime';
 import { quizApi, QuizItem } from '../../api/quiz';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { AppText as Text } from '../../components/AppText';
-import { AppHeader } from '../../components/common/AppHeader';
 import { QuizListSkeleton } from '../../components/common/Skeletons';
+import { EmptyState } from '../../components/common/EmptyState';
 import {
     Award,
     Clock,
@@ -32,14 +32,7 @@ const QUIZ_TABS = [
 ];
 
 const formatQuizDate = (rawStr?: string) => {
-    if (!rawStr) return 'Recent';
-    try {
-        const d = parseISO(rawStr);
-        if (!isValid(d)) return rawStr;
-        return format(d, 'MMM d, yyyy');
-    } catch {
-        return rawStr;
-    }
+    return formatDateDisplay(rawStr, 'short', 'Recent');
 };
 
 import { AppShell } from '../../components/common/AppShell';
@@ -115,13 +108,11 @@ export const QuizListScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 <QuizListSkeleton />
             ) : activeTab === 'active' ? (
                 activeQuizzes.length === 0 ? (
-                    <View style={styles.emptyCard}>
-                        <HelpCircle color={theme.colors.textSecondary} size={44} />
-                        <Text style={styles.emptyTitle}>{t('no_active_quizzes', 'No active quizzes')}</Text>
-                        <Text style={styles.emptySub}>
-                            {t('no_active_quizzes_desc', 'You do not have any pending assessment tests assigned at the moment.')}
-                        </Text>
-                    </View>
+                    <EmptyState
+                        icon={<HelpCircle color={theme.colors.textSecondary} size={36} />}
+                        title={t('no_active_quizzes', 'No active quizzes')}
+                        description={t('no_active_quizzes_desc', 'You do not have any pending assessment tests assigned at the moment.')}
+                    />
                 ) : (
                     activeQuizzes.map((item) => {
                         const durationMins = item.quiz?.duration ? Math.round(item.quiz.duration / 60) : null;
@@ -168,13 +159,11 @@ export const QuizListScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 )
             ) : (
                 historyQuizzes.length === 0 ? (
-                    <View style={styles.emptyCard}>
-                        <Award color={theme.colors.textSecondary} size={44} />
-                        <Text style={styles.emptyTitle}>{t('no_history_yet', 'No history yet')}</Text>
-                        <Text style={styles.emptySub}>
-                            {t('quizzes_history_empty_desc', 'Completed quizzes will be listed here with scores and detailed reviews.')}
-                        </Text>
-                    </View>
+                    <EmptyState
+                        icon={<Award color={theme.colors.textSecondary} size={36} />}
+                        title={t('no_history_yet', 'No history yet')}
+                        description={t('quizzes_history_empty_desc', 'Completed quizzes will be listed here with scores and detailed reviews.')}
+                    />
                 ) : (
                     historyQuizzes.map((item) => {
                         const snap = item.quiz_snapshot;
@@ -394,18 +383,18 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderWidth: 1,
     },
     badgePassed: {
-        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-        borderColor: 'rgba(16, 185, 129, 0.25)',
+        backgroundColor: theme.colors.status.successSubtle,
+        borderColor: theme.colors.status.successBorder,
     },
     badgePassedText: {
-        color: '#10B981',
+        color: theme.colors.status.success,
     },
     badgeFailed: {
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-        borderColor: 'rgba(239, 68, 68, 0.25)',
+        backgroundColor: theme.colors.status.dangerSubtle,
+        borderColor: theme.colors.status.dangerBorder,
     },
     badgeFailedText: {
-        color: '#EF4444',
+        color: theme.colors.status.danger,
     },
     badgePillText: {
         fontSize: 10,

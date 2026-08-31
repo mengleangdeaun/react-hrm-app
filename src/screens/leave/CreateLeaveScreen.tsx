@@ -29,7 +29,13 @@ import {
     Plus,
     History,
 } from 'lucide-react-native';
-import { format, differenceInCalendarDays, parseISO } from 'date-fns';
+import {
+    format,
+    getTodayDateString,
+    isDateRangeValid,
+    calculateInclusiveDays,
+    formatDateDisplay,
+} from '../../utils/dateTime';
 
 import { useTranslation } from '../../context/LanguageContext';
 
@@ -52,7 +58,7 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
     const [selectedLeaveTypeId, setSelectedLeaveTypeId] = useState<number>(1);
     const [durationType, setDurationType] = useState<string>('full_day');
 
-    const todayStr = format(new Date(), 'yyyy-MM-dd');
+    const todayStr = getTodayDateString();
     const [startDate, setStartDate] = useState(todayStr);
     const [endDate, setEndDate] = useState(todayStr);
     const [startTime, setStartTime] = useState('08:00');
@@ -60,6 +66,13 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
     const [reason, setReason] = useState('');
     const [attachment, setAttachment] = useState<any>(null);
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleStartDateChange = (newStart: string) => {
+        setStartDate(newStart);
+        if (endDate < newStart) {
+            setEndDate(newStart);
+        }
+    };
 
     useEffect(() => {
         loadBalances();
@@ -100,15 +113,8 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
         if (durationType === 'first_half' || durationType === 'second_half') return `0.5 ${t('day', 'Day')}`;
         if (durationType === 'custom_time') return t('custom_time', 'Custom Time');
         if (durationType === 'multi_day') {
-            try {
-                const start = parseISO(startDate);
-                const end = parseISO(endDate);
-                const diff = differenceInCalendarDays(end, start) + 1;
-                if (isNaN(diff) || diff <= 0) return `1 ${t('day', 'Day')}`;
-                return `${diff} ${diff > 1 ? t('days', 'Days') : t('day', 'Day')}`;
-            } catch (e) {
-                return `1 ${t('day', 'Day')}`;
-            }
+            const days = calculateInclusiveDays(startDate, endDate);
+            return `${days} ${days > 1 ? t('days', 'Days') : t('day', 'Day')}`;
         }
         return `1 ${t('day', 'Day')}`;
     };
@@ -116,6 +122,16 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
     const handleSubmit = async () => {
         if (!reason.trim()) {
             Alert.alert(t('reason_required', 'Reason Required'), t('provide_reason_desc', 'Please provide a clear reason for your leave request.'));
+            return;
+        }
+
+        if (durationType === 'multi_day' && !isDateRangeValid(startDate, endDate)) {
+            Alert.alert(t('invalid_date_range', 'Invalid Date Range'), t('start_must_before_end', 'Start date cannot be after end date.'));
+            return;
+        }
+
+        if (durationType === 'custom_time' && startTime >= endTime) {
+            Alert.alert(t('invalid_time_range', 'Invalid Time Range'), t('start_time_must_before_end', 'Start time must be before end time.'));
             return;
         }
 
@@ -135,10 +151,10 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
 
             if (Platform.OS === 'web') {
                 window.alert(t('application_submitted_msg', 'Application Submitted: Your leave request has been submitted to your line manager for review.'));
-                navigation.navigate('LeaveList');
+                navigation.replace('LeaveList');
             } else {
                 Alert.alert(t('application_submitted', 'Application Submitted'), t('leave_submitted_mgr', 'Your leave request has been submitted to your line manager for review.'), [
-                    { text: t('ok', 'OK'), onPress: () => navigation.navigate('LeaveList') },
+                    { text: t('ok', 'OK'), onPress: () => navigation.replace('LeaveList') },
                 ]);
             }
         } catch (err: any) {
@@ -151,7 +167,7 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
     const headerRight = (
         <HeaderIconButton
             icon={<History color={theme.colors.brand} size={20} />}
-            onPress={() => navigation.navigate('LeaveList')}
+            onPress={() => navigation.replace('LeaveList')}
             accessibilityLabel="Leave applications history"
         />
     );
@@ -242,7 +258,7 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
                         <NativeDatePickerField
                             label={t('start_date', 'Start Date')}
                             value={startDate}
-                            onChange={setStartDate}
+                            onChange={handleStartDateChange}
                         />
                     </View>
 

@@ -44,12 +44,6 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
 
-    const handleInputFocus = () => {
-        setTimeout(() => {
-            scrollViewRef.current?.scrollToEnd({ animated: true });
-        }, 120);
-    };
-
     const toggleLanguage = () => {
         setLocale(locale === 'en' ? 'kh' : 'en');
     };
@@ -140,7 +134,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                             if (navigation.canGoBack()) {
                                 navigation.goBack();
                             } else {
-                                navigation.navigate('Welcome');
+                                navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
                             }
                         }}
                         activeOpacity={0.7}
@@ -193,6 +187,8 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                     ref={scrollViewRef}
                     contentContainerStyle={styles.scrollContent}
                     keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="on-drag"
+                    automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
                     showsVerticalScrollIndicator={false}
                     bounces={false}
                 >
@@ -248,7 +244,6 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                                     placeholderTextColor={theme.colors.textSecondary}
                                     value={email}
                                     onChangeText={setEmail}
-                                    onFocus={handleInputFocus}
                                     keyboardType="email-address"
                                     autoCapitalize="none"
                                     autoCorrect={false}
@@ -277,7 +272,6 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                                     placeholderTextColor={theme.colors.textSecondary}
                                     value={password}
                                     onChangeText={setPassword}
-                                    onFocus={handleInputFocus}
                                     secureTextEntry={!showPassword}
                                     autoCapitalize="none"
                                 />
@@ -401,18 +395,18 @@ const styles = {
     scrollContent: {
         flexGrow: 1,
         paddingHorizontal: 24,
-        paddingTop: 8,
-        paddingBottom: 36,
+        paddingTop: 12,
+        paddingBottom: 48,
         justifyContent: 'center' as const,
     },
     brandContainer: {
         alignItems: 'center' as const,
-        marginBottom: 20,
+        marginBottom: 16,
     },
     logoContainer: {
         alignItems: 'center' as const,
         justifyContent: 'center' as const,
-        marginBottom: 12,
+        marginBottom: 10,
         ...Platform.select({
             ios: {
                 shadowColor: '#000000',
@@ -426,8 +420,8 @@ const styles = {
         }),
     },
     logoImage: {
-        width: 84,
-        height: 84,
+        width: 80,
+        height: 80,
         borderRadius: 20,
     },
     brandTitle: {
@@ -437,7 +431,7 @@ const styles = {
         marginBottom: 4,
     },
     welcomeTitle: {
-        fontSize: 24,
+        fontSize: 23,
         fontWeight: '800' as const,
         textAlign: 'center' as const,
         marginBottom: 4,

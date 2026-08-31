@@ -1,14 +1,18 @@
 {
   "expo": {
-    "name": "HRM App",
-    "slug": "hrms-app",
+    "name": "SCCG App",
+    "slug": "sccg-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.hrmsapp.mobile"
+      "bundleIdentifier": "com.sccg.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Allow SCCG App to access your photo library to attach or save activity photos.",
+        "NSPhotoLibraryAddUsageDescription": "Allow SCCG App to save activity photos directly to your photo library."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -18,8 +22,16 @@
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
-      "package": "com.hrmsapp.mobile",
-      "versionCode": 1
+      "package": "com.sccg.app",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
@@ -32,6 +44,14 @@
     "plugins": [
       "expo-secure-store",
       "expo-font",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow SCCG App to access and save activity photos to your gallery.",
+          "savePhotosPermission": "Allow SCCG App to save activity photos directly to your gallery.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
       [
         "expo-splash-screen",
         {

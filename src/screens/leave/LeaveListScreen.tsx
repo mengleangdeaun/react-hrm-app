@@ -9,6 +9,9 @@ import {
     Alert,
     Modal,
     TextInput,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet as RNStyleSheet,
 } from 'react-native';
 import { AppText as Text } from '../../components/AppText';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -17,6 +20,8 @@ import { format, parseISO } from 'date-fns';
 import { AppShell } from '../../components/common/AppShell';
 import { HeaderIconButton } from '../../components/common/AppHeader';
 import { LeaveListSkeleton } from '../../components/common/Skeletons';
+import { EmptyState } from '../../components/common/EmptyState';
+import { AppBottomSheet } from '../../components/common/AppBottomSheet';
 import { leaveApi, LeaveBalance, LeaveRequest } from '../../api/leave';
 import { useAppTheme } from '../../context/ThemeContext';
 import {
@@ -33,36 +38,7 @@ import {
     User,
 } from 'lucide-react-native';
 
-const formatDateRange = (startStr?: string, endStr?: string) => {
-    if (!startStr) return '';
-    try {
-        const start = parseISO(startStr);
-        if (!endStr || startStr === endStr) {
-            return format(start, 'dd MMM yyyy');
-        }
-        const end = parseISO(endStr);
-        if (start.getFullYear() === end.getFullYear()) {
-            if (start.getMonth() === end.getMonth()) {
-                return `${format(start, 'dd')} – ${format(end, 'dd MMM yyyy')}`;
-            }
-            return `${format(start, 'dd MMM')} – ${format(end, 'dd MMM yyyy')}`;
-        }
-        return `${format(start, 'dd MMM yyyy')} – ${format(end, 'dd MMM yyyy')}`;
-    } catch (e) {
-        if (!endStr || startStr === endStr) return startStr;
-        return `${startStr} – ${endStr}`;
-    }
-};
-
-const formatDateDisplay = (dateStr?: string) => {
-    if (!dateStr) return 'Recent';
-    try {
-        const isoStr = dateStr.includes('T') ? dateStr : `${dateStr}T00:00:00`;
-        return format(parseISO(isoStr), 'dd MMM yyyy');
-    } catch (e) {
-        return dateStr.substring(0, 10);
-    }
-};
+import { formatDateRangeDisplay, formatDateDisplay } from '../../utils/dateTime';
 
 import { useTranslation } from '../../context/LanguageContext';
 
@@ -266,11 +242,13 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                     <LeaveListSkeleton />
                 ) : activeTab === 'my_requests' ? (
                     myRequests.length === 0 ? (
-                        <View style={styles.emptyCard}>
-                            <FileText color={theme.colors.textSecondary} size={40} />
-                            <Text style={styles.emptyTitle}>{t('no_leave_requests', 'No Leave Requests')}</Text>
-                            <Text style={styles.emptySub}>{t('no_leave_requests_desc', 'You have not submitted any leave applications yet.')}</Text>
-                        </View>
+                        <EmptyState
+                            icon={<FileText color={theme.colors.textSecondary} size={36} />}
+                            title={t('no_leave_requests', 'No Leave Requests')}
+                            description={t('no_leave_requests_desc', 'You have not submitted any leave applications yet.')}
+                            actionTitle={t('apply_leave', 'Apply Leave')}
+                            onAction={() => navigation.navigate('CreateLeave')}
+                        />
                     ) : (
                         myRequests.map((req) => {
                             const statusStr = (req.status || 'pending').toLowerCase();
@@ -309,7 +287,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                                                         color: isApproved
                                                             ? theme.colors.status.success
                                                             : isPending
-                                                            ? '#F59E0B'
+                                                            ? theme.colors.status.warning
                                                             : isRejected
                                                             ? theme.colors.status.danger
                                                             : theme.colors.textSecondary,
@@ -323,7 +301,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
                                     <View style={styles.dateRow}>
                                         <Text style={styles.dateRangeText}>
-                                            {formatDateRange(req.start_date, req.end_date)}
+                                            {formatDateRangeDisplay(req.start_date, req.end_date)}
                                         </Text>
                                         <View style={styles.durationPill}>
                                             <Text style={styles.durationPillText}>
@@ -358,11 +336,11 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                         })
                     )
                 ) : managerApprovals.length === 0 ? (
-                    <View style={styles.emptyCard}>
-                        <CheckCircle2 color={theme.colors.textSecondary} size={40} />
-                        <Text style={styles.emptyTitle}>{t('no_pending_approvals', 'No Pending Approvals')}</Text>
-                        <Text style={styles.emptySub}>{t('no_pending_approvals_desc', 'All subordinate leave requests have been processed.')}</Text>
-                    </View>
+                    <EmptyState
+                        icon={<CheckCircle2 color={theme.colors.status.success} size={36} />}
+                        title={t('no_pending_approvals', 'No Pending Approvals')}
+                        description={t('no_pending_approvals_desc', 'All subordinate leave requests have been processed.')}
+                    />
                 ) : (
                     managerApprovals.map((item) => (
                         <View key={item.id} style={styles.requestCard}>
@@ -379,7 +357,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
                             <View style={styles.dateRow}>
                                 <Text style={styles.dateRangeText}>
-                                    {getLeaveTypeName(item.leave_type)} • {formatDateRange(item.start_date, item.end_date)}
+                                    {getLeaveTypeName(item.leave_type)} • {formatDateRangeDisplay(item.start_date, item.end_date)}
                                 </Text>
                                 <View style={styles.durationPill}>
                                     <Text style={styles.durationPillText}>
@@ -411,45 +389,37 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 )}
 
             {/* Rejection Reason Modal */}
-            <Modal visible={!!rejectingItem} transparent animationType="fade">
-                <TouchableOpacity
-                    style={styles.modalOverlay}
-                    activeOpacity={1}
-                    onPress={() => setRejectingItem(null)}
-                >
-                    <View style={styles.modalSheet}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>{t('reject_leave_app', 'Reject Leave Application')}</Text>
-                            <TouchableOpacity onPress={() => setRejectingItem(null)}>
-                                <X color={theme.colors.textPrimary} size={20} />
-                            </TouchableOpacity>
-                        </View>
-
-                        <Text style={styles.inputLabel}>{t('reason_for_rejection', 'Reason for Rejection')}</Text>
-                        <TextInput
-                            style={styles.reasonInput}
-                            value={rejectionReason}
-                            onChangeText={setRejectionReason}
-                            placeholder={t('state_rejection_reason', 'State rejection reason for employee...')}
-                            placeholderTextColor={theme.colors.textSecondary}
-                            multiline
-                            numberOfLines={3}
-                        />
-
-                        <TouchableOpacity
-                            style={styles.confirmRejectBtn}
-                            onPress={handleConfirmReject}
-                            disabled={isSubmittingReject}
-                        >
-                            {isSubmittingReject ? (
-                                <ActivityIndicator color="#FFFFFF" />
-                            ) : (
-                                <Text style={styles.confirmRejectText}>{t('confirm_rejection', 'Confirm Rejection')}</Text>
-                            )}
-                        </TouchableOpacity>
-                    </View>
-                </TouchableOpacity>
-            </Modal>
+            <AppBottomSheet
+                visible={!!rejectingItem}
+                onClose={() => setRejectingItem(null)}
+                title={t('reject_leave_app', 'Reject Leave Application')}
+                subtitle={rejectingItem ? `${t('employee', 'Employee')}: ${rejectingItem.employee?.full_name || t('colleague', 'Colleague')}` : undefined}
+                footer={
+                    <TouchableOpacity
+                        style={styles.confirmRejectBtn}
+                        onPress={handleConfirmReject}
+                        disabled={isSubmittingReject}
+                        activeOpacity={0.85}
+                    >
+                        {isSubmittingReject ? (
+                            <ActivityIndicator color="#FFFFFF" />
+                        ) : (
+                            <Text style={styles.confirmRejectText}>{t('confirm_rejection', 'Confirm Rejection')}</Text>
+                        )}
+                    </TouchableOpacity>
+                }
+            >
+                <Text style={styles.inputLabel}>{t('reason_for_rejection', 'Reason for Rejection')}</Text>
+                <TextInput
+                    style={styles.reasonInput}
+                    value={rejectionReason}
+                    onChangeText={setRejectionReason}
+                    placeholder={t('state_rejection_reason', 'State rejection reason for employee...')}
+                    placeholderTextColor={theme.colors.textSecondary}
+                    multiline
+                    numberOfLines={3}
+                />
+            </AppBottomSheet>
         </AppShell>
     );
 };
@@ -613,7 +583,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontWeight: '800',
     },
     pendingBadge: {
-        backgroundColor: 'rgba(245, 158, 11, 0.12)',
+        backgroundColor: theme.colors.status.warningSubtle,
         paddingHorizontal: theme.spacing.sm + 4,
         paddingVertical: 3,
         borderRadius: theme.borderRadius.full,
@@ -621,7 +591,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     pendingBadgeText: {
         fontSize: 10,
         fontWeight: '800',
-        color: '#F59E0B',
+        color: theme.colors.status.warning,
     },
     dateRow: {
         flexDirection: 'row',
@@ -723,6 +693,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderTopLeftRadius: theme.borderRadius.lg + 4,
         borderTopRightRadius: theme.borderRadius.lg + 4,
         padding: theme.spacing.lg,
+        maxHeight: '85%',
     },
     modalHeader: {
         flexDirection: 'row',

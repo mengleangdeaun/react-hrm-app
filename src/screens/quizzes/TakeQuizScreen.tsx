@@ -279,11 +279,11 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
             } else {
                 Alert.alert('Quiz Submitted', reasonMessage);
             }
-            navigation.navigate('QuizResult', { token, score: res?.score, passed: res?.passed, quizTitle });
+            navigation.replace('QuizResult', { token, score: res?.score, passed: res?.passed, quizTitle });
         } catch (err) {
             console.warn('Auto-submit failed:', err);
             setCompleted(true);
-            navigation.navigate('QuizList');
+            navigation.replace('QuizList');
         } finally {
             setSubmitting(false);
         }
@@ -345,7 +345,7 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
             const finalAnswers = normalizePayloadAnswers(raw);
             const res = await quizApi.submitQuiz(token!, finalAnswers);
             setCompleted(true);
-            navigation.navigate('QuizResult', {
+            navigation.replace('QuizResult', {
                 token,
                 score: res?.score ?? 0,
                 passed: !!res?.passed,

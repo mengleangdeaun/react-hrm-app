@@ -40,6 +40,12 @@ export interface LeaveRequest {
     attachments?: string[];
     created_at?: string;
     employee_name?: string;
+    employee?: {
+        id?: number | string;
+        full_name?: string;
+        name?: string;
+        profile_image?: string;
+    };
 }
 
 export const leaveApi = {

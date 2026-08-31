@@ -199,6 +199,85 @@ export function QuizListSkeleton() {
     );
 }
 
+export function DayOffSkeleton() {
+    return (
+        <View style={styles.container}>
+            {/* Top Tabs Placeholder */}
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+                <Skeleton.Box width="48%" height={40} borderRadius={10} />
+                <Skeleton.Box width="48%" height={40} borderRadius={10} />
+            </View>
+
+            {/* Schedule Card Placeholder */}
+            <View style={styles.attendanceCardPlaceholder}>
+                <View style={styles.cardHeaderRow}>
+                    <Skeleton.Box width={140} height={18} borderRadius={6} />
+                    <Skeleton.Box width={80} height={14} borderRadius={4} />
+                </View>
+                {/* 7-day grid placeholder */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 16 }}>
+                    {Array.from({ length: 7 }).map((_, idx) => (
+                        <Skeleton.Box key={idx} width="12%" height={48} borderRadius={10} />
+                    ))}
+                </View>
+            </View>
+
+            {/* Request History Section Header */}
+            <Skeleton.Text lines={1} height={14} style={{ width: '40%', marginVertical: 14 }} />
+
+            {/* Request History Card Placeholders */}
+            {[1, 2].map((i) => (
+                <View key={i} style={styles.cardPlaceholder}>
+                    <View style={styles.cardHeaderRow}>
+                        <Skeleton.Box width={110} height={16} borderRadius={6} />
+                        <Skeleton.Box width={70} height={20} borderRadius={10} />
+                    </View>
+                    <Skeleton.Text lines={2} height={12} gap={6} style={{ marginTop: 12 }} />
+                </View>
+            ))}
+        </View>
+    );
+}
+
+export function ScheduleCalendarSkeleton() {
+    return (
+        <View style={styles.container}>
+            {/* Month Header Nav Placeholder */}
+            <View style={[styles.cardHeaderRow, { marginBottom: 16 }]}>
+                <Skeleton.Box width={150} height={24} borderRadius={6} />
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <Skeleton.Box width={36} height={36} borderRadius={10} />
+                    <Skeleton.Box width={36} height={36} borderRadius={10} />
+                </View>
+            </View>
+
+            {/* Calendar Grid Box Placeholder */}
+            <View style={styles.attendanceCardPlaceholder}>
+                {/* Day Names Row */}
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 12 }}>
+                    {Array.from({ length: 7 }).map((_, idx) => (
+                        <Skeleton.Box key={idx} width="12%" height={16} borderRadius={4} />
+                    ))}
+                </View>
+                {/* 5 Weeks of Calendar Day Cells */}
+                {Array.from({ length: 5 }).map((_, wIdx) => (
+                    <View key={wIdx} style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 }}>
+                        {Array.from({ length: 7 }).map((_, dIdx) => (
+                            <Skeleton.Box key={dIdx} width="12%" height={38} borderRadius={8} />
+                        ))}
+                    </View>
+                ))}
+            </View>
+
+            {/* Selected Day Event Placeholder */}
+            <View style={[styles.cardPlaceholder, { marginTop: 12 }]}>
+                <Skeleton.Box width="60%" height={18} borderRadius={6} />
+                <Skeleton.Text lines={2} height={12} gap={6} style={{ marginTop: 10 }} />
+            </View>
+        </View>
+    );
+}
+
 const styles = StyleSheet.create({
     container: {
         flex: 1,

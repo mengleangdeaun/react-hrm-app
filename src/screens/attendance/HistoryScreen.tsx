@@ -14,10 +14,14 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '../../components/common/AppShell';
 import { HeaderIconButton } from '../../components/common/AppHeader';
 import { AttendanceHistorySkeleton } from '../../components/common/Skeletons';
+import { EmptyState } from '../../components/common/EmptyState';
+import { AppBottomSheet } from '../../components/common/AppBottomSheet';
 import { attendanceApi, HistoryRecord } from '../../api/attendance';
+import * as Haptics from 'expo-haptics';
 import { useAppTheme } from '../../context/ThemeContext';
 import {
     Calendar,
+    Check,
     CheckCircle2,
     AlertTriangle,
     ArrowDownLeft,
@@ -28,7 +32,7 @@ import {
     Sparkles,
     Coffee,
 } from 'lucide-react-native';
-import { format, parseISO } from 'date-fns';
+import { format, formatDateDisplay, formatTimeDisplay } from '../../utils/dateTime';
 
 import { useTranslation } from '../../context/LanguageContext';
 
@@ -42,7 +46,7 @@ export const AUDIT_CATEGORIES = [
 ];
 
 export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-    const { isDark } = useAppTheme();
+    const { isDark, primaryColor } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
@@ -175,23 +179,11 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     };
 
     const formatTimeString = (isoOrTimeStr?: string | null) => {
-        if (!isoOrTimeStr) return '--:--';
-        try {
-            if (isoOrTimeStr.includes('T')) {
-                return format(parseISO(isoOrTimeStr), 'hh:mm a');
-            }
-            return isoOrTimeStr.substring(0, 5);
-        } catch (e) {
-            return String(isoOrTimeStr).substring(0, 5);
-        }
+        return formatTimeDisplay(isoOrTimeStr);
     };
 
     const formatDateHeader = (dateStr: string) => {
-        try {
-            return format(parseISO(dateStr), 'EEEE, dd MMM yyyy');
-        } catch (e) {
-            return dateStr;
-        }
+        return formatDateDisplay(dateStr, 'full');
     };
 
     const renderItem = ({ item }: { item: HistoryRecord }) => {
@@ -384,7 +376,7 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                     <View style={styles.activeMonthChip}>
                         <Clock color="#FFFFFF" size={14} />
                         <Text style={styles.activeMonthChipText}>
-                            {format(parseISO(selectedMonth + '-01'), 'MMMM yyyy')}
+                            {formatDateDisplay(selectedMonth + '-01', 'monthYear')}
                         </Text>
                         <TouchableOpacity
                             onPress={() => setSelectedMonth('')}
@@ -400,11 +392,13 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 {isLoading ? (
                     <AttendanceHistorySkeleton />
                 ) : historyLogs.length === 0 ? (
-                    <View style={styles.centerContainer}>
-                        <Clock color={theme.colors.textSecondary} size={44} />
-                        <Text style={styles.emptyTitle}>{t('no_history_records', 'No History Records')}</Text>
-                        <Text style={styles.emptySubtitle}>{t('no_attendance_logs_period', 'No attendance logs found for this period.')}</Text>
-                    </View>
+                    <EmptyState
+                        icon={<Clock color={theme.colors.textSecondary} size={36} />}
+                        title={t('no_history_records', 'No History Records')}
+                        description={t('no_attendance_logs_period', 'No attendance logs found for this period.')}
+                        actionTitle={selectedMonth ? t('clear_filter', 'Clear Filter') : undefined}
+                        onAction={selectedMonth ? () => setSelectedMonth('') : undefined}
+                    />
                 ) : (
                     <FlatList
                         data={historyLogs}
@@ -422,75 +416,78 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             </View>
 
             {/* Filter Sheet Modal */}
-            <Modal visible={filterModalVisible} transparent animationType="fade">
-                <TouchableOpacity
-                    style={styles.modalOverlay}
-                    activeOpacity={1}
-                    onPress={() => setFilterModalVisible(false)}
-                >
-                    <TouchableOpacity activeOpacity={1} style={styles.modalSheet}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>{t('filter_history', 'Filter History')}</Text>
-                            {(draftQuickFilter !== 'all' || draftMonth) ? (
-                                <TouchableOpacity onPress={handleResetFilters}>
-                                    <Text style={styles.resetBtnText}>{t('reset_all', 'Reset All')}</Text>
-                                </TouchableOpacity>
-                            ) : (
-                                <TouchableOpacity onPress={() => setFilterModalVisible(false)}>
-                                    <X color={theme.colors.textPrimary} size={20} />
-                                </TouchableOpacity>
-                            )}
-                        </View>
-
-                        {/* Review Month Picker */}
-                        <Text style={styles.filterSectionLabel}>{t('review_month', 'Review Month')}</Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.monthPillsRow}>
-                            {getMonthOptions().map((m) => {
-                                const isSel = draftMonth === m.value;
-                                return (
-                                    <TouchableOpacity
-                                        key={m.value}
-                                        style={[styles.monthPill, isSel && styles.monthPillSelected]}
-                                        onPress={() => setDraftMonth(m.value)}
-                                        activeOpacity={0.8}
-                                    >
-                                        <Text style={[styles.monthPillText, isSel && styles.monthPillTextSelected]}>
-                                            {m.label}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </ScrollView>
-
-                        {/* Quick Filter Selection */}
-                        <Text style={styles.filterSectionLabel}>Status Category</Text>
-                        <View style={styles.quickFilterCol}>
-                            {AUDIT_CATEGORIES.map((f) => {
-                                const isSel = draftQuickFilter === f.id;
-                                return (
-                                    <TouchableOpacity
-                                        key={f.id}
-                                        style={[styles.filterOption, isSel && styles.filterOptionSelected]}
-                                        onPress={() => setDraftQuickFilter(f.id)}
-                                    >
-                                        <Text style={[styles.filterOptionText, isSel && styles.filterOptionTextSelected]}>
-                                            {t(f.keyName, f.fallback)}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
-
-                        <TouchableOpacity
-                            style={styles.applyFilterBtn}
-                            onPress={handleApplyFilters}
-                            activeOpacity={0.85}
-                        >
-                            <Text style={styles.applyFilterBtnText}>Apply Filter</Text>
+            <AppBottomSheet
+                visible={filterModalVisible}
+                onClose={() => setFilterModalVisible(false)}
+                title={t('filter_history', 'Filter History')}
+                headerRight={
+                    (draftQuickFilter !== 'all' || draftMonth) ? (
+                        <TouchableOpacity onPress={handleResetFilters} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                            <Text style={styles.resetBtnText}>{t('reset_all', 'Reset All')}</Text>
                         </TouchableOpacity>
+                    ) : undefined
+                }
+                footer={
+                    <TouchableOpacity
+                        style={styles.applyFilterBtn}
+                        onPress={handleApplyFilters}
+                        activeOpacity={0.85}
+                    >
+                        <Text style={styles.applyFilterBtnText}>{t('apply_filter', 'Apply Filter')}</Text>
                     </TouchableOpacity>
-                </TouchableOpacity>
-            </Modal>
+                }
+            >
+                {/* Review Month Picker */}
+                <Text style={styles.filterSectionLabel}>{t('review_month', 'Review Month')}</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.monthPillsRow}>
+                    {getMonthOptions().map((m) => {
+                        const isSel = draftMonth === m.value;
+                        return (
+                            <TouchableOpacity
+                                key={m.value}
+                                style={[styles.monthPill, isSel && styles.monthPillSelected]}
+                                onPress={() => setDraftMonth(m.value)}
+                                activeOpacity={0.8}
+                            >
+                                <Text style={[styles.monthPillText, isSel && styles.monthPillTextSelected]}>
+                                    {m.label}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </ScrollView>
+
+                {/* Quick Filter Selection */}
+                <Text style={styles.filterSectionLabel}>{t('status_category', 'Status Category')}</Text>
+                <View style={styles.quickFilterCol}>
+                    {AUDIT_CATEGORIES.map((f) => {
+                        const isSel = draftQuickFilter === f.id;
+                        return (
+                            <TouchableOpacity
+                                key={f.id}
+                                style={styles.filterOption}
+                                onPress={() => {
+                                    setDraftQuickFilter(f.id);
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                                }}
+                                activeOpacity={0.65}
+                            >
+                                <Text
+                                    style={[
+                                        styles.filterOptionText,
+                                        isSel && [styles.filterOptionTextSelected, { color: primaryColor }],
+                                    ]}
+                                >
+                                    {t(f.keyName, f.fallback)}
+                                </Text>
+                                {isSel && (
+                                    <Check color={primaryColor} size={18} strokeWidth={2.5} />
+                                )}
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
+            </AppBottomSheet>
         </AppShell>
     );
 };
@@ -844,21 +841,20 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginBottom: theme.spacing.md,
     },
     filterOption: {
-        paddingVertical: theme.spacing.sm + 2,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingVertical: 14,
         borderBottomWidth: 1,
         borderBottomColor: theme.colors.border,
-    },
-    filterOptionSelected: {
-        backgroundColor: theme.colors.surfaceSubtle,
-        paddingHorizontal: theme.spacing.sm,
-        borderRadius: theme.borderRadius.sm,
+        backgroundColor: 'transparent',
     },
     filterOptionText: {
-        fontSize: 14,
+        fontSize: 15,
         color: theme.colors.textPrimary,
+        fontWeight: '500',
     },
     filterOptionTextSelected: {
-        color: theme.colors.primary,
         fontWeight: '700',
     },
     applyFilterBtn: {

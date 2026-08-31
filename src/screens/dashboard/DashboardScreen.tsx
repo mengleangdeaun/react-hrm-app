@@ -36,8 +36,11 @@ import {
     Settings,
     Sparkles,
     AlertTriangle,
+    X,
 } from 'lucide-react-native';
-import { format } from 'date-fns';
+import * as Haptics from 'expo-haptics';
+import { format, formatDateDisplay, formatTimeDisplay } from '../../utils/dateTime';
+import { getDismissedBannerIds, dismissBannerId } from '../../utils/storage';
 
 import { useTranslation } from '../../context/LanguageContext';
 
@@ -60,6 +63,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     const [announcements, setAnnouncements] = useState<any[]>([]);
     const [celebration, setCelebration] = useState<any>(null);
     const [unreadNotifications, setUnreadNotifications] = useState(0);
+    const [dismissedBannerIds, setDismissedBannerIds] = useState<string[]>([]);
 
     const [isClockedIn, setIsClockedIn] = useState(false);
     const [clockInTime, setClockInTime] = useState<string | null>(null);
@@ -67,9 +71,15 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     const [avatarLoadError, setAvatarLoadError] = useState(false);
 
     useEffect(() => {
+        loadDismissedBanners();
         const timer = setInterval(() => setCurrentTime(new Date()), 1000);
         return () => clearInterval(timer);
     }, []);
+
+    const loadDismissedBanners = async () => {
+        const ids = await getDismissedBannerIds();
+        setDismissedBannerIds(ids);
+    };
 
     useFocusEffect(
         useCallback(() => {
@@ -94,8 +104,8 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
                 const cInRaw = att.clock_in || att.in1;
                 const cOutRaw = att.clock_out || att.out1;
-                setClockInTime(cInRaw ? String(cInRaw).substring(0, 5) : null);
-                setClockOutTime(cOutRaw ? String(cOutRaw).substring(0, 5) : null);
+                setClockInTime(cInRaw ? formatTimeDisplay(cInRaw) : null);
+                setClockOutTime(cOutRaw ? formatTimeDisplay(cOutRaw) : null);
             } else {
                 setIsClockedIn(false);
                 setClockInTime(null);
@@ -142,9 +152,18 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         return t('good_evening', 'Good Evening');
     };
 
-    const topBannerAnnouncement = announcements.find(
-        (item) => item.pwa_display_type === 'top_banner' || item.is_pinned || item.is_urgent
-    );
+    const topBannerAnnouncement = announcements.find((item) => {
+        const idStr = String(item.id || item.title || item.pwa_title || '');
+        if (dismissedBannerIds.includes(idStr)) return false;
+        return item.pwa_display_type === 'top_banner' || item.is_pinned || item.is_urgent;
+    });
+
+    const handleDismissTopBanner = async (item: any) => {
+        const idStr = String(item.id || item.title || item.pwa_title || '');
+        setDismissedBannerIds((prev) => [...prev, idStr]);
+        await dismissBannerId(idStr);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    };
 
     const displayName = employeeInfo?.full_name || user?.name || t('employee', 'Employee');
     const displayRole = employeeInfo?.designation || user?.position || t('staff', 'Staff');
@@ -241,12 +260,28 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                             {topBannerAnnouncement.title || topBannerAnnouncement.pwa_title}
                         </Text>
                     </View>
-                    <TouchableOpacity
-                        onPress={() => navigation.navigate('AnnouncementDetail', { id: topBannerAnnouncement.id })}
-                        style={styles.topBannerBtn}
-                    >
-                        <Text style={styles.topBannerBtnText}>{t('view', 'View')}</Text>
-                    </TouchableOpacity>
+                    <View style={styles.topBannerRightGroup}>
+                        <TouchableOpacity
+                            onPress={() => navigation.navigate('AnnouncementDetail', { id: topBannerAnnouncement.id })}
+                            style={styles.topBannerBtn}
+                            activeOpacity={0.8}
+                            accessibilityRole="button"
+                            accessibilityLabel="View announcement"
+                        >
+                            <Text style={styles.topBannerBtnText}>{t('view', 'View')}</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            onPress={() => handleDismissTopBanner(topBannerAnnouncement)}
+                            style={styles.topBannerCloseBtn}
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            accessibilityRole="button"
+                            accessibilityLabel="Dismiss announcement banner permanently"
+                        >
+                            <X color="#FFFFFF" size={14} />
+                        </TouchableOpacity>
+                    </View>
                 </View>
             )}
 
@@ -303,7 +338,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                         <View style={styles.rowCentered}>
                             <Clock color={theme.colors.primary} size={16} />
                             <Text style={styles.dateText}>
-                                {format(currentTime, 'EEEE, dd MMM yyyy')}
+                                {formatDateDisplay(currentTime, 'full')}
                             </Text>
                         </View>
                         <View
@@ -490,8 +525,13 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginLeft: theme.spacing.xs,
         flex: 1,
     },
+    topBannerRightGroup: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
     topBannerBtn: {
-        backgroundColor: 'rgba(180, 83, 9, 0.5)',
+        backgroundColor: 'rgba(180, 83, 9, 0.6)',
         paddingHorizontal: theme.spacing.sm + 2,
         paddingVertical: theme.spacing.xs,
         borderRadius: theme.borderRadius.sm,
@@ -501,6 +541,14 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontSize: 11,
         fontWeight: '800',
         textTransform: 'uppercase',
+    },
+    topBannerCloseBtn: {
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        backgroundColor: 'rgba(0, 0, 0, 0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     scrollContainer: {
         flex: 1,

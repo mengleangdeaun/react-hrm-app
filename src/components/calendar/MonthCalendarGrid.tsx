@@ -11,7 +11,10 @@ import {
     isSameMonth,
     isSameDay,
     isToday,
-} from 'date-fns';
+    parseDateOnly,
+    formatDateOnly,
+    formatDateDisplay,
+} from '../../utils/dateTime';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
@@ -56,7 +59,7 @@ export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
 
     // Check Day Status Helper
     const getDayStatuses = (date: Date) => {
-        const dateStr = format(date, 'yyyy-MM-dd');
+        const dateStr = formatDateOnly(date);
         const dayName = format(date, 'eeee').toLowerCase();
 
         // 1. Attendance
@@ -117,9 +120,11 @@ export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
             {/* Weekdays Header */}
             <View style={styles.weekdaysRow}>
                 {WEEKDAYS.map((day) => (
-                    <Text key={day.key} style={[styles.weekdayLabel, { color: theme.colors.textSecondary }]}>
-                        {t(day.key, day.fallback)}
-                    </Text>
+                    <View key={day.key} style={styles.weekdayCol}>
+                        <Text style={[styles.weekdayLabel, { color: theme.colors.textSecondary }]}>
+                            {t(day.key, day.fallback)}
+                        </Text>
+                    </View>
                 ))}
             </View>
 
@@ -131,16 +136,16 @@ export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
                     const isCurrentDay = isToday(date);
                     const { isAttended, isHoliday, isLeave, isDayOff } = getDayStatuses(date);
 
+                    const statusDescriptions = [
+                        isAttended && 'Attended',
+                        isHoliday && 'Holiday',
+                        isLeave && 'Leave',
+                        isDayOff && 'Day Off',
+                    ].filter(Boolean).join(', ');
+
                     return (
-                        <TouchableOpacity
-                            key={date.toISOString()}
-                            style={[
-                                styles.dayCellWrapper,
-                            ]}
-                            onPress={() => onSelectDate(date)}
-                            activeOpacity={0.7}
-                        >
-                            <View
+                        <View key={date.toISOString()} style={styles.dayCellWrapper}>
+                            <TouchableOpacity
                                 style={[
                                     styles.dayCellInner,
                                     isSelected && {
@@ -150,10 +155,15 @@ export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
                                     !isSelected && isCurrentDay && {
                                         backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : theme.colors.surfaceSubtle,
                                         borderRadius: 12,
-                                        borderWidth: 1,
+                                        borderWidth: 1.5,
                                         borderColor: theme.colors.primary,
                                     },
                                 ]}
+                                onPress={() => onSelectDate(date)}
+                                activeOpacity={0.7}
+                                accessibilityRole="button"
+                                accessibilityLabel={`${formatDateDisplay(date, 'full')}${statusDescriptions ? `, ${statusDescriptions}` : ''}${isSelected ? ', selected' : ''}`}
+                                accessibilityState={{ selected: isSelected }}
                             >
                                 <Text
                                     style={[
@@ -208,8 +218,8 @@ export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
                                         />
                                     )}
                                 </View>
-                            </View>
-                        </TouchableOpacity>
+                            </TouchableOpacity>
+                        </View>
                     );
                 })}
             </View>
@@ -252,11 +262,14 @@ const styles = StyleSheet.create({
     },
     weekdaysRow: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         marginBottom: 8,
     },
+    weekdayCol: {
+        width: '14.285%',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     weekdayLabel: {
-        width: '14.28%',
         textAlign: 'center',
         fontSize: 11,
         fontWeight: '700',
@@ -268,7 +281,7 @@ const styles = StyleSheet.create({
         flexWrap: 'wrap',
     },
     dayCellWrapper: {
-        width: '14.28%',
+        width: '14.285%',
         aspectRatio: 1,
         padding: 2,
         justifyContent: 'center',

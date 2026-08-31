@@ -1,20 +1,14 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import {
     View,
-    Modal,
-    TouchableOpacity,
-    ScrollView,
-    Animated,
-    Easing,
     StyleSheet,
-    Platform,
 } from 'react-native';
-import { AppText as Text } from '../AppText';
-import * as Haptics from 'expo-haptics';
-import { ShieldCheck, FileText, X, Check } from 'lucide-react-native';
+import { Check } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
 import { AppButton } from './AppButton';
+import { AppBottomSheet } from './AppBottomSheet';
+import { AppMarkdown } from './AppMarkdown';
 
 export interface LegalDocumentSheetProps {
     visible: boolean;
@@ -58,15 +52,15 @@ By accessing or using this HRMS Enterprise Mobile Application, you agree to comp
 • Device Integrity: You must ensure your mobile device maintains reasonable security measures (passcode/biometrics enabled).
 
 ### 3. Attendance & Operational Rules
-• Accurate Reporting: You agree that all attendance clock-ins, leave applications, activity reports, and notice records reflect accurate, genuine events.
-• Geolocation Integrity: Tampering with GPS location, using mock location tools, or attempting to spoof branch QR codes is a direct violation of company employment policy.
-• Working Hours: Overtime and irregular shift hours must be approved by designated department managers through the system.
+• Geolocation Integrity: Tampering with GPS location, using location mocking tools, or attempting to spoof branch QR codes is a direct violation of company employment policy.
+• Punctuality & Shifts: Attendance punches are recorded with server-verified timestamps. Any discrepancies should be reported immediately through the Attendance Reason flow.
+• Activity Logging: All logged field visits, photos, and progress notes must represent authentic workplace activities.
 
-### 4. System Availability & Updates
-The company strives to ensure continuous availability of the application. Periodic maintenance, version updates, and feature improvements may be deployed to enhance system performance and security.
+### 4. Privacy & Monitoring
+The organization respects your digital privacy. Application monitoring is strictly confined to workplace functions (attendance punches, official leave requests, and assigned activities). Personal device files and non-work activities are never accessed.
 
-### 5. Modifications to Terms
-Company management reserves the right to amend these terms in accordance with evolving internal HR policies and statutory regulations. Continued use of the application constitutes acceptance of any updated terms.
+### 5. Termination & Modifications
+Access to this mobile portal may be suspended or revoked upon termination of employment or disciplinary proceedings. Terms may be updated periodically to reflect evolving company operational policies.
 `;
 
 export const LegalDocumentSheet: React.FC<LegalDocumentSheetProps> = ({
@@ -76,333 +70,43 @@ export const LegalDocumentSheet: React.FC<LegalDocumentSheetProps> = ({
     customTitle,
     customContent,
 }) => {
-    const { isDark, primaryColor } = useAppTheme();
+    const { isDark } = useAppTheme();
     const theme = isDark ? darkTheme : lightTheme;
-
-    const backdropAnim = useRef(new Animated.Value(0)).current;
-    const sheetAnim = useRef(new Animated.Value(600)).current;
 
     const isPrivacy = type === 'privacy';
     const title = customTitle || (isPrivacy ? 'Privacy Policy' : 'Terms of Service');
     const subtitle = isPrivacy
-        ? 'Data protection, permissions & privacy terms'
-        : 'Enterprise service agreement & usage rules';
+        ? 'Data protection, GPS, and employee privacy standards'
+        : 'Enterprise usage terms and employee conduct policies';
 
-    const IconComponent = isPrivacy ? ShieldCheck : FileText;
-    const iconColor = isPrivacy ? '#10B981' : primaryColor;
-    const iconBg = isPrivacy ? 'rgba(16, 185, 129, 0.12)' : `${primaryColor}18`;
-
-    useEffect(() => {
-        if (visible) {
-            Animated.parallel([
-                Animated.timing(backdropAnim, {
-                    toValue: 1,
-                    duration: 220,
-                    easing: Easing.out(Easing.quad),
-                    useNativeDriver: true,
-                }),
-                Animated.spring(sheetAnim, {
-                    toValue: 0,
-                    tension: 70,
-                    friction: 11,
-                    useNativeDriver: true,
-                }),
-            ]).start();
-        }
-    }, [visible]);
-
-    const handleDismiss = () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-        Animated.parallel([
-            Animated.timing(backdropAnim, {
-                toValue: 0,
-                duration: 180,
-                easing: Easing.in(Easing.quad),
-                useNativeDriver: true,
-            }),
-            Animated.timing(sheetAnim, {
-                toValue: 600,
-                duration: 200,
-                easing: Easing.in(Easing.cubic),
-                useNativeDriver: true,
-            }),
-        ]).start(() => {
-            onClose();
-        });
-    };
-
-    // Format raw text or clean HTML
-    const renderFormattedContent = () => {
-        let text = customContent?.trim();
-        if (!text || text === 'Formal documentation is on the way!') {
-            text = isPrivacy ? DEFAULT_PRIVACY_POLICY : DEFAULT_TERMS_OF_SERVICE;
-        } else {
-            // Clean HTML tags if backend sends HTML
-            text = text
-                .replace(/<h3>/gi, '\n### ')
-                .replace(/<\/h3>/gi, '\n')
-                .replace(/<p>/gi, '\n')
-                .replace(/<\/p>/gi, '\n')
-                .replace(/<li>/gi, '\n• ')
-                .replace(/<\/li>/gi, '')
-                .replace(/<br\s*[\/]?>/gi, '\n')
-                .replace(/<[^>]*>?/gm, '')
-                .trim();
-        }
-
-        const lines = text.split('\n');
-
-        return lines.map((line, idx) => {
-            const trimmed = line.trim();
-            if (!trimmed) {
-                return <View key={idx} style={{ height: 6 }} />;
-            }
-
-            if (trimmed.startsWith('###')) {
-                const headerText = trimmed.replace(/^###\s*/, '');
-                return (
-                    <Text
-                        key={idx}
-                        style={[
-                            styles.sectionHeader,
-                            { color: theme.colors.textPrimary },
-                        ]}
-                    >
-                        {headerText}
-                    </Text>
-                );
-            }
-
-            if (trimmed.startsWith('•')) {
-                const bulletText = trimmed.substring(1).trim();
-                return (
-                    <View key={idx} style={styles.bulletRow}>
-                        <Text style={[styles.bulletDot, { color: primaryColor }]}>•</Text>
-                        <Text style={[styles.bulletText, { color: theme.colors.textSecondary }]}>
-                            {bulletText}
-                        </Text>
-                    </View>
-                );
-            }
-
-            return (
-                <Text key={idx} style={[styles.paragraphText, { color: theme.colors.textSecondary }]}>
-                    {trimmed}
-                </Text>
-            );
-        });
-    };
-
-    if (!visible) return null;
+    const rawContent = customContent && customContent.trim().length > 0
+        ? customContent
+        : (isPrivacy ? DEFAULT_PRIVACY_POLICY : DEFAULT_TERMS_OF_SERVICE);
 
     return (
-        <Modal
+        <AppBottomSheet
             visible={visible}
-            transparent
-            statusBarTranslucent
-            animationType="none"
-            onRequestClose={handleDismiss}
+            onClose={onClose}
+            title={title}
+            subtitle={subtitle}
+            footer={
+                <AppButton
+                    title="I Understand & Acknowledge"
+                    onPress={onClose}
+                    icon={<Check color="#FFFFFF" size={18} />}
+                    size="md"
+                />
+            }
         >
-            <View style={styles.modalOverlay}>
-                {/* Backdrop */}
-                <Animated.View
-                    style={[
-                        styles.backdrop,
-                        {
-                            opacity: backdropAnim,
-                        },
-                    ]}
-                >
-                    <TouchableOpacity
-                        style={StyleSheet.absoluteFill}
-                        activeOpacity={1}
-                        onPress={handleDismiss}
-                    />
-                </Animated.View>
-
-                {/* Bottom Sheet Container */}
-                <Animated.View
-                    style={[
-                        styles.sheetContainer,
-                        {
-                            backgroundColor: theme.colors.surface,
-                            borderColor: theme.colors.border,
-                            transform: [{ translateY: sheetAnim }],
-                        },
-                    ]}
-                >
-                    {/* Drag Handle Bar */}
-                    <View style={styles.dragHandleArea}>
-                        <View
-                            style={[
-                                styles.dragHandleBar,
-                                {
-                                    backgroundColor: isDark
-                                        ? 'rgba(255, 255, 255, 0.25)'
-                                        : 'rgba(0, 0, 0, 0.18)',
-                                },
-                            ]}
-                        />
-                    </View>
-
-                    {/* Sheet Header */}
-                    <View style={styles.sheetHeader}>
-                        <View style={styles.headerLeft}>
-                            <View style={[styles.iconBadge, { backgroundColor: iconBg }]}>
-                                <IconComponent color={iconColor} size={20} />
-                            </View>
-                            <View style={styles.headerTitles}>
-                                <Text style={[styles.sheetTitle, { color: theme.colors.textPrimary }]}>
-                                    {title}
-                                </Text>
-                                <Text style={[styles.sheetSub, { color: theme.colors.textSecondary }]}>
-                                    {subtitle}
-                                </Text>
-                            </View>
-                        </View>
-                        <TouchableOpacity
-                            onPress={handleDismiss}
-                            style={[styles.closeBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
-                            activeOpacity={0.7}
-                        >
-                            <X color={theme.colors.textPrimary} size={18} />
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Document Body Content */}
-                    <ScrollView
-                        showsVerticalScrollIndicator={false}
-                        contentContainerStyle={styles.scrollContent}
-                        bounces={true}
-                    >
-                        {renderFormattedContent()}
-                    </ScrollView>
-
-                    {/* Bottom Action Button */}
-                    <View style={styles.footerActionWrapper}>
-                        <AppButton
-                            title="I Understand"
-                            onPress={handleDismiss}
-                            variant="primary"
-                            icon={<Check color="#FFFFFF" size={18} />}
-                        />
-                    </View>
-                </Animated.View>
+            <View style={styles.contentBody}>
+                <AppMarkdown content={rawContent} />
             </View>
-        </Modal>
+        </AppBottomSheet>
     );
 };
 
 const styles = StyleSheet.create({
-    modalOverlay: {
-        flex: 1,
-        justifyContent: 'flex-end',
-    },
-    backdrop: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0, 0, 0, 0.55)',
-    },
-    sheetContainer: {
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        paddingHorizontal: 20,
-        maxHeight: '86%',
-        borderTopWidth: 1,
-        borderLeftWidth: 1,
-        borderRightWidth: 1,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -4 },
-        shadowOpacity: 0.12,
-        shadowRadius: 12,
-        elevation: 16,
-        paddingBottom: Platform.OS === 'ios' ? 32 : 20,
-    },
-    dragHandleArea: {
-        alignItems: 'center',
-        paddingVertical: 10,
-        width: '100%',
-    },
-    dragHandleBar: {
-        width: 44,
-        height: 5,
-        borderRadius: 3,
-    },
-    sheetHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-        paddingBottom: 12,
-        borderBottomWidth: 1,
-        borderBottomColor: 'rgba(150, 150, 150, 0.15)',
-    },
-    headerLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        flex: 1,
-        marginRight: 8,
-    },
-    iconBadge: {
-        width: 40,
-        height: 40,
-        borderRadius: 14,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerTitles: {
-        flex: 1,
-    },
-    sheetTitle: {
-        fontSize: 17,
-        fontWeight: '700',
-    },
-    sheetSub: {
-        fontSize: 11,
-        marginTop: 2,
-    },
-    closeBtn: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    scrollContent: {
-        paddingVertical: 6,
+    contentBody: {
         paddingBottom: 16,
-    },
-    sectionHeader: {
-        fontSize: 14,
-        fontWeight: '700',
-        marginTop: 12,
-        marginBottom: 6,
-        letterSpacing: 0.2,
-    },
-    paragraphText: {
-        fontSize: 13,
-        lineHeight: 20,
-        marginBottom: 6,
-    },
-    bulletRow: {
-        flexDirection: 'row',
-        alignItems: 'flex-start',
-        marginBottom: 6,
-        paddingLeft: 4,
-    },
-    bulletDot: {
-        fontSize: 16,
-        marginRight: 8,
-        lineHeight: 19,
-    },
-    bulletText: {
-        flex: 1,
-        fontSize: 13,
-        lineHeight: 19,
-    },
-    footerActionWrapper: {
-        paddingTop: 12,
-        borderTopWidth: 1,
-        borderTopColor: 'rgba(150, 150, 150, 0.15)',
     },
 });

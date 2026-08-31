@@ -52,6 +52,7 @@ export const HeaderIconButton: React.FC<{
             activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel={accessibilityLabel}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             style={[
                 styles.iconButton,
                 {

@@ -31,7 +31,7 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(
-        (UnistylesRuntime.themeName as 'light' | 'dark') || 'dark'
+        (UnistylesRuntime.themeName as 'light' | 'dark') || 'light'
     );
     const [fontSizeId, setFontSizeState] = useState<FontSizeScaleId>('medium');
 
@@ -43,7 +43,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         try {
             const savedTheme = await storage.getItem(THEME_KEY);
             const activeTheme: 'light' | 'dark' =
-                savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : 'dark';
+                savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : 'light';
             setCurrentTheme(activeTheme);
             UnistylesRuntime.setTheme(activeTheme);
 

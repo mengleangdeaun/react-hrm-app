@@ -138,7 +138,7 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                     <TouchableOpacity
                         style={[
                             styles.primaryButton,
-                            { backgroundColor: theme.colors.primary },
+                            { backgroundColor: theme.colors.primary, shadowColor: theme.colors.brand },
                         ]}
                         onPress={handleGetStarted}
                         activeOpacity={0.85}

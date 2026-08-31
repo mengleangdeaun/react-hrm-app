@@ -23,6 +23,7 @@ import { profileApi, UserPreferences, PwaInfo } from '../../api/profile';
 import { AppText as Text } from '../../components/AppText';
 import { AppFeedbackSheet } from '../../components/AppFeedbackSheet';
 import { LegalDocumentSheet } from '../../components/common/LegalDocumentSheet';
+import { AppBottomSheet } from '../../components/common/AppBottomSheet';
 import { AppShell } from '../../components/common/AppShell';
 import { AppHeader } from '../../components/common/AppHeader';
 import {
@@ -540,78 +541,65 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             />
 
             {/* System Permissions Sheet Modal */}
-            {permissionsModalVisible && (
-                <Modal visible={permissionsModalVisible} transparent animationType="fade">
-                    <TouchableOpacity
-                        style={styles.modalOverlay}
-                        activeOpacity={1}
-                        onPress={() => setPermissionsModalVisible(false)}
-                    >
-                        <View style={styles.modalSheet}>
-                            <View style={styles.modalHeader}>
-                                <Text style={styles.modalTitle}>{t('system_access_grants', 'System Access Grants')}</Text>
-                                <TouchableOpacity onPress={() => setPermissionsModalVisible(false)}>
-                                    <X color={theme.colors.textPrimary} size={20} />
-                                </TouchableOpacity>
-                            </View>
-
-                            {/* Camera Permission */}
-                            <View style={styles.permRow}>
-                                <View style={styles.rowInfo}>
-                                    <View style={styles.iconBox}>
-                                        <CameraIcon color={theme.colors.textSecondary} size={18} />
-                                    </View>
-                                    <View style={styles.textFlex}>
-                                        <Text style={styles.permTitle}>{t('camera_access', 'Camera Access')}</Text>
-                                        <Text style={styles.permSub}>{t('align_qr_within_frame', 'Required for QR attendance clock-in')}</Text>
-                                    </View>
-                                </View>
-                                <TouchableOpacity style={styles.permActionBtn} onPress={handleRequestCamera}>
-                                    <Text style={styles.permActionText}>
-                                        {cameraPermissionGranted ? t('granted', 'Granted') : t('grant', 'Grant')}
-                                    </Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            {/* GPS Location Permission */}
-                            <View style={styles.permRow}>
-                                <View style={styles.rowInfo}>
-                                    <View style={styles.iconBox}>
-                                        <MapPin color={theme.colors.textSecondary} size={18} />
-                                    </View>
-                                    <View style={styles.textFlex}>
-                                        <Text style={styles.permTitle}>{t('gps_geofence_location', 'GPS Geofence Location')}</Text>
-                                        <Text style={styles.permSub}>{t('enable_gps_desc', 'Required to verify office clock-in radius')}</Text>
-                                    </View>
-                                </View>
-                                <TouchableOpacity style={styles.permActionBtn} onPress={handleRequestLocation}>
-                                    <Text style={styles.permActionText}>
-                                        {locationPermissionGranted ? t('granted', 'Granted') : t('grant', 'Grant')}
-                                    </Text>
-                                </TouchableOpacity>
-                            </View>
-
-                            {/* Notifications Permission */}
-                            <View style={styles.permRow}>
-                                <View style={styles.rowInfo}>
-                                    <View style={styles.iconBox}>
-                                        <Bell color={theme.colors.textSecondary} size={18} />
-                                    </View>
-                                    <View style={styles.textFlex}>
-                                        <Text style={styles.permTitle}>{t('push_notifications', 'Push Notifications')}</Text>
-                                        <Text style={styles.permSub}>{t('activity_attendance_alerts', 'Receive attendance reminders & announcements')}</Text>
-                                    </View>
-                                </View>
-                                <TouchableOpacity style={styles.permActionBtn} onPress={handleRequestNotifications}>
-                                    <Text style={styles.permActionText}>
-                                        {notificationsPermissionGranted ? t('granted', 'Granted') : t('grant', 'Grant')}
-                                    </Text>
-                                </TouchableOpacity>
-                            </View>
+            <AppBottomSheet
+                visible={permissionsModalVisible}
+                onClose={() => setPermissionsModalVisible(false)}
+                title={t('system_access_grants', 'System Access Grants')}
+            >
+                {/* Camera Permission */}
+                <View style={styles.permRow}>
+                    <View style={styles.rowInfo}>
+                        <View style={styles.iconBox}>
+                            <CameraIcon color={theme.colors.textSecondary} size={18} />
                         </View>
+                        <View style={styles.textFlex}>
+                            <Text style={styles.permTitle}>{t('camera_access', 'Camera Access')}</Text>
+                            <Text style={styles.permSub}>{t('align_qr_within_frame', 'Required for QR attendance clock-in')}</Text>
+                        </View>
+                    </View>
+                    <TouchableOpacity style={styles.permActionBtn} onPress={handleRequestCamera} activeOpacity={0.8}>
+                        <Text style={styles.permActionText}>
+                            {cameraPermissionGranted ? t('granted', 'Granted') : t('grant', 'Grant')}
+                        </Text>
                     </TouchableOpacity>
-                </Modal>
-            )}
+                </View>
+
+                {/* GPS Location Permission */}
+                <View style={styles.permRow}>
+                    <View style={styles.rowInfo}>
+                        <View style={styles.iconBox}>
+                            <MapPin color={theme.colors.textSecondary} size={18} />
+                        </View>
+                        <View style={styles.textFlex}>
+                            <Text style={styles.permTitle}>{t('gps_geofence_location', 'GPS Geofence Location')}</Text>
+                            <Text style={styles.permSub}>{t('enable_gps_desc', 'Required to verify office clock-in radius')}</Text>
+                        </View>
+                    </View>
+                    <TouchableOpacity style={styles.permActionBtn} onPress={handleRequestLocation} activeOpacity={0.8}>
+                        <Text style={styles.permActionText}>
+                            {locationPermissionGranted ? t('granted', 'Granted') : t('grant', 'Grant')}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+
+                {/* Notifications Permission */}
+                <View style={styles.permRow}>
+                    <View style={styles.rowInfo}>
+                        <View style={styles.iconBox}>
+                            <Bell color={theme.colors.textSecondary} size={18} />
+                        </View>
+                        <View style={styles.textFlex}>
+                            <Text style={styles.permTitle}>{t('push_notifications', 'Push Notifications')}</Text>
+                            <Text style={styles.permSub}>{t('activity_attendance_alerts', 'Receive attendance reminders & announcements')}</Text>
+                        </View>
+                    </View>
+                    <TouchableOpacity style={styles.permActionBtn} onPress={handleRequestNotifications} activeOpacity={0.8}>
+                        <Text style={styles.permActionText}>
+                            {notificationsPermissionGranted ? t('granted', 'Granted') : t('grant', 'Grant')}
+                        </Text>
+                    </TouchableOpacity>
+                </View>
+            </AppBottomSheet>
 
             {/* Native Privacy Policy Bottom Sheet */}
             <LegalDocumentSheet

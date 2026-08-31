@@ -180,10 +180,10 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
 
             if (Platform.OS === 'web') {
                 window.alert(t('activity_submitted_msg', 'Activity Submitted: Your work log entry has been submitted.'));
-                navigation.navigate('ActivityList');
+                navigation.replace('ActivityList');
             } else {
                 Alert.alert(t('activity_submitted', 'Activity Submitted'), t('work_log_submitted_desc', 'Your work log entry has been submitted.'), [
-                    { text: t('ok', 'OK'), onPress: () => navigation.navigate('ActivityList') },
+                    { text: t('ok', 'OK'), onPress: () => navigation.replace('ActivityList') },
                 ]);
             }
         } catch (error: any) {
@@ -196,7 +196,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
     const headerRight = (
         <HeaderIconButton
             icon={<History color={theme.colors.brand} size={20} />}
-            onPress={() => navigation.navigate('ActivityList')}
+            onPress={() => navigation.replace('ActivityList')}
             accessibilityLabel="Activity history"
         />
     );

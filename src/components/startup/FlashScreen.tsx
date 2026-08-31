@@ -68,7 +68,7 @@ export const FlashScreen: React.FC<FlashScreenProps> = ({ onReady }) => {
 
                 {/* Enterprise Subtitle */}
                 <AppText style={styles.subtitle} variant="caption">
-                    Enterprise Workspace Suite
+                    Keep Doing, Keep Creating!
                 </AppText>
             </Animated.View>
         </View>

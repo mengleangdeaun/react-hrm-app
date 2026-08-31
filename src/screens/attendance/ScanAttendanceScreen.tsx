@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
     StyleSheet,
@@ -6,7 +6,9 @@ import {
     Alert,
     ActivityIndicator,
     Modal,
+    BackHandler,
 } from 'react-native';
+import { useFocusEffect } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
@@ -24,10 +26,24 @@ import { AppText } from '../../components/AppText';
 import { extractBranchQrPayload, BranchQrParseResult } from '../../utils/qrPayload';
 import { getDeviceId } from '../../utils/device';
 import { AttendanceReasonModal } from '../../components/attendance/AttendanceReasonModal';
+import { AppBottomSheet } from '../../components/common/AppBottomSheet';
 import { useTranslation } from '../../context/LanguageContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
 import { ModernScannerCanvas } from '../../components/scanner/ModernScannerCanvas';
 import { useImageQrDecoder } from '../../components/scanner/useImageQrDecoder';
+
+export interface GpsLocation {
+    coords: {
+        latitude: number;
+        longitude: number;
+        altitude?: number | null;
+        accuracy?: number | null;
+        altitudeAccuracy?: number | null;
+        heading?: number | null;
+        speed?: number | null;
+    };
+    timestamp: number;
+}
 
 export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark } = useAppTheme();
@@ -40,8 +56,8 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
     const [locationPermission, setLocationPermission] = useState<boolean | null>(null);
 
     // Live GPS State
-    const [currentLocation, setCurrentLocation] = useState<any>(null);
-    const [loadingLocation, setLoadingLocation] = useState<boolean>(true);
+    const [currentLocation, setCurrentLocation] = useState<GpsLocation | null>(null);
+    const [isLocating, setIsLocating] = useState<boolean>(true);
 
     // Scanner UI States
     const [scanned, setScanned] = useState<boolean>(false);
@@ -61,35 +77,86 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
         action?: string;
     } | null>(null);
 
-    // Anti-race condition lock
+    // Anti-race condition locks & in-flight promises
     const isProcessingRef = useRef<boolean>(false);
+    const isMountedRef = useRef<boolean>(true);
+    const locationPromiseRef = useRef<Promise<GpsLocation | null> | null>(null);
+    const currentLocationRef = useRef<GpsLocation | null>(null);
 
+    // Keep ref in sync with state for instantaneous access during callbacks
     useEffect(() => {
-        acquireLocation();
-    }, []);
+        currentLocationRef.current = currentLocation;
+    }, [currentLocation]);
 
-    const acquireLocation = async () => {
-        setLoadingLocation(true);
+    /**
+     * Start location acquisition concurrently in the background.
+     * Uses fast cached position if available, then refines with a fresh fix.
+     */
+    const startLocationAcquisition = useCallback(async (): Promise<GpsLocation | null> => {
+        setIsLocating(true);
+
         try {
-            const { status } = await Location.requestForegroundPermissionsAsync();
-            if (status !== 'granted') {
-                setLocationPermission(false);
-                setLoadingLocation(false);
-                return;
+            // 1. Check or request foreground permission
+            const permissionResponse = await Location.getForegroundPermissionsAsync();
+            let hasPermission = permissionResponse.granted;
+
+            if (!hasPermission && permissionResponse.canAskAgain) {
+                const reqResponse = await Location.requestForegroundPermissionsAsync();
+                hasPermission = reqResponse.granted;
             }
+
+            if (!isMountedRef.current) return null;
+
+            if (!hasPermission) {
+                setLocationPermission(false);
+                setIsLocating(false);
+                return null;
+            }
+
             setLocationPermission(true);
 
-            // Fetch live high-accuracy GPS coordinates concurrently
-            const loc = await Location.getCurrentPositionAsync({
-                accuracy: Location.Accuracy.High,
-            });
-            setCurrentLocation(loc);
-        } catch (e) {
-            console.warn('Failed to acquire GPS location:', e);
-        } finally {
-            setLoadingLocation(false);
+            // 2. Fast-Path: Obtain last known position immediately if fresh (within 60s)
+            try {
+                const lastKnown = (await Location.getLastKnownPositionAsync({ maxAge: 60000 })) as GpsLocation | null;
+                if (lastKnown && isMountedRef.current) {
+                    setCurrentLocation(lastKnown);
+                    currentLocationRef.current = lastKnown;
+                }
+            } catch {
+                // Non-fatal, continue to live fix
+            }
+
+            // 3. High-Accuracy Live Position Fix
+            const livePosition = (await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced,
+            })) as GpsLocation | null;
+
+            if (isMountedRef.current && livePosition) {
+                setCurrentLocation(livePosition);
+                currentLocationRef.current = livePosition;
+                setIsLocating(false);
+            }
+
+            return livePosition;
+        } catch (error) {
+            console.warn('Background GPS acquisition warning:', error);
+            if (isMountedRef.current) {
+                setIsLocating(false);
+            }
+            return currentLocationRef.current;
         }
-    };
+    }, []);
+
+    // Lifecycle: Kick off concurrent GPS acquisition on mount
+    useEffect(() => {
+        isMountedRef.current = true;
+        locationPromiseRef.current = startLocationAcquisition();
+
+        return () => {
+            isMountedRef.current = false;
+            isProcessingRef.current = false;
+        };
+    }, [startLocationAcquisition]);
 
     const resetScanState = () => {
         isProcessingRef.current = false;
@@ -99,7 +166,30 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
         setReasonModalVisible(false);
     };
 
-    // Execute attendance punch against authoritative backend
+    /**
+     * Resolve verified location with safety timeout before executing punch
+     */
+    const getVerifiedLocation = async (timeoutMs: number = 7000): Promise<GpsLocation | null> => {
+        // Fast path: Location already cached and available
+        if (currentLocationRef.current) {
+            return currentLocationRef.current;
+        }
+
+        // Await in-flight background promise or start a fresh one
+        const activePromise = locationPromiseRef.current || startLocationAcquisition();
+
+        // Safety timeout to prevent indefinite hanging on slow GPS
+        const timeoutPromise = new Promise<null>((resolve) =>
+            setTimeout(() => resolve(null), timeoutMs)
+        );
+
+        const resolved = await Promise.race([activePromise, timeoutPromise]);
+        return resolved || currentLocationRef.current;
+    };
+
+    /**
+     * Execute attendance punch against authoritative backend
+     */
     const executePunch = async (
         qrResult: BranchQrParseResult,
         reason?: string
@@ -107,17 +197,13 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
         setIsSubmitting(true);
 
         try {
-            // Re-check live location if missing
-            let loc = currentLocation;
-            if (!loc) {
-                loc = await Location.getCurrentPositionAsync({
-                    accuracy: Location.Accuracy.High,
-                });
-                setCurrentLocation(loc);
-            }
+            // Strictly resolve location before dispatching attendance request
+            const loc = await getVerifiedLocation(7000);
 
             if (!loc?.coords) {
-                throw new Error(t('unable_gps_coords', 'Unable to retrieve GPS coordinates. Please ensure Location services are turned on.'));
+                throw new Error(
+                    t('unable_gps_coords', 'Unable to retrieve GPS coordinates. Please ensure Location services are enabled and try again.')
+                );
             }
 
             const deviceId = await getDeviceId();
@@ -226,24 +312,29 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
         },
     });
 
-    const handleBackNavigation = () => {
+    const handleBackNavigation = useCallback(() => {
+        resetScanState();
         if (navigation.canGoBack()) {
             navigation.goBack();
         } else {
             navigation.navigate('HomeTab');
         }
-    };
+        return true;
+    }, [navigation]);
 
-    if (!cameraPermission || locationPermission === null || loadingLocation) {
-        return (
-            <SafeAreaView {...({ style: styles.centerContainer } as any)}>
-                <ActivityIndicator size="large" color={theme.colors.brand} />
-                <AppText style={styles.loadingText}>{t('initializing_gps_camera', 'Initializing GPS & Camera Sensor...')}</AppText>
-            </SafeAreaView>
-        );
-    }
+    useFocusEffect(
+        useCallback(() => {
+            const onBackPress = () => {
+                handleBackNavigation();
+                return true;
+            };
+            const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+            return () => subscription.remove();
+        }, [handleBackNavigation])
+    );
 
-    if (!cameraPermission.granted) {
+    // Permission Screen: Camera Explicitly Denied
+    if (cameraPermission && !cameraPermission.granted) {
         return (
             <SafeAreaView {...({ style: styles.centerContainer } as any)}>
                 <View style={styles.permIconCircle}>
@@ -264,7 +355,8 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
         );
     }
 
-    if (!locationPermission) {
+    // Permission Screen: Location Explicitly Denied
+    if (locationPermission === false) {
         return (
             <SafeAreaView {...({ style: styles.centerContainer } as any)}>
                 <View style={[styles.permIconCircle, { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}>
@@ -276,7 +368,9 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
                 </AppText>
                 <TouchableOpacity
                     style={[styles.permButton, { backgroundColor: '#EF4444' }]}
-                    onPress={acquireLocation}
+                    onPress={() => {
+                        locationPromiseRef.current = startLocationAcquisition();
+                    }}
                     activeOpacity={0.85}
                 >
                     <AppText style={styles.permBtnText}>{t('grant_location_access', 'Grant Location Access')}</AppText>
@@ -285,6 +379,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
         );
     }
 
+    // Instant Scanner Viewport (Camera renders immediately while GPS resolves concurrently)
     return (
         <View style={styles.container}>
             {/* Modern Scanner Canvas */}
@@ -301,10 +396,17 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
                 onRescanPress={resetScanState}
                 topContent={
                     <View style={styles.gpsChip}>
-                        <NavigationIcon color="#10B981" size={13} />
+                        <NavigationIcon color={currentLocation ? '#10B981' : '#FBBF24'} size={13} />
                         <AppText style={styles.gpsChipText}>
-                            {currentLocation ? t('gps_calibrated', 'GPS Calibrated') : t('acquiring_gps', 'Acquiring GPS...')}
+                            {currentLocation
+                                ? t('gps_calibrated', 'GPS Calibrated')
+                                : isLocating
+                                ? t('acquiring_gps', 'Acquiring GPS...')
+                                : t('gps_ready', 'GPS Ready')}
                         </AppText>
+                        {isLocating && !currentLocation && (
+                            <ActivityIndicator size="small" color="#FBBF24" style={{ marginLeft: 2 }} />
+                        )}
                     </View>
                 }
             />
@@ -324,48 +426,48 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
             />
 
             {/* Success Confirmation Modal */}
-            <Modal visible={successModalVisible} transparent animationType="slide">
-                <View style={styles.modalBackdrop}>
-                    <View style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}>
-                        <View style={styles.successIconCircle}>
-                            <CheckCircle2 color="#10B981" size={56} />
-                        </View>
-                        <AppText style={[styles.modalTitle, { color: theme.colors.textPrimary }]}>
-                            {t('attendance_recorded', 'Attendance Recorded!')}
-                        </AppText>
-                        <AppText style={[styles.modalSub, { color: theme.colors.textSecondary }]}>
-                            {punchResult?.message}
-                        </AppText>
+            <AppBottomSheet
+                visible={successModalVisible}
+                onClose={() => {
+                    setSuccessModalVisible(false);
+                    resetScanState();
+                    navigation.navigate('HomeTab');
+                }}
+                title={t('attendance_recorded', 'Attendance Recorded!')}
+                subtitle={punchResult?.message}
+                footer={
+                    <TouchableOpacity
+                        style={[styles.modalBtn, { backgroundColor: theme.colors.brand }]}
+                        onPress={() => {
+                            setSuccessModalVisible(false);
+                            resetScanState();
+                            navigation.navigate('HomeTab');
+                        }}
+                        activeOpacity={0.85}
+                    >
+                        <AppText style={styles.modalBtnText}>{t('done', 'Done')}</AppText>
+                    </TouchableOpacity>
+                }
+            >
+                <View style={styles.successIconCircle}>
+                    <CheckCircle2 color={theme.colors.status.success} size={56} />
+                </View>
 
-                        <View style={[styles.modalDetailsCard, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}>
-                            <View style={styles.detailRow}>
-                                <AppText style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>{t('timestamp', 'Timestamp')}</AppText>
-                                <AppText style={[styles.detailVal, { color: theme.colors.textPrimary }]}>
-                                    {punchResult?.time}
-                                </AppText>
-                            </View>
-                            <View style={styles.detailRow}>
-                                <AppText style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>{t('status', 'Status')}</AppText>
-                                <AppText style={[styles.detailVal, { color: '#10B981' }]}>
-                                    {t('verified_and_saved', 'Verified & Saved')}
-                                </AppText>
-                            </View>
-                        </View>
-
-                        <TouchableOpacity
-                            style={[styles.modalBtn, { backgroundColor: theme.colors.brand }]}
-                            onPress={() => {
-                                setSuccessModalVisible(false);
-                                resetScanState();
-                                navigation.navigate('HomeTab');
-                            }}
-                            activeOpacity={0.85}
-                        >
-                            <AppText style={styles.modalBtnText}>{t('done', 'Done')}</AppText>
-                        </TouchableOpacity>
+                <View style={[styles.modalDetailsCard, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}>
+                    <View style={styles.detailRow}>
+                        <AppText style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>{t('timestamp', 'Timestamp')}</AppText>
+                        <AppText style={[styles.detailVal, { color: theme.colors.textPrimary }]}>
+                            {punchResult?.time}
+                        </AppText>
+                    </View>
+                    <View style={styles.detailRow}>
+                        <AppText style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>{t('status', 'Status')}</AppText>
+                        <AppText style={[styles.detailVal, { color: theme.colors.status.success }]}>
+                            {t('verified_and_saved', 'Verified & Saved')}
+                        </AppText>
                     </View>
                 </View>
-            </Modal>
+            </AppBottomSheet>
         </View>
     );
 };
@@ -402,12 +504,6 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         padding: 24,
-    },
-    loadingText: {
-        color: '#94A3B8',
-        fontSize: 14,
-        marginTop: 16,
-        fontWeight: '500',
     },
     permIconCircle: {
         width: 88,

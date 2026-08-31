@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { AppText } from '../AppText';
+import { useAppTheme } from '../../context/ThemeContext';
+import { lightTheme, darkTheme } from '../../styles/theme';
 
 export type StatusType =
     | 'approved'
@@ -16,7 +18,10 @@ export type StatusType =
     | 'warning'
     | 'progress'
     | 'active'
-    | 'inactive';
+    | 'inactive'
+    | 'completed'
+    | 'passed'
+    | 'failed';
 
 interface StatusBadgeProps {
     status: StatusType | string;
@@ -26,26 +31,6 @@ interface StatusBadgeProps {
     textStyle?: any;
 }
 
-const STATUS_CONFIGS: Record<string, { bg: string; text: string; defaultLabel: string }> = {
-    approved: { bg: 'rgba(16, 185, 129, 0.12)', text: '#10B981', defaultLabel: 'APPROVED' },
-    present: { bg: 'rgba(16, 185, 129, 0.12)', text: '#10B981', defaultLabel: 'PRESENT' },
-    positive: { bg: 'rgba(16, 185, 129, 0.12)', text: '#10B981', defaultLabel: 'POSITIVE' },
-    active: { bg: 'rgba(16, 185, 129, 0.12)', text: '#10B981', defaultLabel: 'ACTIVE' },
-
-    pending: { bg: 'rgba(245, 158, 11, 0.12)', text: '#F59E0B', defaultLabel: 'PENDING' },
-    warning: { bg: 'rgba(245, 158, 11, 0.12)', text: '#F59E0B', defaultLabel: 'WARNING' },
-    holiday: { bg: 'rgba(245, 158, 11, 0.12)', text: '#F59E0B', defaultLabel: 'HOLIDAY' },
-    late: { bg: 'rgba(245, 158, 11, 0.12)', text: '#F59E0B', defaultLabel: 'LATE' },
-
-    rejected: { bg: 'rgba(220, 38, 38, 0.12)', text: '#DC2626', defaultLabel: 'REJECTED' },
-    cancelled: { bg: 'rgba(220, 38, 38, 0.12)', text: '#DC2626', defaultLabel: 'CANCELLED' },
-    absent: { bg: 'rgba(220, 38, 38, 0.12)', text: '#DC2626', defaultLabel: 'ABSENT' },
-    inactive: { bg: 'rgba(220, 38, 38, 0.12)', text: '#DC2626', defaultLabel: 'INACTIVE' },
-
-    day_off: { bg: 'rgba(244, 63, 94, 0.12)', text: '#F43F5E', defaultLabel: 'DAY OFF' },
-    progress: { bg: 'rgba(37, 99, 235, 0.12)', text: '#2563EB', defaultLabel: 'IN PROGRESS' },
-};
-
 export const StatusBadge: React.FC<StatusBadgeProps> = ({
     status,
     label,
@@ -53,10 +38,36 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
     style,
     textStyle,
 }) => {
+    const { isDark } = useAppTheme();
+    const theme = isDark ? darkTheme : lightTheme;
     const key = (status || '').toLowerCase();
-    const config = STATUS_CONFIGS[key] || {
-        bg: 'rgba(100, 116, 139, 0.12)',
-        text: '#64748B',
+
+    const STATUS_MAP: Record<string, { bg: string; text: string; defaultLabel: string }> = {
+        approved: { bg: theme.colors.status.successSubtle, text: theme.colors.status.success, defaultLabel: 'APPROVED' },
+        present: { bg: theme.colors.status.successSubtle, text: theme.colors.status.success, defaultLabel: 'PRESENT' },
+        positive: { bg: theme.colors.status.successSubtle, text: theme.colors.status.success, defaultLabel: 'POSITIVE' },
+        active: { bg: theme.colors.status.successSubtle, text: theme.colors.status.success, defaultLabel: 'ACTIVE' },
+        completed: { bg: theme.colors.status.successSubtle, text: theme.colors.status.success, defaultLabel: 'COMPLETED' },
+        passed: { bg: theme.colors.status.successSubtle, text: theme.colors.status.success, defaultLabel: 'PASSED' },
+
+        pending: { bg: theme.colors.status.warningSubtle, text: theme.colors.status.warning, defaultLabel: 'PENDING' },
+        warning: { bg: theme.colors.status.warningSubtle, text: theme.colors.status.warning, defaultLabel: 'WARNING' },
+        holiday: { bg: theme.colors.status.warningSubtle, text: theme.colors.status.warning, defaultLabel: 'HOLIDAY' },
+        late: { bg: theme.colors.status.warningSubtle, text: theme.colors.status.warning, defaultLabel: 'LATE' },
+
+        rejected: { bg: theme.colors.status.dangerSubtle, text: theme.colors.status.danger, defaultLabel: 'REJECTED' },
+        cancelled: { bg: theme.colors.status.dangerSubtle, text: theme.colors.status.danger, defaultLabel: 'CANCELLED' },
+        absent: { bg: theme.colors.status.dangerSubtle, text: theme.colors.status.danger, defaultLabel: 'ABSENT' },
+        inactive: { bg: theme.colors.status.dangerSubtle, text: theme.colors.status.danger, defaultLabel: 'INACTIVE' },
+        failed: { bg: theme.colors.status.dangerSubtle, text: theme.colors.status.danger, defaultLabel: 'FAILED' },
+
+        day_off: { bg: theme.colors.status.dangerSubtle, text: theme.colors.status.danger, defaultLabel: 'DAY OFF' },
+        progress: { bg: theme.colors.status.infoSubtle, text: theme.colors.status.info, defaultLabel: 'IN PROGRESS' },
+    };
+
+    const config = STATUS_MAP[key] || {
+        bg: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(100, 116, 139, 0.12)',
+        text: theme.colors.textSecondary,
         defaultLabel: (status || '').toUpperCase(),
     };
 

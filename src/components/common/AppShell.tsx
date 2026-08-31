@@ -5,6 +5,8 @@ import {
     StatusBar,
     StyleSheet,
     RefreshControl,
+    KeyboardAvoidingView,
+    Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAppTheme } from '../../context/ThemeContext';
@@ -30,6 +32,8 @@ interface AppShellProps {
     includeBottomInset?: boolean;
     onScroll?: (event: any) => void;
     scrollEventThrottle?: number;
+    keyboardAvoiding?: boolean;
+    keyboardVerticalOffset?: number;
 }
 
 export const AppShell: React.FC<AppShellProps> = ({
@@ -50,6 +54,8 @@ export const AppShell: React.FC<AppShellProps> = ({
     includeBottomInset = true,
     onScroll,
     scrollEventThrottle = 16,
+    keyboardAvoiding = true,
+    keyboardVerticalOffset,
 }) => {
     const insets = useSafeAreaInsets();
     const { isDark } = useAppTheme();
@@ -58,6 +64,43 @@ export const AppShell: React.FC<AppShellProps> = ({
     const hasHeader = showHeader && (title || onBack || onClose || headerRight);
     const topInset = includeTopInset ? insets.top : 0;
     const bottomInset = includeBottomInset ? insets.bottom : 0;
+
+    const defaultOffset = Platform.OS === 'ios' ? (hasHeader ? 12 : 0) : 0;
+    const verticalOffset = keyboardVerticalOffset !== undefined ? keyboardVerticalOffset : defaultOffset;
+
+    const renderContent = () => {
+        if (scrollable) {
+            return (
+                <ScrollView
+                    style={styles.scrollContainer}
+                    contentContainerStyle={[
+                        styles.scrollContent,
+                        { paddingBottom: Math.max(36, bottomInset + 24) },
+                        contentContainerStyle,
+                    ]}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="on-drag"
+                    automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+                    showsVerticalScrollIndicator={false}
+                    onScroll={onScroll}
+                    scrollEventThrottle={scrollEventThrottle}
+                    refreshControl={
+                        onRefresh ? (
+                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.brand} />
+                        ) : undefined
+                    }
+                >
+                    {children}
+                </ScrollView>
+            );
+        }
+
+        return (
+            <View style={[styles.fixedContainer, { paddingBottom: bottomInset }, contentContainerStyle]}>
+                {children}
+            </View>
+        );
+    };
 
     return (
         <View style={[styles.safeArea, { paddingTop: topInset, backgroundColor: theme.colors.background }, style]}>
@@ -82,28 +125,16 @@ export const AppShell: React.FC<AppShellProps> = ({
 
             {subHeader && <View style={styles.subHeaderContainer}>{subHeader}</View>}
 
-            {scrollable ? (
-                <ScrollView
-                    style={styles.scrollContainer}
-                    contentContainerStyle={[
-                        styles.scrollContent,
-                        { paddingBottom: Math.max(32, bottomInset + 16) },
-                        contentContainerStyle,
-                    ]}
-                    onScroll={onScroll}
-                    scrollEventThrottle={scrollEventThrottle}
-                    refreshControl={
-                        onRefresh ? (
-                            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.brand} />
-                        ) : undefined
-                    }
+            {keyboardAvoiding ? (
+                <KeyboardAvoidingView
+                    style={styles.keyboardAvoidingContainer}
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    keyboardVerticalOffset={verticalOffset}
                 >
-                    {children}
-                </ScrollView>
+                    {renderContent()}
+                </KeyboardAvoidingView>
             ) : (
-                <View style={[styles.fixedContainer, { paddingBottom: bottomInset }, contentContainerStyle]}>
-                    {children}
-                </View>
+                renderContent()
             )}
         </View>
     );
@@ -125,6 +156,9 @@ const styles = StyleSheet.create({
     subHeaderContainer: {
         zIndex: 10,
     },
+    keyboardAvoidingContainer: {
+        flex: 1,
+    },
     scrollContainer: {
         flex: 1,
     },
@@ -132,7 +166,7 @@ const styles = StyleSheet.create({
         flexGrow: 1,
         paddingHorizontal: 16,
         paddingTop: 12,
-        paddingBottom: 32,
+        paddingBottom: 36,
     },
     fixedContainer: {
         flex: 1,

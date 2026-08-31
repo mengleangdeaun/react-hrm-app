@@ -13,9 +13,12 @@ import {
     addMonths,
     subMonths,
     isSameMonth,
-    parseISO,
     startOfDay,
-} from 'date-fns';
+    formatDateDisplay,
+    formatTimeDisplay,
+    formatDateRangeDisplay,
+    parseDateOnly,
+} from '../../utils/dateTime';
 import {
     Clock,
     ChevronLeft,
@@ -27,6 +30,7 @@ import {
     Coffee,
     Calendar as CalendarIcon,
     AlertCircle,
+    RotateCcw,
 } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
@@ -77,15 +81,7 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
 
     // Format Time Utility
     const formatTime = (timeString?: string | null) => {
-        if (!timeString) return '--:--';
-        if (timeString.includes(':') && timeString.length <= 8) return timeString.substring(0, 5);
-        try {
-            const d = new Date(timeString);
-            if (isNaN(d.getTime())) return timeString;
-            return format(d, 'hh:mm a');
-        } catch {
-            return timeString;
-        }
+        return formatTimeDisplay(timeString);
     };
 
     // Calculate Monthly Stats
@@ -180,22 +176,41 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
         >
             {/* 1. Month Switcher Bar */}
             <View style={[styles.monthHeaderRow, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                <TouchableOpacity onPress={handlePrevMonth} style={[styles.navBtn, { backgroundColor: theme.colors.surfaceSubtle }]} activeOpacity={0.7}>
+                <TouchableOpacity
+                    onPress={handlePrevMonth}
+                    style={[styles.navBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Previous month"
+                >
                     <ChevronLeft color={theme.colors.textPrimary} size={20} />
                 </TouchableOpacity>
 
                 <View style={styles.monthTitleWrapper}>
                     <Text style={[styles.monthTitle, { color: theme.colors.textPrimary }]}>
-                        {format(currentMonth, 'MMMM yyyy')}
+                        {formatDateDisplay(currentMonth, 'monthYear')}
                     </Text>
                     {!isCurrentMonthActive && (
-                        <TouchableOpacity onPress={handleGoToday} style={[styles.todayBadge, { backgroundColor: theme.colors.primarySubtle }]}>
-                            <Text style={[styles.todayBadgeText, { color: theme.colors.primary }]}>{t('today', 'Today')}</Text>
+                        <TouchableOpacity
+                            onPress={handleGoToday}
+                            style={[styles.jumpTodayBtn, { backgroundColor: theme.colors.primarySubtle, borderColor: theme.colors.primary }]}
+                            accessibilityRole="button"
+                            accessibilityLabel="Jump back to current month"
+                            activeOpacity={0.7}
+                        >
+                            <RotateCcw color={theme.colors.primary} size={11} />
+                            <Text style={[styles.jumpTodayBtnText, { color: theme.colors.primary }]}>{t('today', 'Today')}</Text>
                         </TouchableOpacity>
                     )}
                 </View>
 
-                <TouchableOpacity onPress={handleNextMonth} style={[styles.navBtn, { backgroundColor: theme.colors.surfaceSubtle }]} activeOpacity={0.7}>
+                <TouchableOpacity
+                    onPress={handleNextMonth}
+                    style={[styles.navBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
+                    activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Next month"
+                >
                     <ChevronRight color={theme.colors.textPrimary} size={20} />
                 </TouchableOpacity>
             </View>
@@ -203,8 +218,8 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
             {/* 2. Monthly Summary Stats 2x2 Grid */}
             <View style={styles.statsRow}>
                 <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                    <View style={[styles.statIconBadge, { backgroundColor: 'rgba(16, 185, 129, 0.12)' }]}>
-                        <CalendarCheck color="#10B981" size={18} />
+                    <View style={[styles.statIconBadge, { backgroundColor: theme.colors.status.successSubtle }]}>
+                        <CalendarCheck color={theme.colors.status.success} size={18} />
                     </View>
                     <View style={styles.statTextCol}>
                         <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{stats.attendance}</Text>
@@ -213,8 +228,8 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                 </View>
 
                 <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                    <View style={[styles.statIconBadge, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
-                        <PartyPopper color="#F59E0B" size={18} />
+                    <View style={[styles.statIconBadge, { backgroundColor: theme.colors.status.warningSubtle }]}>
+                        <PartyPopper color={theme.colors.status.warning} size={18} />
                     </View>
                     <View style={styles.statTextCol}>
                         <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{stats.holidays}</Text>
@@ -223,8 +238,8 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                 </View>
 
                 <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                    <View style={[styles.statIconBadge, { backgroundColor: 'rgba(139, 92, 246, 0.12)' }]}>
-                        <CalendarPlus color="#8B5CF6" size={18} />
+                    <View style={[styles.statIconBadge, { backgroundColor: theme.colors.status.purpleSubtle }]}>
+                        <CalendarPlus color={theme.colors.status.purple} size={18} />
                     </View>
                     <View style={styles.statTextCol}>
                         <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{stats.leaves}</Text>
@@ -233,8 +248,8 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                 </View>
 
                 <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                    <View style={[styles.statIconBadge, { backgroundColor: 'rgba(244, 63, 94, 0.12)' }]}>
-                        <CalendarOff color="#F43F5E" size={18} />
+                    <View style={[styles.statIconBadge, { backgroundColor: theme.colors.status.dangerSubtle }]}>
+                        <CalendarOff color={theme.colors.status.danger} size={18} />
                     </View>
                     <View style={styles.statTextCol}>
                         <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{stats.dayOffs}</Text>
@@ -424,17 +439,16 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                                     <View key={h.id} style={[styles.itemCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
                                         <View style={[styles.itemDateBadge, { backgroundColor: 'rgba(245, 158, 11, 0.12)' }]}>
                                             <Text style={[styles.itemDateDay, { color: '#F59E0B' }]}>
-                                                {format(parseISO(h.start_date), 'dd')}
+                                                {format(parseDateOnly(h.start_date), 'dd')}
                                             </Text>
                                             <Text style={[styles.itemDateMonth, { color: '#F59E0B' }]}>
-                                                {format(parseISO(h.start_date), 'MMM')}
+                                                {format(parseDateOnly(h.start_date), 'MMM')}
                                             </Text>
                                         </View>
                                         <View style={styles.itemInfo}>
                                             <Text style={[styles.itemTitle, { color: theme.colors.textPrimary }]}>{h.title}</Text>
                                             <Text style={[styles.itemRange, { color: theme.colors.textSecondary }]}>
-                                                {format(parseISO(h.start_date), 'MMM dd')}
-                                                {h.end_date !== h.start_date ? ` — ${format(parseISO(h.end_date), 'MMM dd, yyyy')}` : `, ${format(parseISO(h.start_date), 'yyyy')}`}
+                                                {formatDateRangeDisplay(h.start_date, h.end_date)}
                                             </Text>
                                             {h.description && (
                                                 <Text style={[styles.itemDescription, { color: theme.colors.textSecondary }]}>
@@ -470,10 +484,10 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                                     <View key={l.id} style={[styles.itemCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
                                         <View style={[styles.itemDateBadge, { backgroundColor: 'rgba(139, 92, 246, 0.12)' }]}>
                                             <Text style={[styles.itemDateDay, { color: '#8B5CF6' }]}>
-                                                {format(parseISO(l.start_date), 'dd')}
+                                                {format(parseDateOnly(l.start_date), 'dd')}
                                             </Text>
                                             <Text style={[styles.itemDateMonth, { color: '#8B5CF6' }]}>
-                                                {format(parseISO(l.start_date), 'MMM')}
+                                                {format(parseDateOnly(l.start_date), 'MMM')}
                                             </Text>
                                         </View>
                                         <View style={styles.itemInfo}>
@@ -503,8 +517,7 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                                                 </View>
                                             </View>
                                             <Text style={[styles.itemRange, { color: theme.colors.textSecondary }]}>
-                                                {format(parseISO(l.start_date), 'MMM dd')}
-                                                {l.end_date !== l.start_date ? ` — ${format(parseISO(l.end_date), 'MMM dd')}` : ''}
+                                                {formatDateRangeDisplay(l.start_date, l.end_date)}
                                             </Text>
                                             {l.reason && (
                                                 <Text style={[styles.itemDescription, { color: theme.colors.textSecondary }]}>
@@ -540,8 +553,8 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                                                 {d.days_off ? d.days_off.map((day) => day.toUpperCase()).join(', ') : 'Custom Day Off'}
                                             </Text>
                                             <Text style={[styles.itemRange, { color: theme.colors.textSecondary }]}>
-                                                Frequency: {d.frequency.toUpperCase()} • Effective: {format(parseISO(d.effective_from), 'MMM dd, yyyy')}
-                                                {d.effective_to ? ` — ${format(parseISO(d.effective_to), 'MMM dd, yyyy')}` : ' (Ongoing)'}
+                                                Frequency: {d.frequency.toUpperCase()} • Effective: {formatDateRangeDisplay(d.effective_from, d.effective_to || d.effective_from)}
+                                                {!d.effective_to ? ' (Ongoing)' : ''}
                                             </Text>
                                             {d.reason && (
                                                 <Text style={[styles.itemDescription, { color: theme.colors.textSecondary }]}>
@@ -587,19 +600,23 @@ const styles = StyleSheet.create({
         fontSize: 16,
         fontWeight: '700',
     },
-    todayBadge: {
+    jumpTodayBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 4,
         paddingHorizontal: 8,
         paddingVertical: 3,
         borderRadius: 8,
+        borderWidth: 1,
     },
-    todayBadgeText: {
+    jumpTodayBtnText: {
         fontSize: 11,
         fontWeight: '700',
     },
     navBtn: {
-        width: 34,
-        height: 34,
-        borderRadius: 10,
+        width: 44,
+        height: 44,
+        borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
     },

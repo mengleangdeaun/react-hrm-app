@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
-import { isToday, isYesterday, isThisWeek, parseISO, isValid, format } from 'date-fns';
+import { isToday, isYesterday, isThisWeek, parseISO, isValid, format, formatTimeDisplay } from '../../utils/dateTime';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notificationApi, NotificationItem, CelebrantItem } from '../../api/notification';
 import { useAppTheme } from '../../context/ThemeContext';
@@ -19,6 +19,7 @@ import { AppText as Text } from '../../components/AppText';
 import { AppShell } from '../../components/common/AppShell';
 import { AppHeader, HeaderIconButton } from '../../components/common/AppHeader';
 import { NotificationListSkeleton } from '../../components/common/Skeletons';
+import { EmptyState } from '../../components/common/EmptyState';
 import {
     Bell,
     ChevronRight,
@@ -84,14 +85,7 @@ export const groupNotificationsByDate = (items: NotificationItem[]): GroupedNoti
 };
 
 const formatNotificationTime = (rawStr: string | null | undefined): string => {
-    if (!rawStr) return '';
-    try {
-        const d = parseISO(rawStr);
-        if (!isValid(d)) return rawStr;
-        return format(d, 'hh:mm a');
-    } catch {
-        return rawStr;
-    }
+    return formatTimeDisplay(rawStr, '');
 };
 
 export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -342,7 +336,7 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
             {celebrations.length > 0 && (
                 <TouchableOpacity
                     style={styles.celebrationBanner}
-                    onPress={() => navigation.navigate('WishesInbox')}
+                    onPress={() => navigation.navigate('CelebrationWish')}
                     activeOpacity={0.85}
                 >
                     <PartyPopper color="#EC4899" size={24} />
@@ -362,13 +356,11 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
             {isLoadingNotifs ? (
                 <NotificationListSkeleton />
             ) : filteredNotifications.length === 0 ? (
-                <View style={styles.emptyCard}>
-                    <Bell color={theme.colors.textSecondary} size={44} />
-                    <Text style={styles.emptyTitle}>{t('nothing_here_yet', 'No Notifications')}</Text>
-                    <Text style={styles.emptySub}>
-                        {t('everything_up_to_date', 'You are all caught up! No active notifications found.')}
-                    </Text>
-                </View>
+                <EmptyState
+                    icon={<Bell color={theme.colors.textSecondary} size={36} />}
+                    title={t('nothing_here_yet', 'No Notifications')}
+                    description={t('everything_up_to_date', 'You are all caught up! No active notifications found.')}
+                />
             ) : (
                 groupedData.map((group) => (
                     <View key={group.titleKey} style={styles.dateGroupWrapper}>
@@ -397,7 +389,7 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
 
                                         <View style={styles.headerTextGroup}>
                                             <Text style={[styles.cardTitle, isUnread && styles.unreadCardTitle]} numberOfLines={1}>
-                                                {item.title}
+                                                {t(item.title, item.title, item.data)}
                                             </Text>
                                             <Text style={styles.cardDate}>
                                                 {formatNotificationTime(item.created_at)}
@@ -408,7 +400,7 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
                                     </View>
 
                                     <Text style={styles.cardMessage} numberOfLines={2}>
-                                        {item.message}
+                                        {t(item.message, item.message, item.data)}
                                     </Text>
 
                                     <View style={styles.cardFooter}>

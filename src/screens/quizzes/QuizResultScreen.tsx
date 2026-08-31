@@ -76,7 +76,7 @@ export const QuizResultScreen: React.FC<{ route: any; navigation: any }> = ({
     return (
         <AppShell
             title={t('quiz_result', 'Quiz Result')}
-            onBack={() => navigation.navigate('QuizList')}
+            onBack={() => navigation.goBack()}
         >
             {isLoading && !resultData ? (
                 <View style={styles.loadingContainer}>
@@ -265,7 +265,7 @@ export const QuizResultScreen: React.FC<{ route: any; navigation: any }> = ({
                     <TouchableOpacity
                         style={[styles.backBtn, { backgroundColor: primaryColor }]}
                         activeOpacity={0.85}
-                        onPress={() => navigation.navigate('QuizList')}
+                        onPress={() => navigation.goBack()}
                     >
                         <Text style={styles.backBtnText}>{t('back_to_list', 'Back to Quizzes')}</Text>
                     </TouchableOpacity>
@@ -349,22 +349,22 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginBottom: theme.spacing.md,
     },
     scoreCirclePassed: {
-        borderColor: '#10B981',
-        backgroundColor: 'rgba(16, 185, 129, 0.08)',
+        borderColor: theme.colors.status.success,
+        backgroundColor: theme.colors.status.successSubtle,
     },
     scoreCircleFailed: {
-        borderColor: '#EF4444',
-        backgroundColor: 'rgba(239, 68, 68, 0.08)',
+        borderColor: theme.colors.status.danger,
+        backgroundColor: theme.colors.status.dangerSubtle,
     },
     scorePctText: {
         fontSize: 32,
         fontWeight: '900',
     },
     scorePctPassed: {
-        color: '#10B981',
+        color: theme.colors.status.success,
     },
     scorePctFailed: {
-        color: '#EF4444',
+        color: theme.colors.status.danger,
     },
     scoreSubText: {
         fontSize: 11,
@@ -379,18 +379,18 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderWidth: 1,
     },
     statusBadgePassed: {
-        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-        borderColor: 'rgba(16, 185, 129, 0.25)',
+        backgroundColor: theme.colors.status.successSubtle,
+        borderColor: theme.colors.status.successBorder,
     },
     statusBadgePassedText: {
-        color: '#10B981',
+        color: theme.colors.status.success,
     },
     statusBadgeFailed: {
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-        borderColor: 'rgba(239, 68, 68, 0.25)',
+        backgroundColor: theme.colors.status.dangerSubtle,
+        borderColor: theme.colors.status.dangerBorder,
     },
     statusBadgeFailedText: {
-        color: '#EF4444',
+        color: theme.colors.status.danger,
     },
     statusBadgeText: {
         fontSize: 11,
@@ -511,28 +511,28 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderColor: theme.colors.border,
     },
     optItemCorrectSelected: {
-        backgroundColor: 'rgba(16, 185, 129, 0.08)',
-        borderColor: '#10B981',
+        backgroundColor: theme.colors.status.successSubtle,
+        borderColor: theme.colors.status.success,
     },
     optItemCorrectSelectedText: {
-        color: '#10B981',
+        color: theme.colors.status.success,
         fontWeight: '700',
     },
     optItemWrongSelected: {
-        backgroundColor: 'rgba(239, 68, 68, 0.08)',
-        borderColor: '#EF4444',
+        backgroundColor: theme.colors.status.dangerSubtle,
+        borderColor: theme.colors.status.danger,
     },
     optItemWrongSelectedText: {
-        color: '#EF4444',
+        color: theme.colors.status.danger,
         fontWeight: '700',
     },
     optItemMissedCorrect: {
-        backgroundColor: 'rgba(16, 185, 129, 0.04)',
-        borderColor: '#10B981',
+        backgroundColor: theme.colors.status.successSubtle,
+        borderColor: theme.colors.status.success,
         borderStyle: 'dashed',
     },
     optItemMissedCorrectText: {
-        color: '#10B981',
+        color: theme.colors.status.success,
         fontWeight: '700',
     },
     optText: {

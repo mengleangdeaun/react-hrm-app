@@ -10,7 +10,12 @@ import {
     Modal,
     TextInput,
     Image,
+    KeyboardAvoidingView,
+    Platform,
+    StyleSheet as RNStyleSheet,
 } from 'react-native';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
@@ -18,6 +23,9 @@ import { noticeApi, Subordinate, SubordinateNotice } from '../../api/notice';
 import { useAppTheme } from '../../context/ThemeContext';
 import { NativeDatePickerField } from '../../components/common/NativeDatePickerField';
 import { AppHeader } from '../../components/common/AppHeader';
+import { ListSkeleton } from '../../components/common/Skeletons';
+import { EmptyState } from '../../components/common/EmptyState';
+import { AppBottomSheet } from '../../components/common/AppBottomSheet';
 import {
     ArrowLeft,
     Plus,
@@ -32,7 +40,7 @@ import {
     Search,
     FileText,
 } from 'lucide-react-native';
-import { format } from 'date-fns';
+import { format, formatDateDisplay } from '../../utils/dateTime';
 
 import { useTranslation } from '../../context/LanguageContext';
 import { HeaderIconButton } from '../../components/common/AppHeader';
@@ -51,14 +59,10 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
         { id: 'progress', label: t('progress', 'Progress') },
     ];
 
-    const [subordinates, setSubordinates] = useState<Subordinate[]>([]);
+    const queryClient = useQueryClient();
+
     const [selectedSubordinateId, setSelectedSubordinateId] = useState<number | null>(null);
-
     const [selectedCategory, setSelectedCategory] = useState<string>('all');
-    const [notices, setNotices] = useState<SubordinateNotice[]>([]);
-
-    const [isLoading, setIsLoading] = useState<boolean>(true);
-    const [refreshing, setRefreshing] = useState<boolean>(false);
 
     // Create Notice Modal State
     const [createModalVisible, setCreateModalVisible] = useState<boolean>(false);
@@ -66,69 +70,60 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
     const [formType, setFormType] = useState<'positive' | 'negative' | 'progress'>('positive');
     const [formDate, setFormDate] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
     const [formComment, setFormComment] = useState<string>('');
-    const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
-    useEffect(() => {
-        loadWorkspaceData();
-    }, [selectedSubordinateId, selectedCategory]);
+    // 1. Fetch Subordinates
+    const { data: subordinates = [] } = useQuery<Subordinate[]>({
+        queryKey: ['subordinates'],
+        queryFn: async () => {
+            const res = await noticeApi.getSubordinates();
+            return Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
+        },
+    });
 
-    const loadWorkspaceData = async () => {
-        try {
-            setIsLoading(true);
-
-            // Fetch Subordinates
-            const subsRes = await noticeApi.getSubordinates().catch(() => []);
-            if (Array.isArray(subsRes)) setSubordinates(subsRes);
-
-            // Fetch Notices
+    // 2. Fetch Notices Feed
+    const {
+        data: notices = [],
+        isLoading,
+        isFetching,
+        refetch,
+    } = useQuery<SubordinateNotice[]>({
+        queryKey: ['subordinateNotices', selectedSubordinateId, selectedCategory],
+        queryFn: async () => {
             const params: any = {};
             if (selectedSubordinateId) params.employee_id = selectedSubordinateId;
             if (selectedCategory !== 'all') params.type = selectedCategory;
 
-            const noticeRes = await noticeApi.getNotices(params).catch(() => null);
-            const list = Array.isArray(noticeRes?.data) ? noticeRes.data : Array.isArray(noticeRes) ? noticeRes : [];
+            const res = await noticeApi.getNotices(params);
+            return Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+        },
+    });
 
-            setNotices(list);
-        } catch (error) {
-            console.warn('Failed to load subordinate notices:', error);
-            // Fallback demo data
-            setSubordinates([
-                { id: 18, full_name: 'David Miller', employee_id: 'EMP-0045' },
-                { id: 22, full_name: 'Sarah Connor', employee_id: 'EMP-0089' },
-            ]);
+    // 3. Create Notice Mutation
+    const createMutation = useMutation({
+        mutationFn: noticeApi.createNotice,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['subordinateNotices'] });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            Alert.alert(
+                t('notice_recorded', 'Notice Recorded'),
+                t('notice_logged_desc', 'Subordinate notice logged successfully.')
+            );
+            setCreateModalVisible(false);
+            setFormComment('');
+        },
+        onError: (err: any) => {
+            const msg = err?.response?.data?.message || err?.message || t('fail_record_notice', 'Failed to record notice.');
+            Alert.alert(t('error', 'Error'), msg);
+        },
+    });
 
-            setNotices([
-                {
-                    id: 34,
-                    employee_id: 18,
-                    type: 'positive',
-                    notice_date: '2026-07-22',
-                    comment: 'Exceeded monthly sales target by 25% and received outstanding customer review.',
-                    employee: { id: 18, full_name: 'David Miller', employee_id: 'EMP-0045' },
-                    creator: { id: 5, full_name: 'Jane Manager' },
-                },
-                {
-                    id: 35,
-                    employee_id: 22,
-                    type: 'negative',
-                    notice_date: '2026-07-20',
-                    comment: 'Late arrival by 45 minutes for shift without prior supervisor notice.',
-                    employee: { id: 22, full_name: 'Sarah Connor', employee_id: 'EMP-0089' },
-                    creator: { id: 5, full_name: 'Jane Manager' },
-                },
-            ]);
-        } finally {
-            setIsLoading(false);
-            setRefreshing(false);
-        }
+    const onRefresh = async () => {
+        await queryClient.invalidateQueries({ queryKey: ['subordinateNotices'] });
+        await queryClient.invalidateQueries({ queryKey: ['subordinates'] });
+        refetch();
     };
 
-    const onRefresh = () => {
-        setRefreshing(true);
-        loadWorkspaceData();
-    };
-
-    const handleCreateNotice = async () => {
+    const handleCreateNotice = () => {
         if (!formSubordinateId) {
             Alert.alert(t('required', 'Required'), t('select_subordinate_member', 'Please select a subordinate team member.'));
             return;
@@ -138,49 +133,37 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
             return;
         }
 
-        setIsSubmitting(true);
-        try {
-            await noticeApi.createNotice({
-                employee_id: formSubordinateId,
-                type: formType,
-                notice_date: formDate,
-                comment: formComment,
-            });
-
-            Alert.alert(t('notice_recorded', 'Notice Recorded'), t('notice_logged_desc', 'Subordinate notice logged successfully.'));
-            setCreateModalVisible(false);
-            setFormComment('');
-            loadWorkspaceData();
-        } catch (err: any) {
-            Alert.alert(t('error', 'Error'), err?.message || t('fail_record_notice', 'Failed to record notice.'));
-        } finally {
-            setIsSubmitting(false);
-        }
+        createMutation.mutate({
+            employee_id: formSubordinateId,
+            type: formType,
+            notice_date: formDate,
+            comment: formComment.trim(),
+        });
     };
 
     const getTypeStyle = (type: string) => {
         switch (type) {
             case 'positive':
                 return {
-                    bg: 'rgba(16, 185, 129, 0.1)',
-                    border: 'rgba(16, 185, 129, 0.2)',
+                    bg: theme.colors.status.successSubtle,
+                    border: theme.colors.status.successBorder,
                     color: theme.colors.status.success,
                     label: t('positive_conduct', 'POSITIVE CONDUCT'),
                     Icon: Award,
                 };
             case 'negative':
                 return {
-                    bg: 'rgba(239, 68, 68, 0.1)',
-                    border: 'rgba(239, 68, 68, 0.2)',
+                    bg: theme.colors.status.dangerSubtle,
+                    border: theme.colors.status.dangerBorder,
                     color: theme.colors.status.danger,
                     label: t('warning_notice', 'WARNING / NOTICE'),
                     Icon: AlertCircle,
                 };
             default:
                 return {
-                    bg: 'rgba(37, 99, 235, 0.1)',
-                    border: 'rgba(37, 99, 235, 0.2)',
-                    color: theme.colors.primary,
+                    bg: theme.colors.status.infoSubtle,
+                    border: theme.colors.status.infoBorder,
+                    color: theme.colors.status.info,
                     label: t('progress_milestone', 'PROGRESS / MILESTONE'),
                     Icon: TrendingUp,
                 };
@@ -205,7 +188,7 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
             title={t('team_subordinate_notices', 'Team Subordinate Notices')}
             onBack={() => navigation.goBack()}
             headerRight={headerRight}
-            refreshing={refreshing}
+            refreshing={isFetching && !isLoading}
             onRefresh={onRefresh}
         >
             {/* Horizontal Subordinates Selector */}
@@ -278,15 +261,15 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
 
             {/* Notice Timeline List */}
             {isLoading ? (
-                <View style={styles.loadingContainer}>
-                    <ActivityIndicator size="large" color={theme.colors.primary} />
-                </View>
+                <ListSkeleton count={3} />
             ) : notices.length === 0 ? (
-                <View style={styles.emptyCard}>
-                    <FileText color={theme.colors.textSecondary} size={44} />
-                    <Text style={styles.emptyTitle}>{t('no_team_notices', 'No Team Notices Recorded')}</Text>
-                    <Text style={styles.emptySub}>{t('no_team_notices_desc', 'No behavioral or progress notices found for this selection.')}</Text>
-                </View>
+                <EmptyState
+                    icon={<FileText color={theme.colors.textSecondary} size={36} />}
+                    title={t('no_team_notices', 'No Team Notices Recorded')}
+                    description={t('no_team_notices_desc', 'No behavioral or progress notices found for this selection.')}
+                    actionTitle={t('log_notice', 'Log New Notice')}
+                    onAction={() => setCreateModalVisible(true)}
+                />
             ) : (
                 notices.map((item) => {
                     const typeObj = getTypeStyle(item.type);
@@ -329,7 +312,7 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
                                 <Text style={styles.creatorText}>{t('logged_by', 'Logged by')} {creatorName}</Text>
                                 <View style={styles.dateGroup}>
                                     <Calendar color={theme.colors.textSecondary} size={12} />
-                                    <Text style={styles.dateText}>{item.notice_date || item.created_at || 'Recent'}</Text>
+                                    <Text style={styles.dateText}>{formatDateDisplay(item.notice_date || item.created_at, 'standard', 'Recent')}</Text>
                                 </View>
                             </View>
                         </View>
@@ -338,101 +321,94 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
             )}
 
             {/* Log New Notice Modal */}
-            <Modal visible={createModalVisible} transparent animationType="fade">
-                <TouchableOpacity
-                    style={styles.modalOverlay}
-                    activeOpacity={1}
-                    onPress={() => setCreateModalVisible(false)}
-                >
-                    <View style={styles.modalSheet}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>{t('log_subordinate_notice', 'Log Subordinate Notice')}</Text>
-                            <TouchableOpacity onPress={() => setCreateModalVisible(false)}>
-                                <X color={theme.colors.textPrimary} size={20} />
+            <AppBottomSheet
+                visible={createModalVisible}
+                onClose={() => setCreateModalVisible(false)}
+                title={t('log_subordinate_notice', 'Log Subordinate Notice')}
+                footer={
+                    <TouchableOpacity
+                        style={styles.submitBtn}
+                        onPress={handleCreateNotice}
+                        disabled={createMutation.isPending}
+                        activeOpacity={0.85}
+                    >
+                        {createMutation.isPending ? (
+                            <ActivityIndicator color="#FFFFFF" />
+                        ) : (
+                            <Text style={styles.submitBtnText}>{t('record_subordinate_notice', 'Record Subordinate Notice')}</Text>
+                        )}
+                    </TouchableOpacity>
+                }
+            >
+                {/* Select Subordinate */}
+                <Text style={styles.inputLabel}>{t('target_team_member', 'Target Team Member')}</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subPickerRow}>
+                    {subordinates.map((sub) => {
+                        const isSelected = formSubordinateId === sub.id;
+                        return (
+                            <TouchableOpacity
+                                key={sub.id}
+                                style={[styles.subPickerChip, isSelected && styles.subPickerChipSelected]}
+                                onPress={() => setFormSubordinateId(sub.id)}
+                                activeOpacity={0.75}
+                            >
+                                <Text
+                                    style={[
+                                        styles.subPickerText,
+                                        isSelected && styles.subPickerTextSelected,
+                                    ]}
+                                >
+                                    {sub.full_name}
+                                </Text>
                             </TouchableOpacity>
-                        </View>
+                        );
+                    })}
+                </ScrollView>
 
-                        {/* Select Subordinate */}
-                        <Text style={styles.inputLabel}>{t('target_team_member', 'Target Team Member')}</Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.subPickerRow}>
-                            {subordinates.map((sub) => {
-                                const isSelected = formSubordinateId === sub.id;
-                                return (
-                                    <TouchableOpacity
-                                        key={sub.id}
-                                        style={[styles.subPickerChip, isSelected && styles.subPickerChipSelected]}
-                                        onPress={() => setFormSubordinateId(sub.id)}
-                                    >
-                                        <Text
-                                            style={[
-                                                styles.subPickerText,
-                                                isSelected && styles.subPickerTextSelected,
-                                            ]}
-                                        >
-                                            {sub.full_name}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </ScrollView>
+                {/* Select Type */}
+                <Text style={styles.inputLabel}>{t('notice_type', 'Notice Type')}</Text>
+                <View style={styles.typeSelectorRow}>
+                    {(['positive', 'negative', 'progress'] as const).map((tType) => {
+                        const isSelected = formType === tType;
+                        return (
+                            <TouchableOpacity
+                                key={tType}
+                                style={[styles.typeOption, isSelected && styles.typeOptionSelected]}
+                                onPress={() => setFormType(tType)}
+                                activeOpacity={0.75}
+                            >
+                                <Text
+                                    style={[
+                                        styles.typeOptionText,
+                                        isSelected && styles.typeOptionTextSelected,
+                                    ]}
+                                >
+                                    {tType.toUpperCase()}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </View>
 
-                        {/* Select Type */}
-                        <Text style={styles.inputLabel}>{t('notice_type', 'Notice Type')}</Text>
-                        <View style={styles.typeSelectorRow}>
-                            {(['positive', 'negative', 'progress'] as const).map((tType) => {
-                                const isSelected = formType === tType;
-                                return (
-                                    <TouchableOpacity
-                                        key={tType}
-                                        style={[styles.typeOption, isSelected && styles.typeOptionSelected]}
-                                        onPress={() => setFormType(tType)}
-                                    >
-                                        <Text
-                                            style={[
-                                                styles.typeOptionText,
-                                                isSelected && styles.typeOptionTextSelected,
-                                            ]}
-                                        >
-                                            {tType.toUpperCase()}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
-                        </View>
+                {/* Incident / Notice Date */}
+                <NativeDatePickerField
+                    label={t('notice_incident_date', 'Notice / Incident Date')}
+                    value={formDate}
+                    onChange={setFormDate}
+                />
 
-                        {/* Incident / Notice Date */}
-                        <NativeDatePickerField
-                            label={t('notice_incident_date', 'Notice / Incident Date')}
-                            value={formDate}
-                            onChange={setFormDate}
-                        />
-
-                        {/* Notice Comment */}
-                        <Text style={styles.inputLabel}>{t('notice_details_comments', 'Notice Details / Comments')}</Text>
-                        <TextInput
-                            style={styles.textArea}
-                            value={formComment}
-                            onChangeText={setFormComment}
-                            placeholder={t('describe_notice_placeholder', 'Describe employee feedback, praise, or warning details...')}
-                            placeholderTextColor={theme.colors.textSecondary}
-                            multiline
-                            numberOfLines={4}
-                        />
-
-                        <TouchableOpacity
-                            style={styles.submitBtn}
-                            onPress={handleCreateNotice}
-                            disabled={isSubmitting}
-                        >
-                            {isSubmitting ? (
-                                <ActivityIndicator color="#FFFFFF" />
-                            ) : (
-                                <Text style={styles.submitBtnText}>{t('record_subordinate_notice', 'Record Subordinate Notice')}</Text>
-                            )}
-                        </TouchableOpacity>
-                    </View>
-                </TouchableOpacity>
-            </Modal>
+                {/* Notice Comment */}
+                <Text style={styles.inputLabel}>{t('notice_details_comments', 'Notice Details / Comments')}</Text>
+                <TextInput
+                    style={styles.textArea}
+                    value={formComment}
+                    onChangeText={setFormComment}
+                    placeholder={t('describe_notice_placeholder', 'Describe employee feedback, praise, or warning details...')}
+                    placeholderTextColor={theme.colors.textSecondary}
+                    multiline
+                    numberOfLines={4}
+                />
+            </AppBottomSheet>
         </AppShell>
     );
 };
@@ -661,6 +637,10 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderTopLeftRadius: theme.borderRadius.lg + 4,
         borderTopRightRadius: theme.borderRadius.lg + 4,
         padding: theme.spacing.lg,
+        maxHeight: '85%',
+    },
+    modalScrollContent: {
+        paddingBottom: theme.spacing.md,
     },
     modalHeader: {
         flexDirection: 'row',

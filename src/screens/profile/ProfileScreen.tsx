@@ -37,19 +37,10 @@ import {
     Cake,
 } from 'lucide-react-native';
 
+import { formatDateDisplay } from '../../utils/dateTime';
+
 const formatDate = (dateStr: string | null | undefined): string => {
-    if (!dateStr) return 'N/A';
-    try {
-        const d = new Date(dateStr);
-        if (isNaN(d.getTime())) return dateStr;
-        return d.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-        });
-    } catch {
-        return dateStr;
-    }
+    return formatDateDisplay(dateStr, 'short', 'N/A');
 };
 
 export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {

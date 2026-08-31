@@ -66,11 +66,28 @@ function DashboardStack() {
     );
 }
 
+function CalendarStack() {
+    return (
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="ScheduleCalendarMain" component={ScheduleCalendarScreen} />
+            <Stack.Screen name="CreateLeave" component={CreateLeaveScreen} />
+            <Stack.Screen name="LeaveList" component={LeaveListScreen} />
+        </Stack.Navigator>
+    );
+}
+
 function NotificationStack() {
     return (
         <Stack.Navigator screenOptions={{ headerShown: false }}>
             <Stack.Screen name="NotificationList" component={NotificationListScreen} />
             <Stack.Screen name="AnnouncementDetail" component={AnnouncementDetailScreen} />
+            <Stack.Screen name="LeaveList" component={LeaveListScreen} />
+            <Stack.Screen name="CreateLeave" component={CreateLeaveScreen} />
+            <Stack.Screen name="WishesInbox" component={WishesInboxScreen} />
+            <Stack.Screen name="CelebrationWish" component={CelebrationWishScreen} />
+            <Stack.Screen name="QuizList" component={QuizListScreen} />
+            <Stack.Screen name="TakeQuiz" component={TakeQuizScreen} />
+            <Stack.Screen name="QuizResult" component={QuizResultScreen} />
         </Stack.Navigator>
     );
 }
@@ -136,6 +153,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 
     const mainTabScreens = [
         'DashboardMain',
+        'ScheduleCalendarMain',
         'ScheduleCalendarScreen',
         'ScanAttendanceScreen',
         'NotificationList',
@@ -272,7 +290,7 @@ export function MainTabNavigator() {
             }}
         >
             <Tab.Screen name="HomeTab" component={DashboardStack} />
-            <Tab.Screen name="CalendarTab" component={ScheduleCalendarScreen} />
+            <Tab.Screen name="CalendarTab" component={CalendarStack} />
             <Tab.Screen name="ScanTab" component={ScanAttendanceScreen} />
             <Tab.Screen name="NotiTab" component={NotificationStack} />
             <Tab.Screen name="ProfileTab" component={ProfileStack} />

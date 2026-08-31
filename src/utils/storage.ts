@@ -163,3 +163,30 @@ export const resetOnboarding = async (): Promise<void> => {
     }
 };
 
+export const DISMISSED_BANNER_ANNOUNCEMENTS_KEY = 'hrms_dismissed_banner_announcements';
+
+export const getDismissedBannerIds = async (): Promise<string[]> => {
+    try {
+        const val = await appStorage.getItem(DISMISSED_BANNER_ANNOUNCEMENTS_KEY);
+        if (!val) return [];
+        const parsed = JSON.parse(val);
+        return Array.isArray(parsed) ? parsed : [];
+    } catch {
+        return [];
+    }
+};
+
+export const dismissBannerId = async (id: string | number): Promise<void> => {
+    try {
+        const idStr = String(id);
+        const existing = await getDismissedBannerIds();
+        if (!existing.includes(idStr)) {
+            const updated = [...existing, idStr];
+            await appStorage.setItem(DISMISSED_BANNER_ANNOUNCEMENTS_KEY, JSON.stringify(updated));
+        }
+    } catch (e) {
+        console.warn('Failed to persist dismissed banner ID', e);
+    }
+};
+
+
