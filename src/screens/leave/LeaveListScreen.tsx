@@ -1,22 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import {
     View,
     ScrollView,
+    FlatList,
     TouchableOpacity,
-    StatusBar,
     ActivityIndicator,
     RefreshControl,
     Alert,
-    Modal,
     TextInput,
-    KeyboardAvoidingView,
-    Platform,
-    StyleSheet as RNStyleSheet,
 } from 'react-native';
 import { AppText as Text } from '../../components/AppText';
-import { SafeAreaView } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
-import { format, parseISO } from 'date-fns';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '../../components/common/AppShell';
 import { HeaderIconButton } from '../../components/common/AppHeader';
 import { LeaveListSkeleton } from '../../components/common/Skeletons';
@@ -39,77 +34,225 @@ import {
 } from 'lucide-react-native';
 
 import { formatDateRangeDisplay, formatDateDisplay } from '../../utils/dateTime';
-
 import { useTranslation } from '../../context/LanguageContext';
+
+interface MyLeaveCardProps {
+    req: LeaveRequest;
+    theme: any;
+    styles: any;
+    t: (key: string, fallback: string) => string;
+    onCancel: (id: number) => void;
+}
+
+const MyLeaveRequestCard = memo(({ req, theme, styles, t, onCancel }: MyLeaveCardProps) => {
+    const statusStr = (req.status || 'pending').toLowerCase();
+    const isApproved = statusStr === 'approved';
+    const isPending = statusStr === 'pending';
+    const isRejected = statusStr === 'rejected';
+
+    const getLeaveTypeName = (leaveTypeObj: any) => {
+        if (!leaveTypeObj) return t('leave', 'Leave');
+        if (typeof leaveTypeObj === 'string') return leaveTypeObj;
+        return leaveTypeObj.name || leaveTypeObj.title || t('leave', 'Leave');
+    };
+
+    return (
+        <View style={styles.requestCard}>
+            <View style={styles.cardHeader}>
+                <View style={styles.typeGroup}>
+                    <Calendar color={theme.colors.primary} size={16} />
+                    <Text style={styles.typeText}>
+                        {getLeaveTypeName(req.leave_type).toUpperCase()}
+                    </Text>
+                </View>
+
+                <View
+                    style={[
+                        styles.statusBadge,
+                        {
+                            backgroundColor: isApproved
+                                ? 'rgba(16, 185, 129, 0.12)'
+                                : isPending
+                                ? 'rgba(245, 158, 11, 0.12)'
+                                : isRejected
+                                ? 'rgba(239, 68, 68, 0.12)'
+                                : 'rgba(100, 116, 139, 0.12)',
+                        },
+                    ]}
+                >
+                    <Text
+                        style={[
+                            styles.statusBadgeText,
+                            {
+                                color: isApproved
+                                    ? theme.colors.status.success
+                                    : isPending
+                                    ? theme.colors.status.warning
+                                    : isRejected
+                                    ? theme.colors.status.danger
+                                    : theme.colors.textSecondary,
+                            },
+                        ]}
+                    >
+                        {statusStr.toUpperCase()}
+                    </Text>
+                </View>
+            </View>
+
+            <View style={styles.dateRow}>
+                <Text style={styles.dateRangeText}>
+                    {formatDateRangeDisplay(req.start_date, req.end_date)}
+                </Text>
+                <View style={styles.durationPill}>
+                    <Text style={styles.durationPillText}>
+                        {req.total_days || req.days_count || 1} {(req.total_days || req.days_count || 1) > 1 ? t('days', 'Days') : t('day', 'Day')}
+                    </Text>
+                </View>
+            </View>
+            <Text style={styles.reasonText} numberOfLines={2}>
+                {req.reason}
+            </Text>
+
+            {/* Action Footer */}
+            <View style={styles.cardFooter}>
+                <Text style={styles.appliedDateText}>
+                    {t('applied', 'Applied')} {formatDateDisplay(req.created_at)}
+                </Text>
+
+                {isPending && (
+                    <TouchableOpacity
+                        style={styles.cancelBtn}
+                        onPress={() => onCancel(req.id)}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    >
+                        <Ban color={theme.colors.status.danger} size={15} />
+                        <Text style={styles.cancelBtnText}>{t('cancel', 'Cancel')}</Text>
+                    </TouchableOpacity>
+                )}
+            </View>
+        </View>
+    );
+});
+
+interface ManagerApprovalCardProps {
+    item: LeaveRequest;
+    theme: any;
+    styles: any;
+    t: (key: string, fallback: string) => string;
+    onApprove: (id: number) => void;
+    onReject: (item: LeaveRequest) => void;
+}
+
+const ManagerApprovalCard = memo(({ item, theme, styles, t, onApprove, onReject }: ManagerApprovalCardProps) => {
+    const getLeaveTypeName = (leaveTypeObj: any) => {
+        if (!leaveTypeObj) return t('leave', 'Leave');
+        if (typeof leaveTypeObj === 'string') return leaveTypeObj;
+        return leaveTypeObj.name || leaveTypeObj.title || t('leave', 'Leave');
+    };
+
+    return (
+        <View style={styles.requestCard}>
+            <View style={styles.cardHeader}>
+                <View style={styles.typeGroup}>
+                    <User color={theme.colors.primary} size={16} />
+                    <Text style={styles.typeText}>{item.employee_name || t('subordinate', 'Subordinate')}</Text>
+                </View>
+
+                <View style={styles.pendingBadge}>
+                    <Text style={styles.pendingBadgeText}>{t('pending_review', 'PENDING REVIEW')}</Text>
+                </View>
+            </View>
+
+            <View style={styles.dateRow}>
+                <Text style={styles.dateRangeText}>
+                    {getLeaveTypeName(item.leave_type)} • {formatDateRangeDisplay(item.start_date, item.end_date)}
+                </Text>
+                <View style={styles.durationPill}>
+                    <Text style={styles.durationPillText}>
+                        {item.total_days || item.days_count || 1} {(item.total_days || item.days_count || 1) > 1 ? t('days', 'Days') : t('day', 'Day')}
+                    </Text>
+                </View>
+            </View>
+            <Text style={styles.reasonText}>{item.reason}</Text>
+
+            <View style={styles.approvalActionRow}>
+                <TouchableOpacity
+                    style={styles.rejectActionBtn}
+                    onPress={() => onReject(item)}
+                >
+                    <X color={theme.colors.status.danger} size={16} />
+                    <Text style={styles.rejectActionText}>{t('reject', 'Reject')}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    style={styles.approveActionBtn}
+                    onPress={() => onApprove(item.id)}
+                >
+                    <Check color="#FFFFFF" size={16} />
+                    <Text style={styles.approveActionText}>{t('approve', 'Approve')}</Text>
+                </TouchableOpacity>
+            </View>
+        </View>
+    );
+});
 
 export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark, toggleTheme } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
+    const queryClient = useQueryClient();
 
     const [activeTab, setActiveTab] = useState<'my_requests' | 'approvals'>('my_requests');
-    const [isLoading, setIsLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-
-    const [leaveBalances, setLeaveBalances] = useState<LeaveBalance[]>([]);
-    const [myRequests, setMyRequests] = useState<LeaveRequest[]>([]);
-    const [managerApprovals, setManagerApprovals] = useState<LeaveRequest[]>([]);
 
     // Rejection Modal
     const [rejectingItem, setRejectingItem] = useState<LeaveRequest | null>(null);
     const [rejectionReason, setRejectionReason] = useState('');
     const [isSubmittingReject, setIsSubmittingReject] = useState(false);
 
-    useEffect(() => {
-        fetchLeaveData();
-    }, [activeTab]);
-
-    const fetchLeaveData = async () => {
-        try {
-            setIsLoading(true);
-
-            // Fetch balances
+    // TanStack Query for Balances
+    const { data: leaveBalances = [] } = useQuery<LeaveBalance[]>({
+        queryKey: ['leaveBalances'],
+        queryFn: async () => {
             const balRes = await leaveApi.getMyBalances().catch(() => null);
-            if (Array.isArray(balRes)) {
-                setLeaveBalances(balRes);
-            } else if (Array.isArray(balRes?.balances)) {
-                setLeaveBalances(balRes.balances);
-            } else {
-                setLeaveBalances([
-                    { id: 1, remaining_days: 13, allocated_days: 18, used_days: 4, pending_days: 1, leave_type: { id: 1, name: 'Annual Leave' } },
-                    { id: 2, remaining_days: 7, allocated_days: 7, used_days: 0, pending_days: 0, leave_type: { id: 2, name: 'Sick Leave' } },
-                    { id: 3, remaining_days: 3, allocated_days: 3, used_days: 0, pending_days: 0, leave_type: { id: 3, name: 'Special Leave' } },
-                ]);
-            }
+            if (Array.isArray(balRes)) return balRes;
+            if (Array.isArray(balRes?.balances)) return balRes.balances;
+            return [];
+        },
+        staleTime: 1000 * 60 * 5,
+    });
 
+    // TanStack Query for Requests / Approvals
+    const {
+        data: leaveRequests = [],
+        isLoading,
+        isFetching,
+        refetch,
+    } = useQuery<LeaveRequest[]>({
+        queryKey: ['leaveRequests', activeTab],
+        queryFn: async () => {
             if (activeTab === 'my_requests') {
                 const reqRes = await leaveApi.getLeaveRequests().catch(() => null);
-                const list = Array.isArray(reqRes?.data)
+                return Array.isArray(reqRes?.data)
                     ? reqRes.data
                     : Array.isArray(reqRes?.requests)
                     ? reqRes.requests
                     : Array.isArray(reqRes)
                     ? reqRes
                     : [];
-                setMyRequests(list);
             } else {
                 const appRes = await leaveApi.getManagerApprovals().catch(() => null);
-                const approvals = Array.isArray(appRes?.data) ? appRes.data : Array.isArray(appRes) ? appRes : [];
-                setManagerApprovals(approvals);
+                return Array.isArray(appRes?.data) ? appRes.data : Array.isArray(appRes) ? appRes : [];
             }
-        } catch (error) {
-            console.warn('Failed to load leave data:', error);
-        } finally {
-            setIsLoading(false);
-            setRefreshing(false);
-        }
-    };
+        },
+        staleTime: 1000 * 60 * 5,
+    });
 
-    const onRefresh = () => {
-        setRefreshing(true);
-        fetchLeaveData();
-    };
+    const onRefresh = useCallback(() => {
+        refetch();
+        queryClient.invalidateQueries({ queryKey: ['leaveBalances'] });
+    }, [refetch, queryClient]);
 
     const handleCancelRequest = (id: number) => {
         Alert.alert(t('cancel_application', 'Cancel Application'), t('cancel_leave_confirm', 'Are you sure you want to cancel this pending leave application?'), [
@@ -121,7 +264,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                     try {
                         await leaveApi.cancelLeaveRequest(id);
                         Alert.alert(t('cancelled', 'Cancelled'), t('leave_cancelled_desc', 'Leave request has been cancelled.'));
-                        fetchLeaveData();
+                        refetch();
                     } catch (err: any) {
                         Alert.alert(t('error', 'Error'), err?.message || t('fail_cancel_leave', 'Failed to cancel leave request.'));
                     }
@@ -134,7 +277,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         try {
             await leaveApi.approveLeaveRequest(id);
             Alert.alert(t('approved', 'Approved'), t('leave_approved_desc', 'Leave request approved successfully.'));
-            fetchLeaveData();
+            refetch();
         } catch (err: any) {
             Alert.alert(t('error', 'Error'), err?.message || t('fail_approve_leave', 'Failed to approve leave request.'));
         }
@@ -153,7 +296,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             Alert.alert(t('rejected', 'Rejected'), t('leave_rejected_desc', 'Leave request has been rejected.'));
             setRejectingItem(null);
             setRejectionReason('');
-            fetchLeaveData();
+            refetch();
         } catch (err: any) {
             Alert.alert(t('error', 'Error'), err?.message || t('fail_reject_leave', 'Failed to reject leave request.'));
         } finally {
@@ -182,7 +325,6 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         if (target && typeof target === 'object' && target.name) return target.name;
         return t('leave', 'Leave');
     };
-
     const headerRight = (
         <HeaderIconButton
             icon={<Plus color={theme.colors.brand} size={20} />}
@@ -191,202 +333,120 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         />
     );
 
+    const keyExtractor = useCallback((item: LeaveRequest) => String(item.id), []);
+
+    const renderItem = useCallback(
+        ({ item }: { item: LeaveRequest }) => {
+            if (activeTab === 'my_requests') {
+                return (
+                    <MyLeaveRequestCard
+                        req={item}
+                        theme={theme}
+                        styles={styles}
+                        t={t}
+                        onCancel={handleCancelRequest}
+                    />
+                );
+            }
+            return (
+                <ManagerApprovalCard
+                    item={item}
+                    theme={theme}
+                    styles={styles}
+                    t={t}
+                    onApprove={handleApproveRequest}
+                    onReject={setRejectingItem}
+                />
+            );
+        },
+        [activeTab, theme, styles, t, handleCancelRequest, handleApproveRequest]
+    );
+
+    const listHeader = (
+        <View>
+            {/* Tab Navigation Switcher (Top priority on Requests page) */}
+            <View style={styles.tabSwitcher}>
+                <TouchableOpacity
+                    style={[styles.tabBtn, activeTab === 'my_requests' && styles.tabBtnActive]}
+                    onPress={() => setActiveTab('my_requests')}
+                >
+                    <Text style={[styles.tabBtnText, activeTab === 'my_requests' && styles.tabBtnTextActive]}>
+                        {t('my_applications', 'My Applications')}
+                    </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.tabBtn, activeTab === 'approvals' && styles.tabBtnActive]}
+                    onPress={() => setActiveTab('approvals')}
+                >
+                    <Text style={[styles.tabBtnText, activeTab === 'approvals' && styles.tabBtnTextActive]}>
+                        {t('subordinate_approvals', 'Subordinate Approvals')}
+                    </Text>
+                </TouchableOpacity>
+            </View>
+
+            {/* Leave Balances Carousel Summary */}
+            {leaveBalances.length > 0 && (
+                <View style={styles.balanceSection}>
+                    <Text style={styles.sectionTitle}>{t('leave_balances_summary', 'Leave Balances Summary')}</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.balanceCarousel}>
+                        {leaveBalances.map((item, idx) => (
+                            <View key={idx} style={styles.balanceCard}>
+                                <Text style={styles.balanceType}>{getLeaveTypeName(item.leave_type, item)}</Text>
+                                <Text style={styles.balanceRemaining}>{getRemainingDays(item)} {t('days', 'Days')}</Text>
+                                <Text style={styles.balanceSub}>
+                                    {t('used_days_of_total', `Used ${getUsedDays(item)} of ${getAllocatedDays(item)} days`)}
+                                </Text>
+                            </View>
+                        ))}
+                    </ScrollView>
+                </View>
+            )}
+        </View>
+    );
+
+    const emptyStateComponent = (
+        isLoading ? (
+            <LeaveListSkeleton />
+        ) : activeTab === 'my_requests' ? (
+            <EmptyState
+                icon={<FileText color={theme.colors.textSecondary} size={36} />}
+                title={t('no_leave_requests', 'No Leave Requests')}
+                description={t('no_leave_requests_desc', 'You have not submitted any leave applications yet.')}
+                actionTitle={t('apply_leave', 'Apply Leave')}
+                onAction={() => navigation.navigate('CreateLeave')}
+            />
+        ) : (
+            <EmptyState
+                icon={<CheckCircle2 color={theme.colors.status.success} size={36} />}
+                title={t('no_pending_approvals', 'No Pending Approvals')}
+                description={t('no_pending_approvals_desc', 'All subordinate leave requests have been processed.')}
+            />
+        )
+    );
+
     return (
         <AppShell
             title={t('leave_requests', 'Leave Requests')}
             onBack={() => navigation.goBack()}
             headerRight={headerRight}
-            refreshing={refreshing}
-            onRefresh={onRefresh}
+            scrollable={false}
         >
-                {/* Tab Navigation Switcher (Top priority on Requests page) */}
-                <View style={styles.tabSwitcher}>
-                    <TouchableOpacity
-                        style={[styles.tabBtn, activeTab === 'my_requests' && styles.tabBtnActive]}
-                        onPress={() => setActiveTab('my_requests')}
-                    >
-                        <Text style={[styles.tabBtnText, activeTab === 'my_requests' && styles.tabBtnTextActive]}>
-                            {t('my_applications', 'My Applications')}
-                        </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={[styles.tabBtn, activeTab === 'approvals' && styles.tabBtnActive]}
-                        onPress={() => setActiveTab('approvals')}
-                    >
-                        <Text style={[styles.tabBtnText, activeTab === 'approvals' && styles.tabBtnTextActive]}>
-                            {t('subordinate_approvals', 'Subordinate Approvals')}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Leave Balances Carousel Summary */}
-                {leaveBalances.length > 0 && (
-                    <View style={styles.balanceSection}>
-                        <Text style={styles.sectionTitle}>{t('leave_balances_summary', 'Leave Balances Summary')}</Text>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.balanceCarousel}>
-                            {leaveBalances.map((item, idx) => (
-                                <View key={idx} style={styles.balanceCard}>
-                                    <Text style={styles.balanceType}>{getLeaveTypeName(item.leave_type, item)}</Text>
-                                    <Text style={styles.balanceRemaining}>{getRemainingDays(item)} {t('days', 'Days')}</Text>
-                                    <Text style={styles.balanceSub}>
-                                        {t('used_days_of_total', `Used ${getUsedDays(item)} of ${getAllocatedDays(item)} days`)}
-                                    </Text>
-                                </View>
-                            ))}
-                        </ScrollView>
-                    </View>
-                )}
-
-                {/* Tab Content */}
-                {isLoading ? (
-                    <LeaveListSkeleton />
-                ) : activeTab === 'my_requests' ? (
-                    myRequests.length === 0 ? (
-                        <EmptyState
-                            icon={<FileText color={theme.colors.textSecondary} size={36} />}
-                            title={t('no_leave_requests', 'No Leave Requests')}
-                            description={t('no_leave_requests_desc', 'You have not submitted any leave applications yet.')}
-                            actionTitle={t('apply_leave', 'Apply Leave')}
-                            onAction={() => navigation.navigate('CreateLeave')}
-                        />
-                    ) : (
-                        myRequests.map((req) => {
-                            const statusStr = (req.status || 'pending').toLowerCase();
-                            const isApproved = statusStr === 'approved';
-                            const isPending = statusStr === 'pending';
-                            const isRejected = statusStr === 'rejected';
-
-                            return (
-                                <View key={req.id} style={styles.requestCard}>
-                                    <View style={styles.cardHeader}>
-                                        <View style={styles.typeGroup}>
-                                            <Calendar color={theme.colors.primary} size={16} />
-                                            <Text style={styles.typeText}>
-                                                {getLeaveTypeName(req.leave_type).toUpperCase()}
-                                            </Text>
-                                        </View>
-
-                                        <View
-                                            style={[
-                                                styles.statusBadge,
-                                                {
-                                                    backgroundColor: isApproved
-                                                        ? 'rgba(16, 185, 129, 0.12)'
-                                                        : isPending
-                                                        ? 'rgba(245, 158, 11, 0.12)'
-                                                        : isRejected
-                                                        ? 'rgba(239, 68, 68, 0.12)'
-                                                        : 'rgba(100, 116, 139, 0.12)',
-                                                },
-                                            ]}
-                                        >
-                                            <Text
-                                                style={[
-                                                    styles.statusBadgeText,
-                                                    {
-                                                        color: isApproved
-                                                            ? theme.colors.status.success
-                                                            : isPending
-                                                            ? theme.colors.status.warning
-                                                            : isRejected
-                                                            ? theme.colors.status.danger
-                                                            : theme.colors.textSecondary,
-                                                    },
-                                                ]}
-                                            >
-                                                {statusStr.toUpperCase()}
-                                            </Text>
-                                        </View>
-                                    </View>
-
-                                    <View style={styles.dateRow}>
-                                        <Text style={styles.dateRangeText}>
-                                            {formatDateRangeDisplay(req.start_date, req.end_date)}
-                                        </Text>
-                                        <View style={styles.durationPill}>
-                                            <Text style={styles.durationPillText}>
-                                                {req.total_days || req.days_count || 1} {(req.total_days || req.days_count || 1) > 1 ? t('days', 'Days') : t('day', 'Day')}
-                                            </Text>
-                                        </View>
-                                    </View>
-                                    <Text style={styles.reasonText} numberOfLines={2}>
-                                        {req.reason}
-                                    </Text>
-
-                                    {/* Action Footer */}
-                                    <View style={styles.cardFooter}>
-                                        <Text style={styles.appliedDateText}>
-                                            {t('applied', 'Applied')} {formatDateDisplay(req.created_at)}
-                                        </Text>
-
-                                        {isPending && (
-                                            <TouchableOpacity
-                                                style={styles.cancelBtn}
-                                                onPress={() => handleCancelRequest(req.id)}
-                                                activeOpacity={0.7}
-                                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                            >
-                                                <Ban color={theme.colors.status.danger} size={15} />
-                                                <Text style={styles.cancelBtnText}>{t('cancel', 'Cancel')}</Text>
-                                            </TouchableOpacity>
-                                        )}
-                                    </View>
-                                </View>
-                            );
-                        })
-                    )
-                ) : managerApprovals.length === 0 ? (
-                    <EmptyState
-                        icon={<CheckCircle2 color={theme.colors.status.success} size={36} />}
-                        title={t('no_pending_approvals', 'No Pending Approvals')}
-                        description={t('no_pending_approvals_desc', 'All subordinate leave requests have been processed.')}
+            <FlatList
+                data={isLoading ? [] : leaveRequests}
+                keyExtractor={keyExtractor}
+                renderItem={renderItem}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                ListHeaderComponent={listHeader}
+                ListEmptyComponent={emptyStateComponent}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={isFetching && !isLoading}
+                        onRefresh={onRefresh}
+                        tintColor={theme.colors.brand}
                     />
-                ) : (
-                    managerApprovals.map((item) => (
-                        <View key={item.id} style={styles.requestCard}>
-                            <View style={styles.cardHeader}>
-                                <View style={styles.typeGroup}>
-                                    <User color={theme.colors.primary} size={16} />
-                                    <Text style={styles.typeText}>{item.employee_name || t('subordinate', 'Subordinate')}</Text>
-                                </View>
-
-                                <View style={styles.pendingBadge}>
-                                    <Text style={styles.pendingBadgeText}>{t('pending_review', 'PENDING REVIEW')}</Text>
-                                </View>
-                            </View>
-
-                            <View style={styles.dateRow}>
-                                <Text style={styles.dateRangeText}>
-                                    {getLeaveTypeName(item.leave_type)} • {formatDateRangeDisplay(item.start_date, item.end_date)}
-                                </Text>
-                                <View style={styles.durationPill}>
-                                    <Text style={styles.durationPillText}>
-                                        {item.total_days || item.days_count || 1} {(item.total_days || item.days_count || 1) > 1 ? t('days', 'Days') : t('day', 'Day')}
-                                    </Text>
-                                </View>
-                            </View>
-                            <Text style={styles.reasonText}>{item.reason}</Text>
-
-                            <View style={styles.approvalActionRow}>
-                                <TouchableOpacity
-                                    style={styles.rejectActionBtn}
-                                    onPress={() => setRejectingItem(item)}
-                                >
-                                    <X color={theme.colors.status.danger} size={16} />
-                                    <Text style={styles.rejectActionText}>{t('reject', 'Reject')}</Text>
-                                </TouchableOpacity>
-
-                                <TouchableOpacity
-                                    style={styles.approveActionBtn}
-                                    onPress={() => handleApproveRequest(item.id)}
-                                >
-                                    <Check color="#FFFFFF" size={16} />
-                                    <Text style={styles.approveActionText}>{t('approve', 'Approve')}</Text>
-                                </TouchableOpacity>
-                            </View>
-                        </View>
-                    ))
-                )}
+                }
+            />
 
             {/* Rejection Reason Modal */}
             <AppBottomSheet

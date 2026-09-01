@@ -1,6 +1,6 @@
 import React from 'react';
 import {
-    TouchableOpacity,
+    Pressable,
     ActivityIndicator,
     StyleSheet,
     View,
@@ -23,6 +23,7 @@ export interface AppButtonProps {
     textStyle?: any;
     enableHaptics?: boolean;
     fullWidth?: boolean;
+    accessibilityLabel?: string;
 }
 
 export const AppButton: React.FC<AppButtonProps> = ({
@@ -38,6 +39,7 @@ export const AppButton: React.FC<AppButtonProps> = ({
     textStyle,
     enableHaptics = true,
     fullWidth = true,
+    accessibilityLabel,
 }) => {
     const { isDark } = useAppTheme();
     const theme = isDark ? darkTheme : lightTheme;
@@ -84,11 +86,13 @@ export const AppButton: React.FC<AppButtonProps> = ({
     }
 
     return (
-        <TouchableOpacity
+        <Pressable
             onPress={handlePress}
             disabled={disabled || loading}
-            activeOpacity={0.75}
-            style={[
+            accessibilityRole="button"
+            accessibilityLabel={accessibilityLabel || title}
+            accessibilityState={{ disabled: disabled || loading, busy: loading }}
+            style={({ pressed }: { pressed: boolean }) => [
                 styles.baseButton,
                 {
                     minHeight: sizeStyles.minHeight,
@@ -99,7 +103,7 @@ export const AppButton: React.FC<AppButtonProps> = ({
                     borderWidth,
                     borderColor,
                     width: fullWidth ? '100%' : 'auto',
-                    opacity: disabled ? 0.6 : 1,
+                    opacity: disabled ? 0.6 : (pressed ? 0.85 : 1),
                 },
                 style,
             ]}
@@ -126,7 +130,7 @@ export const AppButton: React.FC<AppButtonProps> = ({
                     {icon && iconPosition === 'right' && <View style={styles.iconRight}>{icon}</View>}
                 </View>
             )}
-        </TouchableOpacity>
+        </Pressable>
     );
 };
 

@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useCallback, memo } from 'react';
 import {
     View,
     FlatList,
@@ -6,7 +6,6 @@ import {
     RefreshControl,
     Modal,
     ScrollView,
-    Animated,
 } from 'react-native';
 import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
@@ -35,6 +34,120 @@ import {
 import { format, formatDateDisplay, formatTimeDisplay } from '../../utils/dateTime';
 
 import { useTranslation } from '../../context/LanguageContext';
+
+interface HistoryItemCardProps {
+    item: HistoryRecord;
+    theme: any;
+    styles: any;
+    t: (key: string, fallback: string) => string;
+}
+
+const HistoryItemCard = memo(({ item, theme, styles, t }: HistoryItemCardProps) => {
+    const isLate = (item.late_minutes || 0) > 0 || item.in_status?.toLowerCase() === 'late';
+    const hasOvertime = (item.overtime_minutes || 0) > 0;
+    const hasEarlyLeave = (item.early_departure_minutes || 0) > 0;
+    const hasSplitShift = !!(item.session_1_out_time || item.session_2_in_time);
+
+    return (
+        <View style={styles.card}>
+            {/* Card Header: Date */}
+            <View style={styles.cardHeader}>
+                <View style={styles.dateGroup}>
+                    <Calendar color={theme.colors.primary} size={16} />
+                    <Text style={styles.dateText}>{formatDateDisplay(item.date, 'full')}</Text>
+                </View>
+            </View>
+
+            {/* Session 1 Row */}
+            <View style={styles.sessionBox}>
+                <View style={styles.sessionItem}>
+                    <View style={styles.rowCentered}>
+                        <ArrowDownLeft color={theme.colors.status.success} size={16} />
+                        <Text style={styles.sessionLabel}>{t('clock_in', 'Clock In')}</Text>
+                    </View>
+                    <Text style={styles.sessionValue}>{formatTimeDisplay(item.clock_in_time)}</Text>
+                </View>
+
+                <View style={styles.sessionDivider} />
+
+                <View style={styles.sessionItem}>
+                    <View style={styles.rowCentered}>
+                        <ArrowUpRight color={theme.colors.status.danger} size={16} />
+                        <Text style={styles.sessionLabel}>
+                            {hasSplitShift ? t('session_1_out', 'Session 1 Out') : t('clock_out', 'Clock Out')}
+                        </Text>
+                    </View>
+                    <Text style={styles.sessionValue}>
+                        {formatTimeDisplay(hasSplitShift ? item.session_1_out_time : item.clock_out_time)}
+                    </Text>
+                </View>
+            </View>
+
+            {/* Split Shift / Break Indicator */}
+            {hasSplitShift && (
+                <View style={styles.splitBreakRow}>
+                    <View style={styles.breakLine} />
+                    <View style={styles.breakPill}>
+                        <Coffee color={theme.colors.textSecondary} size={12} />
+                        <Text style={styles.breakPillText}>{t('lunch_break', 'Lunch Break')}</Text>
+                    </View>
+                    <View style={styles.breakLine} />
+                </View>
+            )}
+
+            {/* Session 2 Row (If Split Shift) */}
+            {hasSplitShift && (
+                <View style={[styles.sessionBox, { marginTop: theme.spacing.xs }]}>
+                    <View style={styles.sessionItem}>
+                        <View style={styles.rowCentered}>
+                            <ArrowDownLeft color={theme.colors.status.success} size={16} />
+                            <Text style={styles.sessionLabel}>{t('session_2_in', 'Session 2 In')}</Text>
+                        </View>
+                        <Text style={styles.sessionValue}>{formatTimeDisplay(item.session_2_in_time)}</Text>
+                    </View>
+
+                    <View style={styles.sessionDivider} />
+
+                    <View style={styles.sessionItem}>
+                        <View style={styles.rowCentered}>
+                            <ArrowUpRight color={theme.colors.status.danger} size={16} />
+                            <Text style={styles.sessionLabel}>{t('clock_out', 'Clock Out')}</Text>
+                        </View>
+                        <Text style={styles.sessionValue}>{formatTimeDisplay(item.clock_out_time)}</Text>
+                    </View>
+                </View>
+            )}
+
+            {/* Footer Metrics & Deficit Chips */}
+            <View style={styles.cardFooter}>
+                <View style={styles.rowCentered}>
+                    {isLate && (
+                        <View style={styles.lateChip}>
+                            <Text style={styles.lateChipText}>-{item.late_minutes}m {t('late', 'Late')}</Text>
+                        </View>
+                    )}
+                    {hasEarlyLeave && (
+                        <View style={styles.earlyChip}>
+                            <Text style={styles.earlyChipText}>-{item.early_departure_minutes}m {t('early_leave', 'Early Leave')}</Text>
+                        </View>
+                    )}
+                    {hasOvertime && (
+                        <View style={styles.overtimeChip}>
+                            <Sparkles color={theme.colors.status.success} size={11} />
+                            <Text style={styles.overtimeChipText}>+{item.overtime_minutes}m {t('ot', 'OT')}</Text>
+                        </View>
+                    )}
+                </View>
+
+                {item.working_hours && (
+                    <Text style={styles.workingHoursText}>
+                        {t('total', 'Total')}: <Text style={styles.workingHoursHighlight}>{item.working_hours}</Text>
+                    </Text>
+                )}
+            </View>
+        </View>
+    );
+});
 
 export const AUDIT_CATEGORIES = [
     { id: 'all', keyName: 'all_logs', fallback: 'All Logs' },
@@ -92,59 +205,14 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         staleTime: 1000 * 60 * 5, // 5 minutes cache
     });
 
-    const onRefresh = async () => {
+    const onRefresh = useCallback(async () => {
         await queryClient.invalidateQueries({ queryKey: ['attendanceHistory'] });
-    };
+    }, [queryClient]);
 
     // Advanced Filter Modal Draft State
     const [draftQuickFilter, setDraftQuickFilter] = useState<string>('all');
     const [draftMonth, setDraftMonth] = useState<string>('');
     const [filterModalVisible, setFilterModalVisible] = useState<boolean>(false);
-
-    // Smart Animated Tab Bar Scroll Hide/Show State
-    const tabBarAnim = useRef(new Animated.Value(1)).current;
-    const isTabBarHiddenRef = useRef<boolean>(false);
-    const lastScrollY = useRef<number>(0);
-
-    const handleScroll = (event: any) => {
-        const currentY = event?.nativeEvent?.contentOffset?.y || 0;
-        const diff = currentY - lastScrollY.current;
-
-        if (Math.abs(diff) < 8) return;
-
-        if (currentY <= 20) {
-            if (isTabBarHiddenRef.current) {
-                isTabBarHiddenRef.current = false;
-                Animated.timing(tabBarAnim, {
-                    toValue: 1,
-                    duration: 220,
-                    useNativeDriver: false,
-                }).start();
-            }
-        } else if (diff > 12) {
-            // Scroll down -> hide smoothly
-            if (!isTabBarHiddenRef.current) {
-                isTabBarHiddenRef.current = true;
-                Animated.timing(tabBarAnim, {
-                    toValue: 0,
-                    duration: 220,
-                    useNativeDriver: false,
-                }).start();
-            }
-        } else if (diff < -12) {
-            // Scroll up -> show smoothly
-            if (isTabBarHiddenRef.current) {
-                isTabBarHiddenRef.current = false;
-                Animated.timing(tabBarAnim, {
-                    toValue: 1,
-                    duration: 220,
-                    useNativeDriver: false,
-                }).start();
-            }
-        }
-
-        lastScrollY.current = currentY;
-    };
 
     const openFilterModal = () => {
         setDraftQuickFilter(selectedQuickFilter);
@@ -178,122 +246,14 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         return months;
     };
 
-    const formatTimeString = (isoOrTimeStr?: string | null) => {
-        return formatTimeDisplay(isoOrTimeStr);
-    };
+    const keyExtractor = useCallback((item: HistoryRecord) => item.id?.toString() || item.date, []);
 
-    const formatDateHeader = (dateStr: string) => {
-        return formatDateDisplay(dateStr, 'full');
-    };
-
-    const renderItem = ({ item }: { item: HistoryRecord }) => {
-        const isLate = (item.late_minutes || 0) > 0 || item.in_status?.toLowerCase() === 'late';
-        const hasOvertime = (item.overtime_minutes || 0) > 0;
-        const hasEarlyLeave = (item.early_departure_minutes || 0) > 0;
-        const isActiveSession = item.clock_in_time && !item.clock_out_time;
-
-        const hasSplitShift = !!(item.session_1_out_time || item.session_2_in_time);
-
-        return (
-            <View style={styles.card}>
-                {/* Card Header: Date */}
-                <View style={styles.cardHeader}>
-                    <View style={styles.dateGroup}>
-                        <Calendar color={theme.colors.primary} size={16} />
-                        <Text style={styles.dateText}>{formatDateHeader(item.date)}</Text>
-                    </View>
-                </View>
-
-                {/* Session 1 Row */}
-                <View style={styles.sessionBox}>
-                    <View style={styles.sessionItem}>
-                        <View style={styles.rowCentered}>
-                            <ArrowDownLeft color={theme.colors.status.success} size={16} />
-                            <Text style={styles.sessionLabel}>{t('clock_in', 'Clock In')}</Text>
-                        </View>
-                        <Text style={styles.sessionValue}>{formatTimeString(item.clock_in_time)}</Text>
-                    </View>
-
-                    <View style={styles.sessionDivider} />
-
-                    <View style={styles.sessionItem}>
-                        <View style={styles.rowCentered}>
-                            <ArrowUpRight color={theme.colors.status.danger} size={16} />
-                            <Text style={styles.sessionLabel}>
-                                {hasSplitShift ? t('session_1_out', 'Session 1 Out') : t('clock_out', 'Clock Out')}
-                            </Text>
-                        </View>
-                        <Text style={styles.sessionValue}>
-                            {formatTimeString(hasSplitShift ? item.session_1_out_time : item.clock_out_time)}
-                        </Text>
-                    </View>
-                </View>
-
-                {/* Split Shift / Break Indicator */}
-                {hasSplitShift && (
-                    <View style={styles.splitBreakRow}>
-                        <View style={styles.breakLine} />
-                        <View style={styles.breakPill}>
-                            <Coffee color={theme.colors.textSecondary} size={12} />
-                            <Text style={styles.breakPillText}>{t('lunch_break', 'Lunch Break')}</Text>
-                        </View>
-                        <View style={styles.breakLine} />
-                    </View>
-                )}
-
-                {/* Session 2 Row (If Split Shift) */}
-                {hasSplitShift && (
-                    <View style={[styles.sessionBox, { marginTop: theme.spacing.xs }]}>
-                        <View style={styles.sessionItem}>
-                            <View style={styles.rowCentered}>
-                                <ArrowDownLeft color={theme.colors.status.success} size={16} />
-                                <Text style={styles.sessionLabel}>{t('session_2_in', 'Session 2 In')}</Text>
-                            </View>
-                            <Text style={styles.sessionValue}>{formatTimeString(item.session_2_in_time)}</Text>
-                        </View>
-
-                        <View style={styles.sessionDivider} />
-
-                        <View style={styles.sessionItem}>
-                            <View style={styles.rowCentered}>
-                                <ArrowUpRight color={theme.colors.status.danger} size={16} />
-                                <Text style={styles.sessionLabel}>{t('clock_out', 'Clock Out')}</Text>
-                            </View>
-                            <Text style={styles.sessionValue}>{formatTimeString(item.clock_out_time)}</Text>
-                        </View>
-                    </View>
-                )}
-
-                {/* Footer Metrics & Deficit Chips */}
-                <View style={styles.cardFooter}>
-                    <View style={styles.rowCentered}>
-                        {isLate && (
-                            <View style={styles.lateChip}>
-                                <Text style={styles.lateChipText}>-{item.late_minutes}m {t('late', 'Late')}</Text>
-                            </View>
-                        )}
-                        {hasEarlyLeave && (
-                            <View style={styles.earlyChip}>
-                                <Text style={styles.earlyChipText}>-{item.early_departure_minutes}m {t('early_leave', 'Early Leave')}</Text>
-                            </View>
-                        )}
-                        {hasOvertime && (
-                            <View style={styles.overtimeChip}>
-                                <Sparkles color={theme.colors.status.success} size={11} />
-                                <Text style={styles.overtimeChipText}>+{item.overtime_minutes}m {t('ot', 'OT')}</Text>
-                            </View>
-                        )}
-                    </View>
-
-                    {item.working_hours && (
-                        <Text style={styles.workingHoursText}>
-                            {t('total', 'Total')}: <Text style={styles.workingHoursHighlight}>{item.working_hours}</Text>
-                        </Text>
-                    )}
-                </View>
-            </View>
-        );
-    };
+    const renderItem = useCallback(
+        ({ item }: { item: HistoryRecord }) => (
+            <HistoryItemCard item={item} theme={theme} styles={styles} t={t} />
+        ),
+        [theme, styles, t]
+    );
 
     const headerRight = (
         <HeaderIconButton
@@ -313,30 +273,7 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     );
 
     const subHeader = (
-        <Animated.View
-            style={[
-                styles.tabBarContainer,
-                {
-                    opacity: tabBarAnim,
-                    height: tabBarAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, 44],
-                    }),
-                    marginBottom: tabBarAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, 16],
-                    }),
-                    transform: [
-                        {
-                            translateY: tabBarAnim.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [-10, 0],
-                            }),
-                        },
-                    ],
-                },
-            ]}
-        >
+        <View style={styles.tabBarContainer}>
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -359,7 +296,7 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                     );
                 })}
             </ScrollView>
-        </Animated.View>
+        </View>
     );
 
     return (
@@ -402,12 +339,10 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 ) : (
                     <FlatList
                         data={historyLogs}
-                        keyExtractor={(item: HistoryRecord) => item.id?.toString() || item.date}
+                        keyExtractor={keyExtractor}
                         renderItem={renderItem}
                         contentContainerStyle={styles.listContent}
                         showsVerticalScrollIndicator={false}
-                        onScroll={handleScroll}
-                        scrollEventThrottle={16}
                         refreshControl={
                             <RefreshControl refreshing={isFetching && !isLoading} onRefresh={onRefresh} tintColor={theme.colors.primary} />
                         }

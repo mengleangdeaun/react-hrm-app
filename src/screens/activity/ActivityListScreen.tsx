@@ -1,17 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import {
     View,
     ScrollView,
+    FlatList,
+    RefreshControl,
     TouchableOpacity,
-    Image,
     Modal,
     Platform,
     Linking,
     Alert,
-    Animated,
     ActivityIndicator,
     useWindowDimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as MediaLibrary from 'expo-media-library';
 import * as Sharing from 'expo-sharing';
@@ -113,54 +114,9 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
         staleTime: 1000 * 60 * 5, // 5 minutes cache
     });
 
-    const onRefresh = async () => {
+    const onRefresh = useCallback(async () => {
         await queryClient.invalidateQueries({ queryKey: ['activities'] });
-    };
-
-    // Smart Animated Tab Bar Scroll Hide/Show State
-    const tabBarAnim = useRef(new Animated.Value(1)).current;
-    const isTabBarHiddenRef = useRef<boolean>(false);
-    const lastScrollY = useRef<number>(0);
-
-    const handleScroll = (event: any) => {
-        const currentY = event?.nativeEvent?.contentOffset?.y || 0;
-        const diff = currentY - lastScrollY.current;
-
-        if (Math.abs(diff) < 8) return;
-
-        if (currentY <= 20) {
-            if (isTabBarHiddenRef.current) {
-                isTabBarHiddenRef.current = false;
-                Animated.timing(tabBarAnim, {
-                    toValue: 1,
-                    duration: 220,
-                    useNativeDriver: false,
-                }).start();
-            }
-        } else if (diff > 12) {
-            // Scroll down -> hide smoothly
-            if (!isTabBarHiddenRef.current) {
-                isTabBarHiddenRef.current = true;
-                Animated.timing(tabBarAnim, {
-                    toValue: 0,
-                    duration: 220,
-                    useNativeDriver: false,
-                }).start();
-            }
-        } else if (diff < -12) {
-            // Scroll up -> show smoothly
-            if (isTabBarHiddenRef.current) {
-                isTabBarHiddenRef.current = false;
-                Animated.timing(tabBarAnim, {
-                    toValue: 1,
-                    duration: 220,
-                    useNativeDriver: false,
-                }).start();
-            }
-        }
-
-        lastScrollY.current = currentY;
-    };
+    }, [queryClient]);
 
     const openFilterModal = () => {
         setDraftCategory(selectedCategory);
@@ -353,31 +309,112 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
         </View>
     );
 
+    const keyExtractor = useCallback((item: ActivityItem) => String(item.id), []);
+
+    const renderItem = useCallback(
+        ({ item }: { item: ActivityItem }) => {
+            const displayImages = getDisplayImageUrls(item);
+
+            return (
+                <View key={item.id} style={styles.card}>
+                    {/* 1. Hero Image Banner (Full Card Width) */}
+                    <View style={styles.heroImageContainer}>
+                        {displayImages.length > 0 ? (
+                            <ScrollView
+                                horizontal
+                                pagingEnabled
+                                showsHorizontalScrollIndicator={false}
+                                style={styles.heroScrollView}
+                            >
+                                {displayImages.map((imgUri, idx) => (
+                                    <Image
+                                        key={idx}
+                                        source={{ uri: imgUri }}
+                                        style={[styles.heroImage, { width: cardImageWidth }]}
+                                        contentFit="cover"
+                                        cachePolicy="memory-disk"
+                                        transition={200}
+                                    />
+                                ))}
+                            </ScrollView>
+                        ) : (
+                            <View style={styles.heroPlaceholder}>
+                                <ActivityIcon color={theme.colors.textSecondary} size={32} />
+                                <Text style={styles.heroPlaceholderText}>{t('no_photo_attached', 'No Photo Attached')}</Text>
+                            </View>
+                        )}
+
+                        {/* Photos Count Badge Overlay (Top Left) */}
+                        {displayImages.length > 1 && (
+                            <View style={styles.photoCountBadgeOverlay}>
+                                <Text style={styles.photoCountBadgeText}>{displayImages.length} {t('photos', 'Photos')}</Text>
+                            </View>
+                        )}
+
+                        {/* Save to Photos Download Button Overlay (Bottom Left) */}
+                        {displayImages.length > 0 && (
+                            <TouchableOpacity
+                                style={[
+                                    styles.saveBtnOverlay,
+                                    savingUrl === displayImages[0] && { opacity: 0.8 },
+                                ]}
+                                onPress={() => handleSaveImage(displayImages[0])}
+                                disabled={savingUrl === displayImages[0]}
+                                activeOpacity={0.8}
+                                accessibilityLabel={t('save_to_gallery', 'Save to Gallery')}
+                            >
+                                {savingUrl === displayImages[0] ? (
+                                    <ActivityIndicator color="#FFFFFF" size="small" style={{ transform: [{ scale: 0.75 }] }} />
+                                ) : (
+                                    <Download color="#FFFFFF" size={13} />
+                                )}
+                                <Text style={styles.saveBtnOverlayText}>
+                                    {savingUrl === displayImages[0] ? t('saving', 'Saving...') : t('save', 'Save')}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
+                    </View>
+
+                    {/* 2. Card Content Body */}
+                    <View style={styles.cardBody}>
+                        {/* Header Row: Category Badge & Formatted Date/Time */}
+                        <View style={styles.cardHeaderRow}>
+                            <View style={styles.categoryBadge}>
+                                <ActivityIcon color={theme.colors.primary} size={13} />
+                                <Text style={styles.categoryBadgeText}>
+                                    {formatCategoryName(item.activity_type)}
+                                </Text>
+                            </View>
+
+                            <View style={styles.dateGroup}>
+                                <Clock color={theme.colors.textSecondary} size={12} />
+                                <Text style={styles.dateText}>
+                                    {formatActivityDateTime(item.submitted_at || item.activity_date)}
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Activity Comment / Notes */}
+                        {item.comment ? (
+                            <Text style={styles.cardComment}>{item.comment}</Text>
+                        ) : null}
+
+                        {/* Manager Supervisor Remark */}
+                        {item.status === 'rejected' && item.admin_note ? (
+                            <View style={styles.adminNoteBox}>
+                                <Text style={styles.adminNoteTitle}>Supervisor Remark:</Text>
+                                <Text style={styles.adminNoteText}>{item.admin_note}</Text>
+                            </View>
+                        ) : null}
+                    </View>
+                </View>
+            );
+        },
+        [styles, theme, cardImageWidth, savingUrl, t]
+    );
+
     const subHeader = (
-        <Animated.View
-            style={[
-                styles.tabBarContainer,
-                {
-                    opacity: tabBarAnim,
-                    height: tabBarAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, 44],
-                    }),
-                    marginBottom: tabBarAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0, 16],
-                    }),
-                    transform: [
-                        {
-                            translateY: tabBarAnim.interpolate({
-                                inputRange: [0, 1],
-                                outputRange: [-10, 0],
-                            }),
-                        },
-                    ],
-                },
-            ]}
-        >
+        <View style={styles.tabBarContainer}>
             <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -400,7 +437,40 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                     );
                 })}
             </ScrollView>
-        </Animated.View>
+        </View>
+    );
+
+    const activeMonthHeader = (
+        selectedMonth !== currentMonthStr ? (
+            <View style={styles.activeMonthChip}>
+                <Clock color="#FFFFFF" size={14} />
+                <Text style={styles.activeMonthChipText}>
+                    {formatDateDisplay(selectedMonth + '-01', 'monthYear')}
+                </Text>
+                <TouchableOpacity
+                    onPress={() => setSelectedMonth(currentMonthStr)}
+                    style={styles.activeMonthCloseBtn}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                >
+                    <X color="#FFFFFF" size={12} />
+                </TouchableOpacity>
+            </View>
+        ) : null
+    );
+
+    const emptyStateComponent = (
+        isLoading ? (
+            <ActivityListSkeleton />
+        ) : (
+            <EmptyState
+                icon={<FileText color={theme.colors.textSecondary} size={36} />}
+                title={t('no_activities_recorded', 'No Activities Recorded')}
+                description={t('no_activities_desc', 'You have not logged any work activities for this period yet.')}
+                actionTitle={t('log_new_activity', 'Log New Activity')}
+                onAction={() => navigation.navigate('CreateActivity')}
+            />
+        )
     );
 
     return (
@@ -409,139 +479,24 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
             onBack={() => navigation.goBack()}
             headerRight={headerRight}
             subHeader={subHeader}
-            refreshing={isFetching && !isLoading}
-            onRefresh={onRefresh}
-            onScroll={handleScroll}
-            scrollEventThrottle={16}
+            scrollable={false}
         >
-
-            {/* Active Month Filter Chip */}
-            {selectedMonth !== currentMonthStr && (
-                <View style={styles.activeMonthChip}>
-                    <Clock color="#FFFFFF" size={14} />
-                    <Text style={styles.activeMonthChipText}>
-                        {formatDateDisplay(selectedMonth + '-01', 'monthYear')}
-                    </Text>
-                    <TouchableOpacity
-                        onPress={() => setSelectedMonth(currentMonthStr)}
-                        style={styles.activeMonthCloseBtn}
-                        activeOpacity={0.7}
-                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                    >
-                        <X color="#FFFFFF" size={12} />
-                    </TouchableOpacity>
-                </View>
-            )}
-
-            {isLoading ? (
-                <ActivityListSkeleton />
-            ) : activities.length === 0 ? (
-                <EmptyState
-                    icon={<FileText color={theme.colors.textSecondary} size={36} />}
-                    title={t('no_activities_recorded', 'No Activities Recorded')}
-                    description={t('no_activities_desc', 'You have not logged any work activities for this period yet.')}
-                    actionTitle={t('log_new_activity', 'Log New Activity')}
-                    onAction={() => navigation.navigate('CreateActivity')}
-                />
-            ) : (
-                activities.map((item) => {
-                    const statusObj = getStatusStyle(item.status);
-                    const displayImages = getDisplayImageUrls(item);
-
-                    return (
-                        <View key={item.id} style={styles.card}>
-                            {/* 1. Hero Image Banner (Full Card Width) */}
-                            <View style={styles.heroImageContainer}>
-                                {displayImages.length > 0 ? (
-                                    <ScrollView
-                                        horizontal
-                                        pagingEnabled
-                                        showsHorizontalScrollIndicator={false}
-                                        style={styles.heroScrollView}
-                                    >
-                                        {displayImages.map((imgUri, idx) => (
-                                            <Image
-                                                key={idx}
-                                                source={{ uri: imgUri }}
-                                                style={[styles.heroImage, { width: cardImageWidth }]}
-                                                resizeMode="cover"
-                                            />
-                                        ))}
-                                    </ScrollView>
-                                ) : (
-                                    <View style={styles.heroPlaceholder}>
-                                        <ActivityIcon color={theme.colors.textSecondary} size={32} />
-                                        <Text style={styles.heroPlaceholderText}>{t('no_photo_attached', 'No Photo Attached')}</Text>
-                                    </View>
-                                )}
-
-                                {/* Photos Count Badge Overlay (Top Left) */}
-                                {displayImages.length > 1 && (
-                                    <View style={styles.photoCountBadgeOverlay}>
-                                        <Text style={styles.photoCountBadgeText}>{displayImages.length} {t('photos', 'Photos')}</Text>
-                                    </View>
-                                )}
-
-                                {/* Save to Photos Download Button Overlay (Bottom Left) */}
-                                {displayImages.length > 0 && (
-                                    <TouchableOpacity
-                                        style={[
-                                            styles.saveBtnOverlay,
-                                            savingUrl === displayImages[0] && { opacity: 0.8 },
-                                        ]}
-                                        onPress={() => handleSaveImage(displayImages[0])}
-                                        disabled={savingUrl === displayImages[0]}
-                                        activeOpacity={0.8}
-                                        accessibilityLabel={t('save_to_gallery', 'Save to Gallery')}
-                                    >
-                                        {savingUrl === displayImages[0] ? (
-                                            <ActivityIndicator color="#FFFFFF" size="small" style={{ transform: [{ scale: 0.75 }] }} />
-                                        ) : (
-                                            <Download color="#FFFFFF" size={13} />
-                                        )}
-                                        <Text style={styles.saveBtnOverlayText}>
-                                            {savingUrl === displayImages[0] ? t('saving', 'Saving...') : t('save', 'Save')}
-                                        </Text>
-                                    </TouchableOpacity>
-                                )}
-                            </View>
-
-                            {/* 2. Card Content Body */}
-                            <View style={styles.cardBody}>
-                                {/* Header Row: Category Badge & Formatted Date/Time */}
-                                <View style={styles.cardHeaderRow}>
-                                    <View style={styles.categoryBadge}>
-                                        <ActivityIcon color={theme.colors.primary} size={13} />
-                                        <Text style={styles.categoryBadgeText}>
-                                            {formatCategoryName(item.activity_type)}
-                                        </Text>
-                                    </View>
-
-                                    <View style={styles.dateGroup}>
-                                        <Clock color={theme.colors.textSecondary} size={12} />
-                                        <Text style={styles.dateText}>
-                                            {formatActivityDateTime(item.submitted_at || item.activity_date)}
-                                        </Text>
-                                    </View>
-                                </View>
-
-                                {/* Activity Comment / Notes */}
-                                {item.comment ? (
-                                    <Text style={styles.cardComment}>{item.comment}</Text>
-                                ) : null}
-
-                                {/* Manager Supervisor Remark */}
-                                {item.status === 'rejected' && item.admin_note ? (
-                                    <View style={styles.adminNoteBox}>
-                                        <Text style={styles.adminNoteTitle}>Supervisor Remark:</Text>
-                                        <Text style={styles.adminNoteText}>{item.admin_note}</Text>
-                                    </View>
-                                ) : null}
-                            </View>
-                        </View>
-                    );
-                })
-            )}
+            <FlatList
+                data={isLoading ? [] : activities}
+                keyExtractor={keyExtractor}
+                renderItem={renderItem}
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                ListHeaderComponent={activeMonthHeader}
+                ListEmptyComponent={emptyStateComponent}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={isFetching && !isLoading}
+                        onRefresh={onRefresh}
+                        tintColor={theme.colors.brand}
+                    />
+                }
+            />
 
             {/* Filter Bottom Sheet Modal */}
             <AppBottomSheet
@@ -668,6 +623,10 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
 };
 
 const stylesheet = StyleSheet.create((theme) => ({
+    scrollContent: {
+        paddingHorizontal: theme.spacing.md,
+        paddingBottom: theme.spacing.xl,
+    },
     headerRightGroup: {
         flexDirection: 'row',
         alignItems: 'center',

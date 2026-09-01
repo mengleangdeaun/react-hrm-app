@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback, memo } from 'react';
 import {
     View,
     ScrollView,
+    SectionList,
     TouchableOpacity,
     StatusBar,
     RefreshControl,
@@ -323,102 +324,126 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
         </View>
     );
 
+    const keyExtractor = useCallback((item: NotificationItem) => String(item.id), []);
+
+    const renderItem = useCallback(
+        ({ item }: { item: NotificationItem }) => {
+            const isUnread = !item.read_at;
+            return (
+                <TouchableOpacity
+                    style={[
+                        styles.card,
+                        isUnread && [
+                            styles.unreadCard,
+                            { borderColor: primaryColor, backgroundColor: `${primaryColor}08` },
+                        ],
+                    ]}
+                    onPress={() => handleItemPress(item)}
+                    activeOpacity={0.8}
+                >
+                    <View style={styles.cardHeader}>
+                        <View style={styles.iconBg}>{getCategoryIcon(item.type)}</View>
+
+                        <View style={styles.headerTextGroup}>
+                            <Text style={[styles.cardTitle, isUnread && styles.unreadCardTitle]} numberOfLines={1}>
+                                {t(item.title, item.title, item.data)}
+                            </Text>
+                            <Text style={styles.cardDate}>
+                                {formatNotificationTime(item.created_at)}
+                            </Text>
+                        </View>
+
+                        {isUnread && <View style={[styles.unreadDot, { backgroundColor: primaryColor }]} />}
+                    </View>
+
+                    <Text style={styles.cardMessage} numberOfLines={2}>
+                        {t(item.message, item.message, item.data)}
+                    </Text>
+
+                    <View style={styles.cardFooter}>
+                        <TouchableOpacity
+                            style={styles.deleteBtn}
+                            onPress={() => handleDeleteItem(item.id)}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                            <Trash2 color={theme.colors.textSecondary} size={14} />
+                        </TouchableOpacity>
+                        <ChevronRight color={theme.colors.textSecondary} size={16} />
+                    </View>
+                </TouchableOpacity>
+            );
+        },
+        [primaryColor, theme, styles, t, handleItemPress, handleDeleteItem]
+    );
+
+    const renderSectionHeader = useCallback(
+        ({ section: { titleKey, fallbackTitle } }: any) => (
+            <Text style={styles.dateSectionHeader}>
+                {t(titleKey, fallbackTitle)}
+            </Text>
+        ),
+        [styles, t]
+    );
+
+    const celebrationHeader = (
+        celebrations.length > 0 ? (
+            <TouchableOpacity
+                style={styles.celebrationBanner}
+                onPress={() => navigation.navigate('CelebrationWish')}
+                activeOpacity={0.85}
+            >
+                <PartyPopper color="#EC4899" size={24} />
+                <View style={styles.celebrationBannerText}>
+                    <Text style={styles.celebrationTitle}>
+                        {celebrations.length} {t('team_celebration', 'Team Celebration')}{celebrations.length > 1 ? 's' : ''} {t('today', 'Today')}! 🎉
+                    </Text>
+                    <Text style={styles.celebrationSub}>
+                        {celebrations.map((c) => c.name).join(', ')} • {t('open_my_wishes', 'Send wishes')}
+                    </Text>
+                </View>
+                <ChevronRight color="#EC4899" size={18} />
+            </TouchableOpacity>
+        ) : null
+    );
+
+    const emptyStateComponent = (
+        isLoadingNotifs ? (
+            <NotificationListSkeleton />
+        ) : (
+            <EmptyState
+                icon={<Bell color={theme.colors.textSecondary} size={36} />}
+                title={t('nothing_here_yet', 'No Notifications')}
+                description={t('everything_up_to_date', 'You are all caught up! No active notifications found.')}
+            />
+        )
+    );
+
     return (
         <AppShell
             title={t('noti', 'Notifications Center')}
             onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
             headerRight={headerRight}
             subHeader={subHeader}
-            refreshing={refreshing || isFetchingNotifs}
-            onRefresh={onRefresh}
+            scrollable={false}
         >
-            {/* Team Celebration Banner Header */}
-            {celebrations.length > 0 && (
-                <TouchableOpacity
-                    style={styles.celebrationBanner}
-                    onPress={() => navigation.navigate('CelebrationWish')}
-                    activeOpacity={0.85}
-                >
-                    <PartyPopper color="#EC4899" size={24} />
-                    <View style={styles.celebrationBannerText}>
-                        <Text style={styles.celebrationTitle}>
-                            {celebrations.length} {t('team_celebration', 'Team Celebration')}{celebrations.length > 1 ? 's' : ''} {t('today', 'Today')}! 🎉
-                        </Text>
-                        <Text style={styles.celebrationSub}>
-                            {celebrations.map((c) => c.name).join(', ')} • {t('open_my_wishes', 'Send wishes')}
-                        </Text>
-                    </View>
-                    <ChevronRight color="#EC4899" size={18} />
-                </TouchableOpacity>
-            )}
-
-            {/* Notifications List Grouped by Date */}
-            {isLoadingNotifs ? (
-                <NotificationListSkeleton />
-            ) : filteredNotifications.length === 0 ? (
-                <EmptyState
-                    icon={<Bell color={theme.colors.textSecondary} size={36} />}
-                    title={t('nothing_here_yet', 'No Notifications')}
-                    description={t('everything_up_to_date', 'You are all caught up! No active notifications found.')}
-                />
-            ) : (
-                groupedData.map((group) => (
-                    <View key={group.titleKey} style={styles.dateGroupWrapper}>
-                        {/* Sticky Date Section Header */}
-                        <Text style={styles.dateSectionHeader}>
-                            {t(group.titleKey, group.fallbackTitle)}
-                        </Text>
-
-                        {group.data.map((item) => {
-                            const isUnread = !item.read_at;
-                            return (
-                                <TouchableOpacity
-                                    key={item.id}
-                                    style={[
-                                        styles.card,
-                                        isUnread && [
-                                            styles.unreadCard,
-                                            { borderColor: primaryColor, backgroundColor: `${primaryColor}08` },
-                                        ],
-                                    ]}
-                                    onPress={() => handleItemPress(item)}
-                                    activeOpacity={0.8}
-                                >
-                                    <View style={styles.cardHeader}>
-                                        <View style={styles.iconBg}>{getCategoryIcon(item.type)}</View>
-
-                                        <View style={styles.headerTextGroup}>
-                                            <Text style={[styles.cardTitle, isUnread && styles.unreadCardTitle]} numberOfLines={1}>
-                                                {t(item.title, item.title, item.data)}
-                                            </Text>
-                                            <Text style={styles.cardDate}>
-                                                {formatNotificationTime(item.created_at)}
-                                            </Text>
-                                        </View>
-
-                                        {isUnread && <View style={[styles.unreadDot, { backgroundColor: primaryColor }]} />}
-                                    </View>
-
-                                    <Text style={styles.cardMessage} numberOfLines={2}>
-                                        {t(item.message, item.message, item.data)}
-                                    </Text>
-
-                                    <View style={styles.cardFooter}>
-                                        <TouchableOpacity
-                                            style={styles.deleteBtn}
-                                            onPress={() => handleDeleteItem(item.id)}
-                                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                        >
-                                            <Trash2 color={theme.colors.textSecondary} size={14} />
-                                        </TouchableOpacity>
-                                        <ChevronRight color={theme.colors.textSecondary} size={16} />
-                                    </View>
-                                </TouchableOpacity>
-                            );
-                        })}
-                    </View>
-                ))
-            )}
+            <SectionList
+                sections={isLoadingNotifs ? [] : groupedData}
+                keyExtractor={keyExtractor}
+                renderItem={renderItem}
+                renderSectionHeader={renderSectionHeader}
+                contentContainerStyle={styles.scrollContent}
+                stickySectionHeadersEnabled={false}
+                showsVerticalScrollIndicator={false}
+                ListHeaderComponent={celebrationHeader}
+                ListEmptyComponent={emptyStateComponent}
+                refreshControl={
+                    <RefreshControl
+                        refreshing={refreshing || isFetchingNotifs}
+                        onRefresh={onRefresh}
+                        tintColor={primaryColor}
+                    />
+                }
+            />
         </AppShell>
     );
 };

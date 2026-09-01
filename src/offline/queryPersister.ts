@@ -30,3 +30,17 @@ export const offlineQueryClient = new QueryClient({
         },
     },
 });
+
+/**
+ * Completely purges query caches (in-memory and AsyncStorage) on user logout
+ * to ensure absolute data isolation across accounts on shared employee devices.
+ */
+export async function clearOfflineQueryCache(): Promise<void> {
+    try {
+        offlineQueryClient.clear();
+        await AsyncStorage.removeItem(CACHE_STORAGE_KEY);
+    } catch (e) {
+        console.warn('[queryPersister] Failed to clear offline cache:', e);
+    }
+}
+

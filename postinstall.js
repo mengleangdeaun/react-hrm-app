@@ -1,15 +1,39 @@
 /**
  * postinstall.js
- * Fixes react-native-unistyles 3.3.0 incompatibility with React Native 0.81.
- *
- * RN 0.81 removed `parseUnprocessedTransformOriginString` and `TransformOrigin`
- * from the `facebook::react` namespace.
- * This script disables `UNISTYLES_HAS_RN_TRANSFORM_ORIGIN_PARSER` completely
- * in `TransformOriginConverter.cpp` so the safe fallback (`return std::nullopt`) is used.
+ * 
+ * WORKAROUND CONTEXT:
+ * Affected Versions: react-native-unistyles 3.3.0 + React Native 0.81.x
+ * Problem: React Native 0.81 removed `parseUnprocessedTransformOriginString` and `TransformOrigin`
+ *          from the `facebook::react` C++ namespace. Unistyles 3.3.0's TransformOriginConverter.cpp
+ *          checks `__has_include(<react/renderer/components/view/conversions.h>)` which is true,
+ *          causing a C++ compilation error when compiling with NDK on Android or Clang on iOS.
+ * Solution: Disables `UNISTYLES_HAS_RN_TRANSFORM_ORIGIN_PARSER` so the safe fallback (`return std::nullopt`) is used.
+ * 
+ * REMOVAL CONDITION:
+ * This script can be safely removed when upgrading `react-native-unistyles` to an upstream version (>= 3.4.0)
+ * that natively supports React Native 0.81+ New Architecture APIs.
  */
 
 const fs = require('fs');
 const path = require('path');
+
+function getPackageVersion(packageName) {
+  try {
+    const pkgPath = path.join(__dirname, 'node_modules', packageName, 'package.json');
+    if (fs.existsSync(pkgPath)) {
+      const data = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+      return data.version;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+const unistylesVersion = getPackageVersion('react-native-unistyles');
+const rnVersion = getPackageVersion('react-native');
+
+console.log(`[postinstall] Detected react-native-unistyles: ${unistylesVersion || 'unknown'}, react-native: ${rnVersion || 'unknown'}`);
 
 const filePath = path.join(
   __dirname,
@@ -21,19 +45,23 @@ const filePath = path.join(
 );
 
 if (!fs.existsSync(filePath)) {
-  console.log('[postinstall] TransformOriginConverter.cpp not found, skipping.');
+  console.log('[postinstall] TransformOriginConverter.cpp not present, skipping patch.');
   process.exit(0);
 }
 
 let content = fs.readFileSync(filePath, 'utf8');
 
-// If already completely disabled with #if 0 or comments, do nothing
-if (content.includes('#if 0 // Disabled for RN 0.81') || (content.includes('// #define UNISTYLES_HAS_RN_TRANSFORM_ORIGIN_PARSER 1') && content.includes('// #include <react/renderer/components/view/conversions.h>'))) {
-  console.log('[postinstall] react-native-unistyles RN 0.81 patch is already applied.');
+// 1. Idempotency Check: if already patched, exit cleanly
+if (
+  content.includes('#if 0 // Disabled for RN 0.81') ||
+  (content.includes('// #define UNISTYLES_HAS_RN_TRANSFORM_ORIGIN_PARSER 1') &&
+   content.includes('// #include <react/renderer/components/view/conversions.h>'))
+) {
+  console.log('[postinstall] ✅ react-native-unistyles RN 0.81 patch is already applied.');
   process.exit(0);
 }
 
-// 1. Disable with #if 0 if original block is found
+// 2. Primary Patch: Replace block with `#if 0`
 const originalBlock = `#if defined(RN_SERIALIZABLE_STATE) &&                                          \\
     __has_include(<react/renderer/components/view/conversions.h>)
 #include <react/renderer/components/view/conversions.h>
@@ -52,7 +80,7 @@ if (content.includes(originalBlock)) {
   process.exit(0);
 }
 
-// 2. Individual line replacement fallback
+// 3. Fallback: Line-by-line comment out if formatting varies
 let modified = false;
 
 if (content.includes('#define UNISTYLES_HAS_RN_TRANSFORM_ORIGIN_PARSER 1')) {
@@ -73,7 +101,7 @@ if (content.includes('#include <react/renderer/components/view/conversions.h>'))
 
 if (modified) {
   fs.writeFileSync(filePath, content, 'utf8');
-  console.log('[postinstall] ✅ Applied line-by-line patch to TransformOriginConverter.cpp');
+  console.log('[postinstall] ✅ Applied line-by-line fallback patch to TransformOriginConverter.cpp');
 } else {
-  console.log('[postinstall] TransformOriginConverter.cpp structure unrecognized or already patched.');
+  console.log('[postinstall] ℹ️ TransformOriginConverter.cpp is either already patched upstream or structure differs.');
 }

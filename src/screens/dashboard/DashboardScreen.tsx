@@ -1,5 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     View,
     ScrollView,
@@ -7,8 +6,9 @@ import {
     SafeAreaView,
     StatusBar,
     RefreshControl,
-    Image,
 } from 'react-native';
+import { Image } from 'expo-image';
+import { useQuery } from '@tanstack/react-query';
 import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { AppShell } from '../../components/common/AppShell';
@@ -52,27 +52,12 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     const styles = stylesheet;
 
     const [currentTime, setCurrentTime] = useState(new Date());
-    const [isLoading, setIsLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
-
-    // Bootstrap State
-    const [employeeInfo, setEmployeeInfo] = useState<any>(null);
-    const [attendance, setAttendance] = useState<any>(null);
-    const [shiftData, setShiftData] = useState<any>(null);
-    const [daysPresent, setDaysPresent] = useState<number>(0);
-    const [announcements, setAnnouncements] = useState<any[]>([]);
-    const [celebration, setCelebration] = useState<any>(null);
-    const [unreadNotifications, setUnreadNotifications] = useState(0);
     const [dismissedBannerIds, setDismissedBannerIds] = useState<string[]>([]);
-
-    const [isClockedIn, setIsClockedIn] = useState(false);
-    const [clockInTime, setClockInTime] = useState<string | null>(null);
-    const [clockOutTime, setClockOutTime] = useState<string | null>(null);
     const [avatarLoadError, setAvatarLoadError] = useState(false);
 
     useEffect(() => {
         loadDismissedBanners();
-        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+        const timer = setInterval(() => setCurrentTime(new Date()), 30000);
         return () => clearInterval(timer);
     }, []);
 
@@ -81,69 +66,37 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         setDismissedBannerIds(ids);
     };
 
-    useFocusEffect(
-        useCallback(() => {
-            fetchDashboardData();
-        }, [])
-    );
-
-    const fetchDashboardData = async () => {
-        try {
+    // Stale-while-revalidate offline-first bootstrap query
+    const {
+        data: bootstrapData,
+        isLoading,
+        isFetching,
+        refetch,
+    } = useQuery({
+        queryKey: ['dashboardBootstrap'],
+        queryFn: async () => {
             const response = await apiClient.get('/employee-app/bootstrap');
-            const data = response.data;
+            return response.data;
+        },
+        staleTime: 1000 * 60 * 5, // 5 minutes fresh
+        gcTime: 1000 * 60 * 60 * 24 * 7, // 7 days offline retention
+    });
 
-            if (data?.employee) {
-                setEmployeeInfo(data.employee);
-            }
+    const employeeInfo = bootstrapData?.employee || null;
+    const attendance = bootstrapData?.today_attendance || bootstrapData?.todayShiftMerged?.attendance_today || null;
+    const shiftData = bootstrapData?.today_shift || bootstrapData?.todayShiftMerged?.shift || null;
+    const daysPresent = typeof bootstrapData?.days_present_this_week === 'number' ? bootstrapData.days_present_this_week : 0;
+    const announcements = Array.isArray(bootstrapData?.announcements) ? bootstrapData.announcements : [];
+    const celebration = bootstrapData?.today_celebration || bootstrapData?.today_celebrations || null;
+    const unreadNotifications = typeof bootstrapData?.unread_notifications_count === 'number' ? bootstrapData.unread_notifications_count : 0;
 
-            const att = data?.today_attendance || data?.todayShiftMerged?.attendance_today;
-            if (att) {
-                setAttendance(att);
-                const isCIn = !!(att.clock_in || att.in1) && !(att.clock_out || att.out1);
-                setIsClockedIn(isCIn);
+    const isClockedIn = !!(attendance?.clock_in || attendance?.in1) && !(attendance?.clock_out || attendance?.out1);
+    const clockInTime = (attendance?.clock_in || attendance?.in1) ? formatTimeDisplay(attendance.clock_in || attendance.in1) : null;
+    const clockOutTime = (attendance?.clock_out || attendance?.out1) ? formatTimeDisplay(attendance.clock_out || attendance.out1) : null;
 
-                const cInRaw = att.clock_in || att.in1;
-                const cOutRaw = att.clock_out || att.out1;
-                setClockInTime(cInRaw ? formatTimeDisplay(cInRaw) : null);
-                setClockOutTime(cOutRaw ? formatTimeDisplay(cOutRaw) : null);
-            } else {
-                setIsClockedIn(false);
-                setClockInTime(null);
-                setClockOutTime(null);
-            }
-
-            const shift = data?.today_shift || data?.todayShiftMerged?.shift;
-            if (shift) {
-                setShiftData(shift);
-            }
-
-            if (typeof data?.days_present_this_week === 'number') {
-                setDaysPresent(data.days_present_this_week);
-            }
-
-            if (Array.isArray(data?.announcements)) {
-                setAnnouncements(data.announcements);
-            }
-
-            if (data?.celebration || data?.celebrations) {
-                setCelebration(data.celebration || data.celebrations);
-            }
-
-            if (typeof data?.unread_notifications_count === 'number') {
-                setUnreadNotifications(data.unread_notifications_count);
-            }
-        } catch (error) {
-            console.warn('Dashboard fetch error:', error);
-        } finally {
-            setIsLoading(false);
-            setRefreshing(false);
-        }
-    };
-
-    const onRefresh = () => {
-        setRefreshing(true);
-        fetchDashboardData();
-    };
+    const onRefresh = useCallback(() => {
+        refetch();
+    }, [refetch]);
 
     const getGreeting = () => {
         const hour = currentTime.getHours();
@@ -152,7 +105,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         return t('good_evening', 'Good Evening');
     };
 
-    const topBannerAnnouncement = announcements.find((item) => {
+    const topBannerAnnouncement = announcements.find((item: any) => {
         const idStr = String(item.id || item.title || item.pwa_title || '');
         if (dismissedBannerIds.includes(idStr)) return false;
         return item.pwa_display_type === 'top_banner' || item.is_pinned || item.is_urgent;
@@ -251,7 +204,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     }
 
     return (
-        <AppShell showHeader={false} refreshing={refreshing} onRefresh={onRefresh}>
+        <AppShell showHeader={false} refreshing={isFetching && !isLoading} onRefresh={onRefresh}>
             {topBannerAnnouncement && (
                 <View style={styles.topBanner}>
                     <View style={styles.topBannerLeft}>
@@ -296,6 +249,8 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                             <Image
                                 source={{ uri: avatarUrl! }}
                                 style={styles.avatarImage}
+                                contentFit="cover"
+                                cachePolicy="memory-disk"
                                 onError={() => setAvatarLoadError(true)}
                             />
                         ) : (
@@ -338,7 +293,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                         <View style={styles.rowCentered}>
                             <Clock color={theme.colors.primary} size={16} />
                             <Text style={styles.dateText}>
-                                {formatDateDisplay(currentTime, 'full')}
+                                {formatDateDisplay(new Date(), 'full')}
                             </Text>
                         </View>
                         <View
@@ -452,7 +407,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                             </View>
                         </View>
 
-                        {announcements.slice(0, 3).map((item) => (
+                        {announcements.slice(0, 3).map((item: any) => (
                             <TouchableOpacity
                                 key={item.id || item.title}
                                 style={styles.announcementCard}

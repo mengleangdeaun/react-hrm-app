@@ -120,6 +120,9 @@ export const AppInput: React.FC<AppInputProps> = ({
                     autoCapitalize={autoCapitalize}
                     autoCorrect={autoCorrect}
                     editable={editable}
+                    accessibilityLabel={label || placeholder || 'Input'}
+                    accessibilityState={{ disabled: !editable }}
+                    accessibilityInvalid={hasError}
                     onFocus={(e: any) => {
                         setIsFocused(true);
                         onFocus?.(e);
@@ -134,7 +137,7 @@ export const AppInput: React.FC<AppInputProps> = ({
             </View>
 
             {hasError ? (
-                <AppText variant="caption" color="error" style={styles.errorText}>
+                <AppText variant="caption" color="error" style={styles.errorText} accessibilityLiveRegion="polite">
                     {error}
                 </AppText>
             ) : helperText ? (

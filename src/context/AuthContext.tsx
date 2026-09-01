@@ -5,6 +5,8 @@ import { AUTH_TOKEN_KEY, USER_DATA_KEY, apiClient } from '../api/client';
 import { storage, getOnboardingCompleted, setOnboardingCompleted, resetOnboarding } from '../utils/storage';
 import { getDeviceId } from '../utils/device';
 import { extractEmployeeQrPayload } from '../utils/qrPayload';
+import { clearOfflineQueryCache } from '../offline/queryPersister';
+import { syncQueue } from '../offline/syncQueue';
 
 export interface AuthApiError extends Error {
     code?: 'DEVICE_MISMATCH' | 'DEVICE_TAKEN' | string;
@@ -231,8 +233,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const logout = async () => {
         setIsLoading(true);
         try {
-            await storage.removeItem(AUTH_TOKEN_KEY);
-            await storage.removeItem(USER_DATA_KEY);
+            // 1. Notify backend to revoke session token (fire and forget)
+            apiClient.post('/attendance/logout').catch(() => {});
+
+            // 2. Clear query caches (memory + disk) and offline mutation queue to prevent data bleed
+            await Promise.all([
+                clearOfflineQueryCache(),
+                syncQueue.clear(),
+                storage.removeItem(AUTH_TOKEN_KEY),
+                storage.removeItem(USER_DATA_KEY),
+            ]);
+
             setToken(null);
             setUser(null);
         } finally {
