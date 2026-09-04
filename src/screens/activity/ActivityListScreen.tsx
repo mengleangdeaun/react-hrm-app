@@ -625,7 +625,8 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
 const stylesheet = StyleSheet.create((theme) => ({
     scrollContent: {
         paddingHorizontal: theme.spacing.md,
-        paddingBottom: theme.spacing.xl,
+        paddingTop: theme.spacing.md,
+        paddingBottom: 96,
     },
     headerRightGroup: {
         flexDirection: 'row',

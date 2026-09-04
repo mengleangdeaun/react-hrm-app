@@ -15,11 +15,11 @@ import { EmptyState } from '../../components/common/EmptyState';
 import { ListSkeleton } from '../../components/common/Skeletons';
 import { useTranslation } from '../../context/LanguageContext';
 import { celebrationApi, WishItem } from '../../api/celebration';
-import { formatDateDisplay } from '../../utils/dateTime';
+import { formatRelativeTime } from '../../utils/dateTime';
 
 export const WishesInboxScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark } = useAppTheme();
-    const { t } = useTranslation();
+    const { t, locale } = useTranslation();
     const theme = isDark ? darkTheme : lightTheme;
     const queryClient = useQueryClient();
 
@@ -58,7 +58,8 @@ export const WishesInboxScreen: React.FC<{ navigation: any }> = ({ navigation })
                     const isBirthday = item.type === 'birthday';
                     const senderName = item.sender?.full_name || t('colleague', 'Colleague');
                     const senderAvatar = item.sender?.profile_image_url || item.sender?.profile_image;
-                    const dateFormatted = formatDateDisplay(item.created_at, 'dayMonth');
+                    const dateFormatted = formatRelativeTime(item.created_at, locale);
+                    const attachedImg = item.image_path || (item as any).image_url;
 
                     return (
                         <AppCard key={item.id} variant="surface" style={styles.card}>
@@ -110,6 +111,14 @@ export const WishesInboxScreen: React.FC<{ navigation: any }> = ({ navigation })
                             <Text style={[styles.messageText, { color: theme.colors.textPrimary }]}>
                                 "{item.message}"
                             </Text>
+
+                            {attachedImg ? (
+                                <Image
+                                    source={{ uri: attachedImg }}
+                                    style={styles.attachedImage}
+                                    resizeMode="cover"
+                                />
+                            ) : null}
                         </AppCard>
                     );
                 })
@@ -137,8 +146,8 @@ const styles = StyleSheet.create({
         width: 36,
         height: 36,
         borderRadius: 18,
-        justifyContent: 'center',
         alignItems: 'center',
+        justifyContent: 'center',
     },
     avatarFallbackText: {
         fontSize: 14,
@@ -173,5 +182,11 @@ const styles = StyleSheet.create({
         fontSize: 13,
         lineHeight: 20,
         fontStyle: 'italic',
+    },
+    attachedImage: {
+        width: '100%',
+        height: 160,
+        borderRadius: 12,
+        marginTop: 10,
     },
 });

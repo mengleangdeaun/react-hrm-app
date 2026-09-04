@@ -189,4 +189,68 @@ export const dismissBannerId = async (id: string | number): Promise<void> => {
     }
 };
 
+/**
+ * Legal Terms of Service & Privacy Policy Compliance Storage
+ */
+export const LEGAL_TERMS_ACCEPTED_KEY = 'hrms_legal_terms_accepted';
+export const LEGAL_TERMS_VERSION_KEY = 'hrms_legal_terms_version';
+export const LEGAL_TERMS_ACCEPTED_AT_KEY = 'hrms_legal_terms_accepted_at';
+export const CURRENT_LEGAL_VERSION = '1.0.0';
+
+export interface LegalTermsConsentStatus {
+    accepted: boolean;
+    version: string | null;
+    acceptedAt: string | null;
+}
+
+export const getLegalTermsAccepted = async (): Promise<LegalTermsConsentStatus> => {
+    try {
+        const [acceptedVal, versionVal, acceptedAtVal] = await Promise.all([
+            appStorage.getItem(LEGAL_TERMS_ACCEPTED_KEY),
+            appStorage.getItem(LEGAL_TERMS_VERSION_KEY),
+            appStorage.getItem(LEGAL_TERMS_ACCEPTED_AT_KEY),
+        ]);
+
+        const accepted = acceptedVal === 'true' && versionVal === CURRENT_LEGAL_VERSION;
+        return {
+            accepted,
+            version: versionVal,
+            acceptedAt: acceptedAtVal,
+        };
+    } catch {
+        return { accepted: false, version: null, acceptedAt: null };
+    }
+};
+
+export const setLegalTermsAccepted = async (
+    accepted: boolean = true,
+    version: string = CURRENT_LEGAL_VERSION
+): Promise<void> => {
+    try {
+        if (accepted) {
+            await Promise.all([
+                appStorage.setItem(LEGAL_TERMS_ACCEPTED_KEY, 'true'),
+                appStorage.setItem(LEGAL_TERMS_VERSION_KEY, version),
+                appStorage.setItem(LEGAL_TERMS_ACCEPTED_AT_KEY, new Date().toISOString()),
+            ]);
+        } else {
+            await Promise.all([
+                appStorage.removeItem(LEGAL_TERMS_ACCEPTED_KEY),
+                appStorage.removeItem(LEGAL_TERMS_VERSION_KEY),
+                appStorage.removeItem(LEGAL_TERMS_ACCEPTED_AT_KEY),
+            ]);
+        }
+    } catch (e) {
+        console.warn('Failed to save legal terms consent state', e);
+    }
+};
+
+export const resetLegalTermsAccepted = async (): Promise<void> => {
+    try {
+        await setLegalTermsAccepted(false);
+    } catch (e) {
+        console.warn('Failed to reset legal terms acceptance', e);
+    }
+};
+
 

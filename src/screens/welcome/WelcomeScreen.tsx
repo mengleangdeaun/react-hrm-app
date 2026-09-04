@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     TouchableOpacity,
@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUnistyles } from 'react-native-unistyles';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import * as Haptics from 'expo-haptics';
 import {
     QrCode,
     LogIn,
@@ -18,11 +19,14 @@ import {
     Sun,
     Moon,
     Globe,
+    Check,
 } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { useAuth } from '../../context/AuthContext';
 import { AppText } from '../../components/AppText';
+import { LegalDocumentSheet } from '../../components/common/LegalDocumentSheet';
+import { getLegalTermsAccepted, setLegalTermsAccepted } from '../../utils/storage';
 import { ENV } from '../../config/env';
 
 export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -31,7 +35,52 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     const { t, locale, setLocale } = useTranslation();
     const { hasCompletedOnboarding } = useAuth();
 
+    // Legal consent states
+    const [isTermsAccepted, setIsTermsAccepted] = useState<boolean>(false);
+    const [legalSheetType, setLegalSheetType] = useState<'privacy' | 'terms' | null>(null);
+    const [validationError, setValidationError] = useState<boolean>(false);
+
+    useEffect(() => {
+        let isMounted = true;
+        getLegalTermsAccepted().then((status) => {
+            if (isMounted && status.accepted) {
+                setIsTermsAccepted(true);
+            }
+        });
+        return () => {
+            isMounted = false;
+        };
+    }, []);
+
+    const toggleTermsAcceptance = () => {
+        Haptics.selectionAsync().catch(() => {});
+        const nextVal = !isTermsAccepted;
+        setIsTermsAccepted(nextVal);
+        setLegalTermsAccepted(nextVal).catch(() => {});
+        if (nextVal) {
+            setValidationError(false);
+        }
+    };
+
+    const handleAcceptFromSheet = () => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        setIsTermsAccepted(true);
+        setValidationError(false);
+        setLegalTermsAccepted(true).catch(() => {});
+    };
+
+    const validateLegalConsent = (): boolean => {
+        if (!isTermsAccepted) {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+            setValidationError(true);
+            return false;
+        }
+        return true;
+    };
+
     const handleGetStarted = () => {
+        if (!validateLegalConsent()) return;
+
         if (!hasCompletedOnboarding) {
             navigation.navigate('Onboarding');
         } else {
@@ -40,10 +89,12 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     };
 
     const handleSignIn = () => {
+        if (!validateLegalConsent()) return;
         navigation.navigate('Login');
     };
 
     const handleQrLogin = () => {
+        if (!validateLegalConsent()) return;
         navigation.navigate('QrLogin');
     };
 
@@ -134,6 +185,77 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
                 {/* Action Buttons Section */}
                 <Animated.View entering={FadeInUp.duration(700).delay(500)} style={styles.actionsSection}>
+                    {/* Legal Confirmation Checkbox & Links Row */}
+                    <View style={styles.legalContainer}>
+                        <View style={styles.legalCheckboxRow}>
+                            <TouchableOpacity
+                                onPress={toggleTermsAcceptance}
+                                activeOpacity={0.75}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                accessibilityRole="checkbox"
+                                accessibilityState={{ checked: isTermsAccepted }}
+                                accessibilityLabel={t('legal_agree_prefix')}
+                            >
+                                <View
+                                    style={[
+                                        styles.checkbox,
+                                        {
+                                            borderColor: validationError
+                                                ? theme.colors.status.danger
+                                                : isTermsAccepted
+                                                ? theme.colors.primary
+                                                : theme.colors.borderStrong,
+                                            backgroundColor: isTermsAccepted
+                                                ? theme.colors.primary
+                                                : isDark
+                                                ? '#1F2430'
+                                                : '#FFFFFF',
+                                        },
+                                    ]}
+                                >
+                                    {isTermsAccepted && (
+                                        <Check size={13} color="#FFFFFF" strokeWidth={3} />
+                                    )}
+                                </View>
+                            </TouchableOpacity>
+
+                            <View style={styles.legalTextContainer}>
+                                <AppText style={[styles.legalText, { color: theme.colors.textSecondary }]}>
+                                    <AppText onPress={toggleTermsAcceptance}>
+                                        {t('legal_agree_prefix', 'I have read and agree to the')}{' '}
+                                    </AppText>
+                                    <AppText
+                                        style={[styles.legalLink, { color: theme.colors.primary }]}
+                                        onPress={() => setLegalSheetType('terms')}
+                                    >
+                                        {t('terms_of_service', 'Terms of Service')}
+                                    </AppText>
+                                    <AppText onPress={toggleTermsAcceptance}>
+                                        {' '}{t('legal_agree_and', 'and')}{' '}
+                                    </AppText>
+                                    <AppText
+                                        style={[styles.legalLink, { color: theme.colors.primary }]}
+                                        onPress={() => setLegalSheetType('privacy')}
+                                    >
+                                        {t('privacy_policy', 'Privacy Policy')}
+                                    </AppText>
+                                    <AppText onPress={toggleTermsAcceptance}>
+                                        .
+                                    </AppText>
+                                </AppText>
+                            </View>
+                        </View>
+
+                        {/* Inline Error Notice */}
+                        {validationError && (
+                            <Animated.View entering={FadeInDown.duration(200)} style={styles.validationNotice}>
+                                <AppText style={[styles.validationText, { color: theme.colors.status.danger }]}>
+                                    {t('legal_terms_required', 'Please agree to the Terms of Service & Privacy Policy to continue.')}
+                                </AppText>
+                            </Animated.View>
+                        )}
+                    </View>
+
                     {/* Primary Button */}
                     <TouchableOpacity
                         style={[
@@ -180,6 +302,15 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                     </TouchableOpacity>
                 </Animated.View>
             </ScrollView>
+
+            {/* Native BottomSheet for Legal Documents */}
+            <LegalDocumentSheet
+                visible={legalSheetType !== null}
+                onClose={() => setLegalSheetType(null)}
+                type={legalSheetType || 'privacy'}
+                onAccept={handleAcceptFromSheet}
+                acceptButtonText={t('legal_terms_acknowledged', 'Acknowledged & Agreed')}
+            />
         </SafeAreaView>
     );
 };
@@ -191,7 +322,7 @@ const styles = StyleSheet.create({
     scrollContent: {
         flexGrow: 1,
         justifyContent: 'space-between',
-        paddingHorizontal: 24,
+        paddingHorizontal: 16,
         paddingTop: 12,
         paddingBottom: 24,
     },
@@ -324,5 +455,44 @@ const styles = StyleSheet.create({
     qrButtonText: {
         fontSize: 13,
         fontWeight: '500',
+    },
+    legalContainer: {
+        width: '100%',
+        marginBottom: 4,
+    },
+    legalCheckboxRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingVertical: 4,
+        gap: 10,
+    },
+    checkbox: {
+        width: 20,
+        height: 20,
+        borderRadius: 6,
+        borderWidth: 1.5,
+        justifyContent: 'center',
+        alignItems: 'center',
+        flexShrink: 0,
+    },
+    legalTextContainer: {
+        flex: 1,
+    },
+    legalText: {
+        fontSize: 12.5,
+        lineHeight: 18,
+    },
+    legalLink: {
+        fontWeight: '700',
+        textDecorationLine: 'underline',
+    },
+    validationNotice: {
+        marginTop: 6,
+        paddingHorizontal: 4,
+    },
+    validationText: {
+        fontSize: 12,
+        fontWeight: '600',
+        lineHeight: 16,
     },
 });

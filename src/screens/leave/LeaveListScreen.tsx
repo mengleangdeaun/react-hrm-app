@@ -493,7 +493,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         flex: 1,
     },
     scrollContent: {
-        paddingHorizontal: theme.spacing.md + 4,
+        paddingHorizontal: theme.spacing.md,
         paddingBottom: theme.spacing.xl,
     },
     headerRow: {

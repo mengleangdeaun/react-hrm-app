@@ -170,6 +170,5 @@ const styles = StyleSheet.create({
     },
     fixedContainer: {
         flex: 1,
-        paddingHorizontal: 16,
     },
 });

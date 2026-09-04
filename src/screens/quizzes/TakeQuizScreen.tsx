@@ -880,7 +880,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: theme.spacing.md + 4,
+        paddingHorizontal: theme.spacing.md,
         paddingVertical: theme.spacing.sm + 4,
         backgroundColor: theme.colors.background,
     },
@@ -971,7 +971,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         paddingVertical: theme.spacing.sm + 2,
     },
     questionStripScroll: {
-        paddingHorizontal: theme.spacing.md + 4,
+        paddingHorizontal: theme.spacing.md,
         gap: theme.spacing.sm,
         alignItems: 'center',
     },
@@ -1017,7 +1017,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     scrollContent: {
         flexGrow: 1,
-        paddingHorizontal: theme.spacing.md + 4,
+        paddingHorizontal: theme.spacing.md,
         paddingTop: theme.spacing.md,
         paddingBottom: theme.spacing.xl + 40,
     },

@@ -237,8 +237,8 @@ export const AppMarkdown: React.FC<AppMarkdownProps> = ({
             continue;
         }
 
-        // Numbered list: 1. , 2) , etc.
-        const numMatch = line.match(/^(\d+[\.\)])\s+(.*)$/);
+        // Numbered list: 1. , 2) , etc. (including Khmer digits: ១. , ២.)
+        const numMatch = line.match(/^([\d\u17E0-\u17E9]+[\.\)])\s+(.*)$/);
         if (numMatch) {
             blocks.push({
                 type: 'number',

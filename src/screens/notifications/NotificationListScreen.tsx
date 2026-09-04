@@ -1,45 +1,43 @@
-import React, { useState, useCallback, memo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
     View,
     ScrollView,
     SectionList,
     TouchableOpacity,
-    StatusBar,
     RefreshControl,
     Alert,
-    SafeAreaView,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
-import { isToday, isYesterday, isThisWeek, parseISO, isValid, format, formatTimeDisplay } from '../../utils/dateTime';
+import { isToday, isYesterday, isThisWeek, parseISO, isValid, formatRelativeTime } from '../../utils/dateTime';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notificationApi, NotificationItem, CelebrantItem } from '../../api/notification';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { AppText as Text } from '../../components/AppText';
 import { AppShell } from '../../components/common/AppShell';
-import { AppHeader, HeaderIconButton } from '../../components/common/AppHeader';
+import { HeaderIconButton } from '../../components/common/AppHeader';
 import { NotificationListSkeleton } from '../../components/common/Skeletons';
 import { EmptyState } from '../../components/common/EmptyState';
+import { CelebrationNotificationHeader } from '../../components/notifications/CelebrationNotificationHeader';
 import {
     Bell,
     ChevronRight,
-    ArrowLeft,
     CheckCheck,
     Trash2,
     Calendar,
-    Gift,
-    AlertTriangle,
-    Info,
+    Cake,
     PartyPopper,
+    AlertTriangle,
+    Megaphone,
 } from 'lucide-react-native';
 
 const CATEGORY_FILTERS = [
     { id: 'all', labelKey: 'tab_all', fallback: 'All' },
+    { id: 'announcement', labelKey: 'tab_announcement', fallback: 'Announcement' },
     { id: 'leave', labelKey: 'tab_leave', fallback: 'Leave' },
-    { id: 'system', labelKey: 'tab_system', fallback: 'System' },
-    { id: 'celebration', labelKey: 'tab_birthday', fallback: 'Celebrations' },
-    { id: 'others', labelKey: 'tab_other', fallback: 'Others' },
+    { id: 'birthday', labelKey: 'tab_birthday', fallback: 'Birthday' },
+    { id: 'anniversary', labelKey: 'tab_anniversary', fallback: 'Anniversary' },
+    { id: 'other', labelKey: 'tab_other', fallback: 'Other' },
 ];
 
 export interface GroupedNotifications {
@@ -85,14 +83,53 @@ export const groupNotificationsByDate = (items: NotificationItem[]): GroupedNoti
     return groups;
 };
 
-const formatNotificationTime = (rawStr: string | null | undefined): string => {
-    return formatTimeDisplay(rawStr, '');
+const getNotifData = (item: NotificationItem): Record<string, any> => {
+    const d = item.data;
+    if (!d) return {};
+    if (typeof d === 'string') {
+        try {
+            return JSON.parse(d);
+        } catch {
+            return {};
+        }
+    }
+    if (d.data && typeof d.data === 'object') {
+        return d.data;
+    }
+    return d;
+};
+
+const getNotificationCategory = (item: NotificationItem): string => {
+    const data = getNotifData(item);
+    const typeStr = (item.type || '').toLowerCase();
+    const dataTypeStr = (data?.type || '').toLowerCase();
+    const dataCatStr = (data?.category || '').toLowerCase();
+
+    if (
+        dataCatStr === 'celebration' ||
+        dataTypeStr === 'birthday' ||
+        dataTypeStr === 'anniversary' ||
+        typeStr.includes('birthday') ||
+        typeStr.includes('anniversary')
+    ) {
+        if (dataTypeStr === 'birthday' || typeStr.includes('birthday')) return 'birthday';
+        if (dataTypeStr === 'anniversary' || typeStr.includes('anniversary')) return 'anniversary';
+        return 'birthday';
+    }
+
+    if (typeStr === 'announcement' || typeStr.includes('announcement') || dataTypeStr === 'announcement') {
+        return 'announcement';
+    }
+    if (typeStr.includes('leave') || dataTypeStr.includes('leave')) {
+        return 'leave';
+    }
+
+    return 'other';
 };
 
 export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-    const insets = useSafeAreaInsets();
-    const { isDark, primaryColor } = useAppTheme();
-    const { t } = useTranslation();
+    const { primaryColor } = useAppTheme();
+    const { t, locale } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
     const queryClient = useQueryClient();
@@ -108,7 +145,7 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
             const list = Array.isArray(notifRes) ? notifRes : Array.isArray(notifRes?.data) ? notifRes.data : [];
             return list;
         },
-        staleTime: 1000 * 60 * 10, // 10 minutes cache
+        staleTime: 1000 * 60 * 10,
     });
 
     // 10-minute React Query Caching for Team Celebrations
@@ -118,7 +155,7 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
             const celebRes = await notificationApi.getCelebrations();
             return Array.isArray(celebRes) ? celebRes : [];
         },
-        staleTime: 1000 * 60 * 10, // 10 minutes cache
+        staleTime: 1000 * 60 * 10,
     });
 
     // Optimistic Mutation: Mark All Read
@@ -219,27 +256,37 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
             );
         }
 
+        const data = getNotifData(item);
         const type = (item.type || '').toLowerCase();
-        const dataType = (item.data?.type || '').toLowerCase();
+        const dataType = (data?.type || '').toLowerCase();
         const isQuiz = type.includes('quiz') || dataType.includes('quiz');
+        const category = getNotificationCategory(item);
 
         if (isQuiz) {
-            const quizId = item.data?.quiz_id || item.data?.target_id || item.data?.id;
+            const quizId = data?.quiz_id || data?.target_id || data?.id;
             if (quizId) {
                 navigation.navigate('TakeQuiz', { quizId });
             } else {
                 navigation.navigate('QuizList');
             }
-        } else if (type.includes('leave')) {
+        } else if (category === 'leave') {
             navigation.navigate('LeaveList');
-        } else if (type.includes('celebration')) {
-            navigation.navigate('WishesInbox');
+        } else if (category === 'birthday' || category === 'anniversary' || type.includes('celebration')) {
+            const celebrantId = data?.celebrant_id || data?.employee_id || data?.user_id;
+            if (celebrantId) {
+                navigation.navigate('CelebrationWish', {
+                    id: celebrantId,
+                    celebrantId,
+                    type: category === 'anniversary' ? 'anniversary' : 'birthday',
+                });
+            } else {
+                navigation.navigate('CelebrationWish');
+            }
         } else {
-            // Target integer Announcement ID resolution to prevent 404
             const targetAnnouncementId =
                 item.announcement_id ||
-                item.data?.announcement_id ||
-                item.data?.id ||
+                data?.announcement_id ||
+                data?.id ||
                 (typeof item.id === 'number' ? item.id : null);
 
             navigation.navigate('AnnouncementDetail', {
@@ -254,27 +301,41 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
         deleteMutation.mutate(id);
     };
 
-    const filteredNotifications = notifications.filter((item) => {
-        if (selectedCategory === 'all') return true;
-        const tStr = (item.type || '').toLowerCase();
-        if (selectedCategory === 'others' || selectedCategory === 'other' || selectedCategory === 'system') {
-            const isAnnouncement = tStr.includes('announcement');
-            const isLeave = tStr.includes('leave');
-            const isCelebration = tStr.includes('celebration');
-            return !isAnnouncement && !isLeave && !isCelebration;
-        }
-        return tStr.includes(selectedCategory);
-    });
+    const renderNotificationText = useCallback(
+        (text?: string, data?: any) => {
+            if (!text) return '';
+            const d = getNotifData({ data } as any);
+            const placeholders = d?.placeholders || {};
+            const finalPlaceholders = { ...placeholders };
+            if (Array.isArray(placeholders.days)) {
+                finalPlaceholders.days = placeholders.days
+                    .map((dName: string) => t(dName.toLowerCase(), dName))
+                    .join(', ');
+            }
+            return t(text, text, { ...d, ...finalPlaceholders });
+        },
+        [t]
+    );
 
-    const groupedData = groupNotificationsByDate(filteredNotifications);
+    const filteredNotifications = useMemo(() => {
+        if (selectedCategory === 'all') return notifications;
+        return notifications.filter((item) => getNotificationCategory(item) === selectedCategory);
+    }, [notifications, selectedCategory]);
 
-    const getCategoryIcon = (typeStr: string) => {
-        const tStr = (typeStr || '').toLowerCase();
-        if (tStr.includes('leave')) return <Calendar color={primaryColor} size={18} />;
-        if (tStr.includes('celebration')) return <Gift color="#EC4899" size={18} />;
-        if (tStr.includes('system') || tStr.includes('alert') || tStr.includes('quiz')) return <AlertTriangle color={theme.colors.status.warning} size={18} />;
+    const groupedData = useMemo(() => groupNotificationsByDate(filteredNotifications), [filteredNotifications]);
+
+    const getCategoryIcon = (category: string) => {
+        if (category === 'leave') return <Calendar color={primaryColor} size={18} />;
+        if (category === 'birthday') return <Cake color="#EC4899" size={18} />;
+        if (category === 'anniversary') return <PartyPopper color="#F59E0B" size={18} />;
+        if (category === 'announcement') return <Megaphone color={primaryColor} size={18} />;
         return <Bell color={primaryColor} size={18} />;
     };
+
+    const hasBirthdayToday = celebrations.some((c) => c.type === 'birthday');
+    const hasAnniversaryToday = celebrations.some(
+        (c) => c.type === 'anniversary' || (c.type as string) === 'work_anniversary'
+    );
 
     const headerRight = (
         <View style={styles.headerRightRow}>
@@ -301,6 +362,9 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
             >
                 {CATEGORY_FILTERS.map((cat) => {
                     const isActive = selectedCategory === cat.id;
+                    const showBirthdayDot = cat.id === 'birthday' && hasBirthdayToday;
+                    const showAnniversaryDot = cat.id === 'anniversary' && hasAnniversaryToday;
+
                     return (
                         <TouchableOpacity
                             key={cat.id}
@@ -308,14 +372,25 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
                             onPress={() => setSelectedCategory(cat.id)}
                             activeOpacity={0.8}
                         >
-                            <Text
-                                style={[
-                                    styles.tabLabel,
-                                    isActive && { color: primaryColor, fontWeight: '800' },
-                                ]}
-                            >
-                                {t(cat.labelKey, cat.fallback)}
-                            </Text>
+                            <View style={styles.tabLabelRow}>
+                                <Text
+                                    style={[
+                                        styles.tabLabel,
+                                        isActive && { color: primaryColor, fontWeight: '800' },
+                                    ]}
+                                >
+                                    {t(cat.labelKey, cat.fallback)}
+                                </Text>
+
+                                {/* Smart Indicator Dot for Celebrations */}
+                                {showBirthdayDot && (
+                                    <View style={[styles.smartDot, { backgroundColor: '#EC4899' }]} />
+                                )}
+                                {showAnniversaryDot && (
+                                    <View style={[styles.smartDot, { backgroundColor: '#F59E0B' }]} />
+                                )}
+                            </View>
+
                             {isActive && <View style={[styles.tabIndicator, { backgroundColor: primaryColor }]} />}
                         </TouchableOpacity>
                     );
@@ -329,6 +404,11 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
     const renderItem = useCallback(
         ({ item }: { item: NotificationItem }) => {
             const isUnread = !item.read_at;
+            const itemCat = getNotificationCategory(item);
+            const relativeDate = formatRelativeTime(item.created_at, locale);
+            const titleText = renderNotificationText(item.title, item.data);
+            const messageText = renderNotificationText(item.message, item.data);
+
             return (
                 <TouchableOpacity
                     style={[
@@ -342,22 +422,20 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
                     activeOpacity={0.8}
                 >
                     <View style={styles.cardHeader}>
-                        <View style={styles.iconBg}>{getCategoryIcon(item.type)}</View>
+                        <View style={styles.iconBg}>{getCategoryIcon(itemCat)}</View>
 
                         <View style={styles.headerTextGroup}>
                             <Text style={[styles.cardTitle, isUnread && styles.unreadCardTitle]} numberOfLines={1}>
-                                {t(item.title, item.title, item.data)}
+                                {titleText}
                             </Text>
-                            <Text style={styles.cardDate}>
-                                {formatNotificationTime(item.created_at)}
-                            </Text>
+                            <Text style={styles.cardDate}>{relativeDate}</Text>
                         </View>
 
                         {isUnread && <View style={[styles.unreadDot, { backgroundColor: primaryColor }]} />}
                     </View>
 
                     <Text style={styles.cardMessage} numberOfLines={2}>
-                        {t(item.message, item.message, item.data)}
+                        {messageText}
                     </Text>
 
                     <View style={styles.cardFooter}>
@@ -373,7 +451,7 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
                 </TouchableOpacity>
             );
         },
-        [primaryColor, theme, styles, t, handleItemPress, handleDeleteItem]
+        [primaryColor, theme, styles, locale, renderNotificationText]
     );
 
     const renderSectionHeader = useCallback(
@@ -386,24 +464,19 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
     );
 
     const celebrationHeader = (
-        celebrations.length > 0 ? (
-            <TouchableOpacity
-                style={styles.celebrationBanner}
-                onPress={() => navigation.navigate('CelebrationWish')}
-                activeOpacity={0.85}
-            >
-                <PartyPopper color="#EC4899" size={24} />
-                <View style={styles.celebrationBannerText}>
-                    <Text style={styles.celebrationTitle}>
-                        {celebrations.length} {t('team_celebration', 'Team Celebration')}{celebrations.length > 1 ? 's' : ''} {t('today', 'Today')}! 🎉
-                    </Text>
-                    <Text style={styles.celebrationSub}>
-                        {celebrations.map((c) => c.name).join(', ')} • {t('open_my_wishes', 'Send wishes')}
-                    </Text>
-                </View>
-                <ChevronRight color="#EC4899" size={18} />
-            </TouchableOpacity>
-        ) : null
+        <CelebrationNotificationHeader
+            activeTab={selectedCategory}
+            celebrants={celebrations}
+            loading={isLoadingNotifs}
+            onCelebrantPress={(person) =>
+                navigation.navigate('CelebrationWish', {
+                    celebrant: person,
+                    id: person.id,
+                    celebrantId: person.id,
+                    type: person.type,
+                })
+            }
+        />
     );
 
     const emptyStateComponent = (
@@ -420,7 +493,7 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
 
     return (
         <AppShell
-            title={t('noti', 'Notifications Center')}
+            title={t('noti', 'Notifications')}
             onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
             headerRight={headerRight}
             subHeader={subHeader}
@@ -449,40 +522,9 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
 };
 
 const stylesheet = StyleSheet.create((theme) => ({
-    safeArea: {
-        flex: 1,
-        backgroundColor: theme.colors.background,
-    },
     headerRightRow: {
         flexDirection: 'row',
         alignItems: 'center',
-    },
-    topBar: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: theme.spacing.md + 4,
-        paddingVertical: theme.spacing.md,
-    },
-    iconCircle: {
-        width: 38,
-        height: 38,
-        borderRadius: theme.borderRadius.md,
-        backgroundColor: theme.colors.surface,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-    },
-    headerTitle: {
-        color: theme.colors.textPrimary,
-        fontSize: 18,
-        fontWeight: '700',
-    },
-    headerActions: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: theme.spacing.xs + 4,
     },
     tabBarContainer: {
         backgroundColor: theme.colors.surface,
@@ -491,7 +533,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         overflow: 'hidden',
     },
     tabBarScrollContent: {
-        paddingHorizontal: theme.spacing.sm,
+        paddingHorizontal: theme.spacing.md,
         flexDirection: 'row',
         alignItems: 'center',
     },
@@ -501,12 +543,22 @@ const stylesheet = StyleSheet.create((theme) => ({
         alignItems: 'center',
         position: 'relative',
     },
+    tabLabelRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+    },
     tabLabel: {
-        fontSize: 13,
+        fontSize: 12,
         fontWeight: '700',
         color: theme.colors.textSecondary,
         textTransform: 'uppercase',
         letterSpacing: 0.4,
+    },
+    smartDot: {
+        width: 7,
+        height: 7,
+        borderRadius: 4,
     },
     tabIndicator: {
         position: 'absolute',
@@ -517,41 +569,11 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderTopLeftRadius: 3,
         borderTopRightRadius: 3,
     },
-    container: {
-        flex: 1,
-    },
     scrollContent: {
         flexGrow: 1,
-        paddingHorizontal: theme.spacing.md + 4,
+        paddingHorizontal: theme.spacing.md,
         paddingTop: theme.spacing.md,
-        paddingBottom: theme.spacing.xl + 40,
-    },
-    celebrationBanner: {
-        backgroundColor: 'rgba(236, 72, 153, 0.1)',
-        borderRadius: theme.borderRadius.lg,
-        padding: theme.spacing.md,
-        flexDirection: 'row',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: 'rgba(236, 72, 153, 0.25)',
-        marginBottom: theme.spacing.md,
-    },
-    celebrationBannerText: {
-        flex: 1,
-        marginLeft: theme.spacing.sm + 2,
-    },
-    celebrationTitle: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#DB2777',
-    },
-    celebrationSub: {
-        fontSize: 12,
-        color: theme.colors.textSecondary,
-        marginTop: 2,
-    },
-    dateGroupWrapper: {
-        marginBottom: theme.spacing.sm,
+        paddingBottom: 96,
     },
     dateSectionHeader: {
         fontSize: 11,
@@ -560,29 +582,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         letterSpacing: 0.8,
         color: theme.colors.textSecondary,
         marginBottom: theme.spacing.xs + 2,
-        marginLeft: theme.spacing.xs,
         marginTop: theme.spacing.xs,
-    },
-    emptyCard: {
-        backgroundColor: theme.colors.surface,
-        borderRadius: theme.borderRadius.lg,
-        padding: theme.spacing.xl,
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        marginTop: theme.spacing.md,
-    },
-    emptyTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: theme.colors.textPrimary,
-        marginTop: theme.spacing.md,
-    },
-    emptySub: {
-        fontSize: 12,
-        color: theme.colors.textSecondary,
-        marginTop: 2,
-        textAlign: 'center',
     },
     card: {
         backgroundColor: theme.colors.surface,

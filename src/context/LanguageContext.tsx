@@ -1,6 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { storage } from '../utils/storage';
-import { profileApi } from '../api/profile';
 import enTranslations from '../i18n/locales/en.json';
 import khTranslations from '../i18n/locales/kh.json';
 
@@ -68,7 +67,6 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setLocaleState(newLocale);
         try {
             await storage.setItem(LOCALE_KEY, newLocale);
-            await profileApi.updatePreferences({ locale: newLocale, language: newLocale });
         } catch (e) {
             console.warn('Failed to persist locale preference:', e);
         }

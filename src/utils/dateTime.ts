@@ -220,6 +220,65 @@ export function calculateInclusiveDays(startDateStr: string, endDateStr: string)
     }
 }
 
+/**
+ * Formats a timestamp into clean, localized relative time (e.g. "5m ago", "2h ago", "Yesterday", or Khmer).
+ */
+export function formatRelativeTime(
+    dateInput?: string | Date | null,
+    locale: string = 'en',
+    fallback: string = 'just now'
+): string {
+    if (!dateInput) return fallback;
+
+    try {
+        let d: Date;
+        if (dateInput instanceof Date) {
+            d = dateInput;
+        } else {
+            const raw = String(dateInput).trim();
+            d = raw.includes('T') || raw.includes(' ') ? parseISO(raw) : parseDateOnly(raw);
+            if (!isValid(d)) {
+                d = new Date(raw);
+            }
+        }
+
+        if (!isValid(d)) return fallback;
+
+        const now = new Date();
+        const diffMs = now.getTime() - d.getTime();
+        const absDiffSec = Math.floor(Math.abs(diffMs) / 1000);
+        const absDiffMin = Math.floor(absDiffSec / 60);
+        const absDiffHr = Math.floor(absDiffMin / 60);
+        const absDiffDays = Math.floor(absDiffHr / 24);
+
+        const isKh = locale === 'kh' || locale === 'km';
+
+        if (absDiffSec < 45) {
+            return isKh ? 'អម្បាញ់មិញ' : 'just now';
+        }
+
+        if (absDiffMin < 60) {
+            return isKh ? `${absDiffMin} នាទីមុន` : `${absDiffMin}m ago`;
+        }
+
+        if (absDiffHr < 24) {
+            return isKh ? `${absDiffHr} ម៉ោងមុន` : `${absDiffHr}h ago`;
+        }
+
+        if (absDiffDays === 1) {
+            return isKh ? 'ម្សិលមិញ' : 'Yesterday';
+        }
+
+        if (absDiffDays < 7) {
+            return isKh ? `${absDiffDays} ថ្ងៃមុន` : `${absDiffDays}d ago`;
+        }
+
+        return format(d, 'dd MMM');
+    } catch {
+        return fallback;
+    }
+}
+
 export {
     format,
     parseISO,

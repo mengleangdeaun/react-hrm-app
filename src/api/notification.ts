@@ -16,8 +16,10 @@ export interface CelebrantItem {
     id: number | string;
     name: string;
     designation?: string;
+    department?: string;
     profile_image_url?: string;
-    type: 'birthday' | 'work_anniversary';
+    type: 'birthday' | 'work_anniversary' | 'anniversary' | string;
+    milestone?: string | null;
     years?: number;
 }
 

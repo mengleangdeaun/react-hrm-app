@@ -489,7 +489,9 @@ const stylesheet = StyleSheet.create((theme) => ({
         paddingVertical: theme.spacing.xs + 4,
         borderRadius: theme.borderRadius.full,
         alignSelf: 'flex-start',
-        marginBottom: theme.spacing.md,
+        marginTop: theme.spacing.md,
+        marginHorizontal: theme.spacing.md,
+        marginBottom: theme.spacing.xs,
         gap: 8,
         ...theme.shadows.sm,
     },
@@ -524,7 +526,9 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginTop: 2,
     },
     listContent: {
-        paddingBottom: theme.spacing.xl,
+        paddingHorizontal: theme.spacing.md,
+        paddingTop: theme.spacing.md,
+        paddingBottom: theme.spacing.xl + 40,
     },
     card: {
         backgroundColor: theme.colors.surface,

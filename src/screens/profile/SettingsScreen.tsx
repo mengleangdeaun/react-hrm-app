@@ -606,7 +606,6 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 visible={policyModalVisible}
                 onClose={() => setPolicyModalVisible(false)}
                 type="privacy"
-                customContent={pwaInfo?.privacy_policy}
             />
 
             {/* Native Terms of Service Bottom Sheet */}
@@ -614,7 +613,6 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                 visible={termsModalVisible}
                 onClose={() => setTermsModalVisible(false)}
                 type="terms"
-                customContent={pwaInfo?.terms_of_service}
             />
         </AppShell>
     );

@@ -14,7 +14,6 @@ import { useUnistyles } from 'react-native-unistyles';
 import * as Haptics from 'expo-haptics';
 import {
     ArrowRight,
-    ArrowLeft,
     Check,
     X,
     Globe,
@@ -174,13 +173,6 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
             handleFinish();
         } else {
             scrollToIndex(activeIndex + 1);
-        }
-    };
-
-    const handlePrevious = () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        if (activeIndex > 0) {
-            scrollToIndex(activeIndex - 1);
         }
     };
 
@@ -426,33 +418,13 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
 
                 {/* Navigation Buttons Row */}
                 <View style={styles.navButtonsRow}>
-                    {/* Previous Button (if past slide 0) */}
-                    {activeIndex > 0 && (
-                        <TouchableOpacity
-                            style={[
-                                styles.secondaryButton,
-                                {
-                                    backgroundColor: isDark ? '#232936' : '#F1F5F9',
-                                    borderColor: isDark ? '#333C4F' : '#E2E8F0',
-                                },
-                            ]}
-                            onPress={handlePrevious}
-                            activeOpacity={0.75}
-                        >
-                            <ArrowLeft size={16} color={theme.colors.textPrimary} />
-                            <AppText variant="button" weight="bold" style={{ color: theme.colors.textPrimary }}>
-                                {t('onboarding_previous', 'Back')}
-                            </AppText>
-                        </TouchableOpacity>
-                    )}
-
                     {/* Primary Action Button (Next / Get Started) - Unified Brand Color */}
                     <TouchableOpacity
                         style={[
                             styles.primaryButton,
                             {
                                 backgroundColor: theme.colors.primary,
-                                flex: 1,
+                                width: '100%',
                             },
                         ]}
                         onPress={handleNext}
@@ -485,7 +457,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 24,
+        paddingHorizontal: 16,
         paddingTop: 8,
         paddingBottom: 8,
     },
@@ -584,7 +556,7 @@ const styles = StyleSheet.create({
         }),
     },
     bottomBar: {
-        paddingHorizontal: 20,
+        paddingHorizontal: 16,
         paddingBottom: Platform.OS === 'ios' ? 12 : 18,
         paddingTop: 10,
         gap: 12,
@@ -603,17 +575,6 @@ const styles = StyleSheet.create({
     navButtonsRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 10,
-    },
-    secondaryButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: 48,
-        paddingHorizontal: 16,
-        borderRadius: 14,
-        borderWidth: 1,
-        gap: 6,
     },
     primaryButton: {
         flexDirection: 'row',

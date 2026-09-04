@@ -250,8 +250,55 @@ export const AnnouncementDetailScreen: React.FC<{ route: any; navigation: any }>
                     {/* Main Article Body */}
                     <AppMarkdown content={rawBody} />
 
-                    {/* File Attachment Card */}
-                    {attachmentName && (
+                    {/* PWA Custom Action Button */}
+                    {announcement?.has_pwa_action && announcement?.pwa_action_url && (
+                        <TouchableOpacity
+                            style={[styles.pwaActionBtn, { backgroundColor: primaryColor }]}
+                            activeOpacity={0.85}
+                            onPress={() => {
+                                Linking.openURL(announcement.pwa_action_url).catch(() => {
+                                    Alert.alert(t('error', 'Error'), t('unable_open_link', 'Unable to open link.'));
+                                });
+                            }}
+                        >
+                            <Text style={styles.pwaActionBtnText}>
+                                {announcement.pwa_action_label || t('read_more', 'Read More')}
+                            </Text>
+                        </TouchableOpacity>
+                    )}
+
+                    {/* Attachments Section */}
+                    {Array.isArray(announcement?.attachments_with_urls) && announcement.attachments_with_urls.length > 0 ? (
+                        <View style={styles.attachmentsSection}>
+                            <View style={styles.attachmentsHeader}>
+                                <Paperclip color={theme.colors.textSecondary} size={16} />
+                                <Text style={styles.attachmentsTitle}>
+                                    {t('attachments', 'Attachments')} ({announcement.attachments_with_urls.length})
+                                </Text>
+                            </View>
+                            <View style={styles.attachmentsList}>
+                                {announcement.attachments_with_urls.map((file: any, fIdx: number) => (
+                                    <TouchableOpacity
+                                        key={fIdx}
+                                        style={styles.attachCard}
+                                        activeOpacity={0.8}
+                                        onPress={() => handleOpenAttachment(file.url)}
+                                    >
+                                        <View style={styles.attachIconBox}>
+                                            <Paperclip color={primaryColor} size={18} />
+                                        </View>
+                                        <View style={styles.attachInfo}>
+                                            <Text style={styles.attachName} numberOfLines={1}>{file.name}</Text>
+                                            <Text style={styles.attachSize}>
+                                                {file.size ? `${(file.size / 1024).toFixed(1)} KB` : ''} • {file.type || 'FILE'}
+                                            </Text>
+                                        </View>
+                                        <Download color={primaryColor} size={18} />
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        </View>
+                    ) : attachmentName ? (
                         <TouchableOpacity
                             style={styles.attachCard}
                             activeOpacity={0.8}
@@ -268,7 +315,7 @@ export const AnnouncementDetailScreen: React.FC<{ route: any; navigation: any }>
                             </View>
                             <Download color={primaryColor} size={18} />
                         </TouchableOpacity>
-                    )}
+                    ) : null}
                 </>
             )}
 
@@ -485,5 +532,43 @@ const stylesheet = StyleSheet.create((theme) => ({
         right: 20,
         zIndex: 10,
         padding: 8,
+    },
+    pwaActionBtn: {
+        height: 48,
+        borderRadius: theme.borderRadius.md,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: theme.spacing.lg,
+        marginBottom: theme.spacing.md,
+        ...theme.shadows.md,
+    },
+    pwaActionBtnText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 0.8,
+    },
+    attachmentsSection: {
+        marginTop: theme.spacing.lg,
+        paddingTop: theme.spacing.md,
+        borderTopWidth: 1,
+        borderTopColor: theme.colors.border,
+    },
+    attachmentsHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: theme.spacing.sm,
+    },
+    attachmentsTitle: {
+        fontSize: 11,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 0.8,
+        color: theme.colors.textSecondary,
+    },
+    attachmentsList: {
+        gap: theme.spacing.sm,
     },
 }));
