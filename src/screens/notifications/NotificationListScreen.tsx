@@ -483,11 +483,13 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
         isLoadingNotifs ? (
             <NotificationListSkeleton />
         ) : (
-            <EmptyState
-                icon={<Bell color={theme.colors.textSecondary} size={36} />}
-                title={t('nothing_here_yet', 'No Notifications')}
-                description={t('everything_up_to_date', 'You are all caught up! No active notifications found.')}
-            />
+            <View style={styles.emptyContainer}>
+                <EmptyState
+                    icon={<Bell color={theme.colors.textSecondary} size={36} />}
+                    title={t('nothing_here_yet', 'No Notifications')}
+                    description={t('everything_up_to_date', 'You are all caught up! No active notifications found.')}
+                />
+            </View>
         )
     );
 
@@ -522,6 +524,18 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
 };
 
 const stylesheet = StyleSheet.create((theme) => ({
+    scrollContent: {
+        flexGrow: 1,
+        paddingHorizontal: theme.spacing.screenGutter,
+        paddingTop: theme.spacing.md,
+        paddingBottom: 96,
+    },
+    emptyContainer: {
+        paddingTop: theme.spacing.md,
+        paddingBottom: theme.spacing.xl,
+        width: '100%',
+        alignItems: 'center',
+    },
     headerRightRow: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -568,12 +582,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         height: 3,
         borderTopLeftRadius: 3,
         borderTopRightRadius: 3,
-    },
-    scrollContent: {
-        flexGrow: 1,
-        paddingHorizontal: theme.spacing.md,
-        paddingTop: theme.spacing.md,
-        paddingBottom: 96,
     },
     dateSectionHeader: {
         fontSize: 11,

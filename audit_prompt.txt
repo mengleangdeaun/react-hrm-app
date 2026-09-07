@@ -1,0 +1,1011 @@
+<USER_REQUEST>
+You are a senior staff-level React Native architect, mobile performance engineer, backend/dataflow architect, UX engineer, and enterprise application reviewer.
+
+I want you to perform a deep, production-grade audit and modernization assessment of my React Native / Expo application.
+
+The goal is not to make superficial improvements. The goal is:
+
+Build it once, build it correctly, keep it maintainable for years, support significant data growth, minimize server/device costs, maximize performance and reliability, and prevent regressions.
+
+Do not assume the current architecture is correct. Challenge it.
+
+1. Project Context
+This is an Expo / React Native application.
+
+Current app.json / Expo configuration:
+
+{
+  "expo": {
+    "name": "SCCG App",
+    "slug": "hrms-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.sccg.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Allow SCCG App to access your photo library to attach or save activity photos.",
+        "NSPhotoLibraryAddUsageDescription": "Allow SCCG App to save activity photos directly to your photo library."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false,
+      "package": "com.sccg.app",
+      "versionCode": 1,
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+        "android.permission.ACCESS_MEDIA_LOCATION",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFFFFF"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-font",
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Allow SCCG App to access and save activity photos to your gallery.",
+          "savePhotosPermission": "Allow SCCG App to save activity photos directly to your gallery.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF",
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 160
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "f2ffa67d-e933-4319-b417-ed9f4aa44f92"
+      }
+    },
+    "owner": "twenttwo"
+  }
+}
+
+2. Primary Objective
+Audit the entire application as if you were preparing it for:
+
+Enterprise production deployment
+Thousands to potentially millions of records
+Long-term maintenance
+Multiple developers
+Multiple app versions in the wild
+Slow Android devices
+Poor/unstable networks
+Large datasets
+Frequent API requests
+Large images/files
+Background/resume scenarios
+Offline/intermittent connectivity
+API failures
+Authentication expiration
+Concurrent updates
+App upgrades and migrations
+The application must remain:
+
+Fast
+Stable
+Predictable
+Secure
+Maintainable
+Scalable
+Cost-efficient
+Accessible
+Responsive
+Resistant to data growth
+Resistant to memory leaks
+Resistant to race conditions
+Resistant to stale state
+Resistant to UI layout shifts
+Resistant to accidental regressions
+3. Perform a Deep Audit
+Inspect the actual source code, project structure, configuration, dependencies, API layer, state management, navigation, components, screens, hooks, services, data fetching, storage, images, forms, lists, and styling.
+
+Do NOT give generic recommendations.
+
+For every finding, identify:
+
+File/path
+Problem
+Why it is a problem
+Severity
+Performance impact
+Memory impact
+Network/server impact
+Scalability impact
+User experience impact
+Security/reliability implications
+Recommended solution
+Whether it should be fixed now or later
+Estimated implementation complexity
+Use severity:
+
+🔴 Critical
+🟠 High
+🟡 Medium
+🔵 Low
+4. Architecture Audit
+Evaluate:
+
+Project structure
+Separation of concerns
+Feature-based vs technical folder organization
+Component boundaries
+Business logic placement
+API/service boundaries
+Domain models
+DTOs vs UI models
+Repository/service patterns
+Dependency direction
+Circular dependencies
+Shared utilities
+Reusability
+Testability
+Coupling
+Cohesion
+Technical debt
+Architecture consistency
+Determine whether the application architecture can realistically survive:
+
+3–5 years of development and significant feature/data growth.
+
+If not, propose a target architecture.
+
+5. React Native / Expo Audit
+Review:
+
+React rendering behavior
+Component re-renders
+Props stability
+useMemo
+useCallback
+memo
+Context usage
+Hooks
+Effect dependencies
+Derived state
+Local state
+Global state
+Async state
+Navigation
+Screen lifecycle
+App lifecycle
+Background/resume behavior
+Native modules
+Expo configuration
+EAS configuration
+Build configuration
+Development vs production behavior
+Bundle size
+Startup time
+JS thread workload
+UI thread workload
+Native bridge/JSI usage where relevant
+Do not recommend memoization blindly.
+
+Identify where optimization actually provides measurable value.
+
+6. State Management Audit
+Deeply inspect state architecture.
+
+Identify:
+
+Server state
+Client state
+UI state
+Form state
+Authentication state
+Persisted state
+Cached state
+Derived state
+Temporary state
+Determine whether these concerns are incorrectly mixed.
+
+Look for:
+
+Duplicate state
+Stale state
+State synchronization problems
+Unnecessary global state
+Excessive context updates
+Race conditions
+Request cancellation issues
+State updates after unmount
+Optimistic update problems
+Cache invalidation problems
+Duplicate API requests
+Refetch loops
+Infinite effects
+Incorrect dependency arrays
+Over-fetching
+Under-fetching
+Recommend a clean state/dataflow architecture.
+
+7. Dataflow Audit
+Trace the complete lifecycle of important data:
+
+User Action
+    ↓
+UI
+    ↓
+Component
+    ↓
+Hook
+    ↓
+State / Cache
+    ↓
+API Client
+    ↓
+Network
+    ↓
+Backend
+    ↓
+Database
+    ↓
+Response
+    ↓
+Cache
+    ↓
+State
+    ↓
+UI
+
+Find:
+
+Duplicate transformations
+Duplicate requests
+Unnecessary serialization
+Unnecessary deserialization
+Excessive data transfer
+N+1 requests
+Waterfall requests
+Blocking requests
+Poor caching
+Incorrect cache invalidation
+Missing pagination
+Large payloads
+Repeated fetching
+Inefficient filtering/sorting
+Client-side processing that should happen server-side
+Server-side work that should be cached
+Missing request deduplication
+Missing retry strategy
+Missing timeout strategy
+Missing cancellation
+Poor error propagation
+8. API and Server-Cost Audit
+Assume API usage and server cost matter.
+
+Analyze:
+
+Number of requests per screen
+Requests triggered on mount
+Requests triggered by navigation
+Duplicate requests
+Polling
+Refetch frequency
+Payload sizes
+Pagination
+Search queries
+Filtering
+Sorting
+Image/file transfer
+Cache headers
+Client caching
+Server caching
+CDN usage
+Compression
+Batch APIs
+Request deduplication
+Retry storms
+Offline behavior
+Calculate or estimate where possible:
+
+Requests per user/session
+Requests per screen visit
+Potential requests at 10K users
+Potential requests at 100K users
+Potential requests at 1M users
+Recommend ways to reduce server workload without making the UX worse.
+
+9. Large Data / Data Growth Audit
+Design for data growth from day one.
+
+Assume:
+
+1,000 records
+10,000 records
+100,000 records
+1,000,000+ records
+Audit every list, table, search, dropdown, picker, history page, activity feed, notification list, employee list, report, and dataset.
+
+Look for:
+
+Loading entire datasets into memory
+map() over huge arrays
+filter() over huge arrays
+sort() on the client
+Large JSON payloads
+Unbounded queries
+Missing pagination
+Missing cursor pagination
+Inefficient FlatList usage
+Incorrect keyExtractor
+Excessive row rendering
+Image-heavy lists
+Expensive row components
+Recommend:
+
+Pagination
+Cursor pagination where appropriate
+Infinite scrolling
+Server-side filtering
+Server-side sorting
+Search indexing
+Query limits
+Virtualization
+Data normalization
+Cache strategies
+Explain which approach should be used and why.
+
+10. UI Performance Audit
+Audit for:
+
+Layout shifts
+Flickering
+Jumping content
+Skeleton instability
+Incorrect loading states
+Screen flashes
+Navigation transitions
+Image layout shifts
+Font loading shifts
+Dynamic height problems
+Nested scrolling
+Excessive layout calculations
+Expensive shadows
+Expensive animations
+Large component trees
+Unnecessary re-renders
+Target:
+
+Stable layout
+Predictable dimensions
+Smooth scrolling
+Responsive touch interactions
+Fast screen transitions
+Minimal visual jank
+Explain how to eliminate layout shift systematically.
+
+11. Startup / Load Performance
+Audit the entire startup pipeline:
+
+Native Launch
+↓
+Splash
+↓
+JS Initialization
+↓
+Fonts
+↓
+Authentication
+↓
+Storage
+↓
+Navigation
+↓
+Initial API Requests
+↓
+First Meaningful Paint
+↓
+Interactive UI
+
+Identify anything delaying:
+
+App startup
+First render
+First interaction
+First screen
+Authentication
+Navigation
+Recommend:
+
+Lazy loading
+Deferred initialization
+Font optimization
+Asset optimization
+Request prioritization
+Parallel initialization
+Caching
+Splash-screen strategy
+Bundle optimization
+Route/screen lazy loading
+Provide a target startup sequence.
+
+12. Image / Media Audit
+The application uses camera/photo/media functionality.
+
+Audit:
+
+Image dimensions
+Compression
+Resizing
+Upload strategy
+Thumbnail generation
+Caching
+Memory usage
+Gallery access
+Camera permissions
+Media permissions
+Large image handling
+Upload failures
+Retry behavior
+Background upload behavior
+Storage cleanup
+Determine whether the current Android permissions are excessive, duplicated, obsolete, or unnecessary.
+
+Pay particular attention to:
+
+READ_EXTERNAL_STORAGE
+WRITE_EXTERNAL_STORAGE
+READ_MEDIA_IMAGES
+READ_MEDIA_VIDEO
+READ_MEDIA_AUDIO
+READ_MEDIA_VISUAL_USER_SELECTED
+ACCESS_MEDIA_LOCATION
+CAMERA
+ACCESS_FINE_LOCATION
+ACCESS_COARSE_LOCATION
+
+Do not retain permissions unless the application genuinely requires them.
+
+Recommend the minimum required permission set for modern Android/iOS versions.
+
+13. Security Audit
+Review:
+
+Authentication
+Token storage
+Secure storage
+Access tokens
+Refresh tokens
+Session expiration
+Logout
+Token rotation
+API authorization
+Sensitive data
+Logs
+Error messages
+Local storage
+Screenshots
+Clipboard usage
+Deep links
+WebViews
+File uploads
+Image uploads
+Input validation
+Network security
+Certificate handling
+Environment variables
+Secrets
+Build configuration
+Identify anything that should never be trusted on the client.
+
+14. Offline / Network Reliability
+Assume users may have:
+
+Slow internet
+Intermittent internet
+No internet
+High latency
+Requests timing out
+Server errors
+App backgrounding during requests
+App termination during uploads
+Design:
+
+Retry policies
+Exponential backoff
+Request timeout
+Cancellation
+Offline cache
+Optimistic updates where appropriate
+Queueing
+Conflict resolution
+Error recovery
+Resume behavior
+Do not blindly retry requests that could create duplicate mutations.
+
+15. Error Handling
+Audit whether errors are handled consistently.
+
+Create a standard strategy for:
+
+Network errors
+Authentication errors
+Validation errors
+Permission errors
+Server errors
+Timeout errors
+Empty states
+Partial failures
+Upload failures
+Unexpected exceptions
+The UI should never:
+
+Freeze indefinitely
+Show infinite spinners
+Fail silently
+Show raw backend errors
+Lose user input unnecessarily
+16. Accessibility / UX
+Audit:
+
+Touch target sizes
+Font scaling
+Screen readers
+Color contrast
+Loading states
+Empty states
+Error states
+Keyboard handling
+Forms
+Focus management
+Android back button
+iOS navigation behavior
+Orientation
+Tablets
+Small screens
+Large screens
+The application should remain usable across a realistic range of supported devices.
+
+17. Low-End Device Audit
+Assume the application will run on budget Android devices with:
+
+Low RAM
+Slow CPU
+Slow GPU
+Slow storage
+Older Android versions
+Slow network
+Identify anything that will cause:
+
+OOM crashes
+UI freezes
+Slow startup
+Slow scrolling
+Excessive battery usage
+Excessive network usage
+Define a realistic minimum device baseline and explain what should be tested.
+
+18. Dependency Audit
+Review all dependencies.
+
+Classify them:
+
+Essential
+Useful
+Replaceable
+Redundant
+Risky
+Heavy
+Unmaintained
+Duplicative
+Check for:
+
+Bundle-size impact
+Native dependency complexity
+Maintenance risk
+Security risk
+Expo compatibility
+React Native compatibility
+Upgrade risk
+Recommend what to remove, replace, or consolidate.
+
+19. Database / Backend Architecture
+If backend/database code is available, audit it deeply.
+
+Review:
+
+Schema
+Relationships
+Indexes
+Query patterns
+Foreign keys
+Constraints
+Pagination
+Search
+Sorting
+Aggregation
+Transactions
+Connection usage
+Query performance
+N+1 queries
+Caching
+Rate limiting
+Data retention
+Audit logs
+Soft deletion
+Archiving
+Design for long-term data growth.
+
+20. Testing Strategy
+Evaluate current testing.
+
+Recommend an enterprise test pyramid:
+
+Unit Tests
+    ↓
+Integration Tests
+    ↓
+API/Dataflow Tests
+    ↓
+Component Tests
+    ↓
+E2E Tests
+    ↓
+Real Device Testing
+
+Identify the highest-value tests to add first.
+
+Prioritize tests around:
+
+Authentication
+Navigation
+Critical business flows
+Data mutations
+Offline behavior
+Uploads
+Permissions
+Pagination
+Error handling
+State synchronization
+21. Observability / Production Monitoring
+Recommend a production observability strategy.
+
+Track:
+
+Crash-free users
+Crash-free sessions
+Startup time
+Screen load time
+API latency
+API failure rate
+Network errors
+Memory usage
+JS thread performance
+UI frame drops
+Slow screens
+Upload failures
+Authentication failures
+Recommend appropriate tools if they fit the stack.
+
+22. Configuration Audit
+Deeply review the provided Expo configuration.
+
+Specifically check:
+
+Permissions
+Duplicate permissions
+Deprecated permissions
+Platform-specific configuration
+iOS configuration
+Android configuration
+Expo plugins
+Splash screen
+Icons
+Adaptive icons
+Build configuration
+Package identifiers
+Versioning
+EAS
+Environment configuration
+Secrets
+Production vs development configuration
+Explain every configuration change you recommend.
+
+Do not change configuration simply for the sake of changing it.
+
+23. Architecture Target
+After the audit, propose a target architecture.
+
+Show an example project structure such as:
+
+src/
+  app/
+  features/
+  components/
+  services/
+  api/
+  state/
+  hooks/
+  navigation/
+  storage/
+  utils/
+  types/
+  constants/
+  config/
+
+But do not force this structure if another architecture is objectively better.
+
+Explain the reasoning.
+
+24. Prioritized Improvement Plan
+Create a roadmap with:
+
+Phase 0 — Baseline
+Measure the current application before changing it.
+
+Phase 1 — Critical Fixes
+Fix crashes, security issues, severe performance issues, broken dataflow, and architectural hazards.
+
+Phase 2 — Performance
+Improve:
+
+Startup
+Rendering
+Lists
+Images
+API requests
+Caching
+Memory
+Phase 3 — Architecture
+Refactor:
+
+State
+Dataflow
+API layer
+Components
+Features
+Navigation
+Phase 4 — Scalability
+Prepare for:
+
+Large datasets
+More users
+More API traffic
+More features
+More developers
+Phase 5 — Reliability
+Implement:
+
+Error handling
+Offline behavior
+Retries
+Monitoring
+Logging
+Testing
+Recovery
+Phase 6 — Long-Term Maintenance
+Implement:
+
+CI/CD
+Automated testing
+Dependency management
+Upgrade strategy
+Documentation
+Coding standards
+Architecture rules
+25. Produce a Master Checklist
+Create a comprehensive checklist grouped into:
+
+Architecture
+ ...
+React Native
+ ...
+Expo
+ ...
+UI/UX
+ ...
+Performance
+ ...
+State
+ ...
+Dataflow
+ ...
+API
+ ...
+Backend
+ ...
+Database
+ ...
+Security
+ ...
+Offline
+ ...
+Media
+ ...
+Accessibility
+ ...
+Testing
+ ...
+Monitoring
+ ...
+CI/CD
+ ...
+Scalability
+ ...
+Long-Term Maintenance
+ ...
+26. Define Engineering Standards
+Create explicit rules the project should follow going forward.
+
+Examples:
+
+No unbounded API queries
+No loading entire datasets into memory
+No duplicated server state
+No unnecessary global state
+No API calls directly inside presentation components
+No uncontrolled retry loops
+No raw backend errors displayed to users
+No unnecessary permissions
+No large original images rendered in lists
+No expensive computation during render
+No critical business logic inside UI components
+No secrets shipped in the client
+No untested critical mutations
+No new dependency without justification
+Create a practical set of rules tailored to this project.
+
+27. Quantify Improvements
+Where possible, provide measurable targets.
+
+For example:
+
+Metric	Current	Target
+Cold startup	?	< 2–3 sec
+First meaningful UI	?	< 2 sec
+Screen transition	?	< 300 ms
+API requests/screen	?	Minimize
+List memory	?	Bounded
+Image memory	?	Bounded
+Crash-free sessions	?	> 99.9%
+Large-list scrolling	?	Stable 60 FPS where practical
+
+Do not invent "current" measurements.
+
+If measurement is unavailable, mark it:
+
+Needs measurement
+
+28. Final Deliverables
+Your final response must contain:
+
+Executive Summary
+Current Architecture Assessment
+Critical Problems
+Performance Problems
+State/Dataflow Problems
+UI/Layout Problems
+API/Server-Cost Problems
+Scalability Problems
+Security Problems
+Expo/Permission Problems
+Dependency Problems
+Testing Gaps
+Observability Gaps
+Target Architecture
+Master Checklist
+Prioritized Roadmap
+Quick Wins
+High-Risk Refactors
+Long-Term Engineering Rules
+Definition of Done
+29. Important Audit Rules
+Follow these rules throughout the audit:
+
+Rule 1 — Inspect before recommending
+Do not give generic React Native advice.
+
+Base recommendations on the actual codebase whenever source code is available.
+
+Rule 2 — Measure before optimizing
+Clearly distinguish:
+
+Observed problem
+Likely problem
+Potential problem
+Needs measurement
+Rule 3 — Prefer simple architecture
+Do not introduce complexity unless it solves a real problem.
+
+Rule 4 — Optimize the system, not individual lines
+Consider:
+
+UI
+→ State
+→ Cache
+→ API
+→ Network
+→ Backend
+→ Database
+
+as one system.
+
+Rule 5 — Design for growth
+Never solve a problem in a way that only works for today's dataset.
+
+Rule 6 — Minimize recurring cost
+Prefer architectures that reduce:
+
+API calls
+Database queries
+Bandwidth
+Storage
+CPU
+Memory
+Battery usage
+without compromising correctness.
+
+Rule 7 — Reliability over cleverness
+Prefer predictable, testable solutions over clever abstractions.
+
+Rule 8 — Avoid premature optimization
+Do not add memo, useMemo, useCallback, caching, background processing, or state libraries without explaining why they are needed.
+
+Rule 9 — Do not break existing behavior
+Every refactor must preserve existing business behavior unless the audit identifies the behavior as incorrect.
+
+Rule 10 — Think like a production owner
+Assume this application will be maintained for years and handed to another engineering team.
+
+The final result should be:
+
+Fast on low-end devices, efficient on the backend, scalable with large datasets, resilient to bad networks, secure, observable, testable, maintainable, and difficult to accidentally break.
+
+If you need more information from the repository, explicitly list the exact files, configurations, backend endpoints, database schema, logs, or measurements you need before making a definitive conclusion.
+
+
+</USER_REQUEST>
+<ADDITIONAL_METADATA>
+The current local time is: 2026-09-06T01:01:59+07:00.
+
+The user's current state is as follows:
+Active Document: c:\laragon\www\react-hrm-app\app.json (LANGUAGE_JSON)
+Cursor is on line: 79
+Other open documents:
+- c:\laragon\www\react-hrm-app\app.json (LANGUAGE_JSON)
+- c:\laragon\www\react-hrm-app\src\components\scanner\ModernScannerCanvas.tsx (LANGUAGE_TSX)
+Running terminal commands:
+- npx expo start (in c:\laragon\www\react-hrm-app, running for 26m11s)
+- php artisan serve (in c:\laragon\www\s_cool_crm, running for 21m24s)
+- php artisan queue:work (in c:\laragon\www\s_cool_crm, running for 21m13s)
+- php artisan reverb:start (in c:\laragon\www\s_cool_crm, running for 21m2s)
+- php artisan schedule:work (in c:\laragon\www\s_cool_crm, running for 20m49s)
+- npm run dev (in c:\laragon\www\s_cool_crm, running for 20m24s)
+</ADDITIONAL_METADATA>
+<USER_SETTINGS_CHANGE>
+The user changed setting `Model Selection` from None to Gemini 3.8 Flash (High). No need to comment on this change if the user doesn't ask about it. If reporting what model you are, please use a human readable name instead of the exact string.
+</USER_SETTINGS_CHANGE>

@@ -14,6 +14,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { AppShell } from '../../components/common/AppShell';
 import { HeaderIconButton } from '../../components/common/AppHeader';
 import { DashboardSkeleton } from '../../components/common/Skeletons';
+import { DigitalClock } from '../../components/dashboard/DigitalClock';
 import { useAuth } from '../../context/AuthContext';
 import { useAppTheme } from '../../context/ThemeContext';
 import { apiClient } from '../../api/client';
@@ -51,14 +52,11 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     const { theme } = useUnistyles();
     const styles = stylesheet;
 
-    const [currentTime, setCurrentTime] = useState(new Date());
     const [dismissedBannerIds, setDismissedBannerIds] = useState<string[]>([]);
     const [avatarLoadError, setAvatarLoadError] = useState(false);
 
     useEffect(() => {
         loadDismissedBanners();
-        const timer = setInterval(() => setCurrentTime(new Date()), 30000);
-        return () => clearInterval(timer);
     }, []);
 
     const loadDismissedBanners = async () => {
@@ -99,7 +97,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     }, [refetch]);
 
     const getGreeting = () => {
-        const hour = currentTime.getHours();
+        const hour = new Date().getHours();
         if (hour < 12) return t('good_morning', 'Good Morning');
         if (hour < 18) return t('good_afternoon', 'Good Afternoon');
         return t('good_evening', 'Good Evening');
@@ -328,9 +326,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                         </View>
                     </View>
 
-                    <Text style={styles.digitalClockText}>
-                        {format(currentTime, 'hh:mm a')}
-                    </Text>
+                    <DigitalClock style={styles.digitalClockText} />
 
                     {/* Attendance Info Details */}
                     <View style={styles.attendanceDetailsRow}>
@@ -607,7 +603,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: theme.borderRadius.lg + 4,
         padding: theme.spacing.lg,
         marginBottom: theme.spacing.lg,
-        ...theme.shadows.sm,
+        ...theme.shadows.xs,
     },
     clockHeader: {
         flexDirection: 'row',

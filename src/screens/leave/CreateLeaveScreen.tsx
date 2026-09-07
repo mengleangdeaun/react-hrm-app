@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import { leaveApi, LeaveBalance } from '../../api/leave';
 import { useAppTheme } from '../../context/ThemeContext';
@@ -53,8 +54,18 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
         { id: 'custom_time', label: t('custom_hours', 'Custom Hours') },
     ];
 
-    const [isLoading, setIsLoading] = useState(true);
-    const [balances, setBalances] = useState<LeaveBalance[]>([]);
+    const queryClient = useQueryClient();
+    const { data: balances = [], isLoading } = useQuery<LeaveBalance[]>({
+        queryKey: ['leaveBalances'],
+        queryFn: async () => {
+            const res = await leaveApi.getMyBalances().catch(() => null);
+            if (Array.isArray(res)) return res;
+            if (Array.isArray(res?.balances)) return res.balances;
+            return [];
+        },
+        staleTime: 1000 * 60 * 5,
+    });
+
     const [selectedLeaveTypeId, setSelectedLeaveTypeId] = useState<number>(1);
     const [durationType, setDurationType] = useState<string>('full_day');
 
@@ -71,27 +82,6 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
         setStartDate(newStart);
         if (endDate < newStart) {
             setEndDate(newStart);
-        }
-    };
-
-    useEffect(() => {
-        loadBalances();
-    }, []);
-
-    const loadBalances = async () => {
-        try {
-            setIsLoading(true);
-            const res = await leaveApi.getMyBalances();
-            if (Array.isArray(res)) setBalances(res);
-            else if (Array.isArray(res?.balances)) setBalances(res.balances);
-        } catch (e) {
-            setBalances([
-                { id: 1, remaining_days: 13, allocated_days: 18, used_days: 4, pending_days: 1, leave_type: { id: 1, name: 'Annual Leave' } },
-                { id: 2, remaining_days: 7, allocated_days: 7, used_days: 0, pending_days: 0, leave_type: { id: 2, name: 'Sick Leave' } },
-                { id: 3, remaining_days: 3, allocated_days: 3, used_days: 0, pending_days: 0, leave_type: { id: 3, name: 'Special Leave' } },
-            ]);
-        } finally {
-            setIsLoading(false);
         }
     };
 
@@ -148,6 +138,11 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
                 reason,
                 attachments: attachmentsArr,
             });
+
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: ['leaveBalances'] }),
+                queryClient.invalidateQueries({ queryKey: ['leaveRequests'] }),
+            ]);
 
             if (Platform.OS === 'web') {
                 window.alert(t('application_submitted_msg', 'Application Submitted: Your leave request has been submitted to your line manager for review.'));

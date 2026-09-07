@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { apiClient, AUTH_TOKEN_KEY } from './client';
+import { apiClient, AUTH_TOKEN_KEY, generateIdempotencyKey } from './client';
 import { storage } from '../utils/storage';
 import { ENV } from '../config/env';
 
@@ -97,10 +97,12 @@ export const activityApi = {
         }
 
         const token = await storage.getItem(AUTH_TOKEN_KEY);
+        const key = generateIdempotencyKey('activity');
         const response = await fetch(`${ENV.API_URL}/employee-app/activities`, {
             method: 'POST',
             headers: {
                 'Accept': 'application/json',
+                'X-Idempotency-Key': key,
                 ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
             },
             body: formData,

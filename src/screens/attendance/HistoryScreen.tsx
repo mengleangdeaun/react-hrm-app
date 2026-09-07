@@ -1,12 +1,12 @@
 import React, { useState, useRef, useCallback, memo } from 'react';
 import {
     View,
-    FlatList,
     TouchableOpacity,
     RefreshControl,
     Modal,
     ScrollView,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -299,6 +299,37 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         </View>
     );
 
+    const activeMonthHeader = selectedMonth ? (
+        <View style={styles.activeMonthChip}>
+            <Clock color="#FFFFFF" size={14} />
+            <Text style={styles.activeMonthChipText}>
+                {formatDateDisplay(selectedMonth + '-01', 'monthYear')}
+            </Text>
+            <TouchableOpacity
+                onPress={() => setSelectedMonth('')}
+                style={styles.activeMonthCloseBtn}
+                activeOpacity={0.7}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            >
+                <X color="#FFFFFF" size={12} />
+            </TouchableOpacity>
+        </View>
+    ) : null;
+
+    const emptyStateComponent = isLoading ? (
+        <AttendanceHistorySkeleton />
+    ) : (
+        <View style={styles.emptyContainer}>
+            <EmptyState
+                icon={<Clock color={theme.colors.textSecondary} size={36} />}
+                title={t('no_history_records', 'No History Records')}
+                description={t('no_attendance_logs_period', 'No attendance logs found for this period.')}
+                actionTitle={selectedMonth ? t('clear_filter', 'Clear Filter') : undefined}
+                onAction={selectedMonth ? () => setSelectedMonth('') : undefined}
+            />
+        </View>
+    );
+
     return (
         <AppShell
             title={t('attendance_history', 'Attendance History')}
@@ -308,46 +339,19 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             scrollable={false}
         >
             <View style={styles.container}>
-                {/* Active Month Filter Chip Banner */}
-                {selectedMonth ? (
-                    <View style={styles.activeMonthChip}>
-                        <Clock color="#FFFFFF" size={14} />
-                        <Text style={styles.activeMonthChipText}>
-                            {formatDateDisplay(selectedMonth + '-01', 'monthYear')}
-                        </Text>
-                        <TouchableOpacity
-                            onPress={() => setSelectedMonth('')}
-                            style={styles.activeMonthCloseBtn}
-                            activeOpacity={0.7}
-                            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                        >
-                            <X color="#FFFFFF" size={12} />
-                        </TouchableOpacity>
-                    </View>
-                ) : null}
-
-                {isLoading ? (
-                    <AttendanceHistorySkeleton />
-                ) : historyLogs.length === 0 ? (
-                    <EmptyState
-                        icon={<Clock color={theme.colors.textSecondary} size={36} />}
-                        title={t('no_history_records', 'No History Records')}
-                        description={t('no_attendance_logs_period', 'No attendance logs found for this period.')}
-                        actionTitle={selectedMonth ? t('clear_filter', 'Clear Filter') : undefined}
-                        onAction={selectedMonth ? () => setSelectedMonth('') : undefined}
-                    />
-                ) : (
-                    <FlatList
-                        data={historyLogs}
-                        keyExtractor={keyExtractor}
-                        renderItem={renderItem}
-                        contentContainerStyle={styles.listContent}
-                        showsVerticalScrollIndicator={false}
-                        refreshControl={
-                            <RefreshControl refreshing={isFetching && !isLoading} onRefresh={onRefresh} tintColor={theme.colors.primary} />
-                        }
-                    />
-                )}
+                <FlashList
+                    data={isLoading ? [] : historyLogs}
+                    keyExtractor={keyExtractor}
+                    renderItem={renderItem}
+                    estimatedItemSize={140}
+                    contentContainerStyle={styles.listContent}
+                    showsVerticalScrollIndicator={false}
+                    ListHeaderComponent={activeMonthHeader}
+                    ListEmptyComponent={emptyStateComponent}
+                    refreshControl={
+                        <RefreshControl refreshing={isFetching && !isLoading} onRefresh={onRefresh} tintColor={theme.colors.primary} />
+                    }
+                />
             </View>
 
             {/* Filter Sheet Modal */}
@@ -489,9 +493,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         paddingVertical: theme.spacing.xs + 4,
         borderRadius: theme.borderRadius.full,
         alignSelf: 'flex-start',
-        marginTop: theme.spacing.md,
-        marginHorizontal: theme.spacing.md,
-        marginBottom: theme.spacing.xs,
+        marginBottom: theme.spacing.md,
         gap: 8,
         ...theme.shadows.sm,
     },
@@ -514,6 +516,12 @@ const stylesheet = StyleSheet.create((theme) => ({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    emptyContainer: {
+        paddingTop: theme.spacing.md,
+        paddingBottom: theme.spacing.xl,
+        width: '100%',
+        alignItems: 'center',
+    },
     emptyTitle: {
         fontSize: 16,
         fontWeight: '700',
@@ -526,7 +534,8 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginTop: 2,
     },
     listContent: {
-        paddingHorizontal: theme.spacing.md,
+        flexGrow: 1,
+        paddingHorizontal: theme.spacing.screenGutter,
         paddingTop: theme.spacing.md,
         paddingBottom: theme.spacing.xl + 40,
     },

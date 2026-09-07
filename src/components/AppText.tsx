@@ -28,7 +28,7 @@ export type AppTextProps = React.ComponentProps<typeof RNText> & {
     isKhmer?: boolean;
 };
 
-export const AppText: React.FC<AppTextProps> = ({
+const AppTextComponent: React.FC<AppTextProps> = ({
     variant = 'body',
     weight,
     color,
@@ -55,12 +55,12 @@ export const AppText: React.FC<AppTextProps> = ({
     const token = TYPOGRAPHY_TOKENS[safeVariant] || TYPOGRAPHY_TOKENS.body;
     const resolvedWeight = weight || token.weight;
 
-    // 2. Script-Aware Detection
-    // Detect Khmer if text explicitly contains Khmer characters, or if the app is in Khmer locale
-    const hasKhmerGlyphs = hasKhmerText(children);
+    // 2. Script-Aware Detection (Short-circuit to eliminate regex on Khmer locale)
     const isKhmer = explicitIsKhmer !== undefined
         ? explicitIsKhmer
-        : (hasKhmerGlyphs || activeLocale === 'kh');
+        : activeLocale === 'kh'
+        ? true
+        : hasKhmerText(children);
 
     const resolvedFontFamily = resolveFontFamily(resolvedWeight, isKhmer);
 
@@ -90,7 +90,7 @@ export const AppText: React.FC<AppTextProps> = ({
         resolvedColor = theme.colors.status.info;
     }
 
-    const flattenedStyle: any = StyleSheet.flatten(style) || {};
+    const flattenedStyle: any = Array.isArray(style) ? StyleSheet.flatten(style) : (style || {});
     const finalFontSize = flattenedStyle.fontSize || scaledFontSize;
 
     // 5. Unified Line Height: Rock-solid stability between English and Khmer
@@ -98,8 +98,6 @@ export const AppText: React.FC<AppTextProps> = ({
     if (flattenedStyle.lineHeight) {
         computedLineHeight = flattenedStyle.lineHeight;
     } else if (flattenedStyle.fontSize) {
-        // Unified 1.4x ratio ensures ample vertical clearance for Khmer diacritics
-        // while guaranteeing container heights remain 100% identical between languages.
         computedLineHeight = Math.max(
             Math.round(flattenedStyle.fontSize * 1.4),
             flattenedStyle.fontSize + 6
@@ -108,8 +106,7 @@ export const AppText: React.FC<AppTextProps> = ({
         computedLineHeight = scaledLineHeight;
     }
 
-    // 6. Letter Spacing Normalization:
-    // In Brahmic scripts like Khmer, letter-spacing must be 0 to prevent broken ligatures.
+    // 6. Letter Spacing Normalization
     let resolvedLetterSpacing: number | undefined;
     if (flattenedStyle.letterSpacing !== undefined) {
         resolvedLetterSpacing = flattenedStyle.letterSpacing;
@@ -138,3 +135,5 @@ export const AppText: React.FC<AppTextProps> = ({
         </RNText>
     );
 };
+
+export const AppText = React.memo(AppTextComponent);

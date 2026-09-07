@@ -21,6 +21,7 @@ import {
     QrCode,
 } from 'lucide-react-native';
 import { attendanceApi, AttendanceClockInResponse } from '../../api/attendance';
+import { syncQueue } from '../../offline/syncQueue';
 import { useAppTheme } from '../../context/ThemeContext';
 import { AppText } from '../../components/AppText';
 import { extractBranchQrPayload, BranchQrParseResult } from '../../utils/qrPayload';
@@ -197,18 +198,20 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
         setIsSubmitting(true);
 
         try {
-            // Strictly resolve location before dispatching attendance request
-            const loc = await getVerifiedLocation(7000);
+            let loc = await getVerifiedLocation(7000);
 
             if (!loc?.coords) {
-                throw new Error(
-                    t('unable_gps_coords', 'Unable to retrieve GPS coordinates. Please ensure Location services are enabled and try again.')
-                );
+                if (currentLocationRef.current?.coords) {
+                    loc = currentLocationRef.current;
+                } else {
+                    throw new Error(
+                        t('unable_gps_coords', 'Unable to retrieve GPS coordinates. Please ensure Location services are enabled and try again.')
+                    );
+                }
             }
 
             const deviceId = await getDeviceId();
-
-            const response: AttendanceClockInResponse = await attendanceApi.clockIn({
+            const punchPayload = {
                 branch_code: qrResult.branchCode || undefined,
                 payload: qrResult.payload || undefined,
                 signature: qrResult.signature || 'STATIC',
@@ -217,7 +220,38 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
                 device_id: deviceId,
                 reason: reason || undefined,
                 scanned_at: new Date().toISOString(),
-            });
+            };
+
+            let response: AttendanceClockInResponse;
+            try {
+                response = await attendanceApi.clockIn(punchPayload);
+            } catch (networkErr: any) {
+                // If network failure or offline, queue punch for durable background sync
+                const isOffline = !networkErr.response || networkErr.message === 'Network Error' || networkErr.code === 'ECONNABORTED';
+                if (isOffline) {
+                    await syncQueue.enqueue(
+                        'attendance_punch',
+                        '/employee-app/attendance/clock-in',
+                        'POST',
+                        punchPayload
+                    );
+
+                    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+
+                    setPunchResult({
+                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                        message: t('attendance_offline_saved', 'Attendance Saved Offline • Will sync automatically when connection is restored.'),
+                        action: 'warning',
+                    });
+
+                    setReasonModalVisible(false);
+                    setSuccessModalVisible(true);
+                    return;
+                }
+
+                // Propagate server business error (geofence, branch mismatch, etc.)
+                throw networkErr;
+            }
 
             // If the server requires a mandatory reason for late arrival or early departure
             if (response.require_reason && !reason) {

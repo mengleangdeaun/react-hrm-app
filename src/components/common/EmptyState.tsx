@@ -73,7 +73,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 24,
         alignItems: 'center',
         justifyContent: 'center',
-        marginTop: 0,
+        marginTop: 8,
         marginBottom: 16,
     },
     iconWrapper: {

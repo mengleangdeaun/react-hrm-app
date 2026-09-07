@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, generateIdempotencyKey } from './client';
 
 export interface LeaveType {
     id: number;
@@ -121,8 +121,12 @@ export const leaveApi = {
             });
         }
 
+        const key = generateIdempotencyKey('leave');
         const response = await apiClient.post('/employee-app/leave-requests', formData, {
-            headers: { 'Content-Type': 'multipart/form-data' },
+            headers: {
+                'Content-Type': 'multipart/form-data',
+                'X-Idempotency-Key': key,
+            },
             transformRequest: [
                 (reqData, headers) => {
                     if (headers) {

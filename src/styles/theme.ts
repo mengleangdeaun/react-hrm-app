@@ -79,6 +79,13 @@ export const lightTheme = {
     full: 9999,
   },
   shadows: {
+    xs: {
+    shadowColor: '#000000',
+    shadowOffset: { width: 0, height: 0.5 },
+    shadowOpacity: 0.02,
+    shadowRadius: 1,
+    elevation: 0.5,
+    },
     sm: {
       shadowColor: '#000000',
       shadowOffset: { width: 0, height: 1 },

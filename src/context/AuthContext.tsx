@@ -1,12 +1,14 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { User } from '../types';
-import { AUTH_TOKEN_KEY, USER_DATA_KEY, apiClient } from '../api/client';
-import { storage, getOnboardingCompleted, setOnboardingCompleted, resetOnboarding } from '../utils/storage';
+import { AUTH_TOKEN_KEY, USER_DATA_KEY, apiClient, authEvents } from '../api/client';
+import { storage, secureStorage, getOnboardingCompleted, setOnboardingCompleted, resetOnboarding } from '../utils/storage';
 import { getDeviceId } from '../utils/device';
 import { extractEmployeeQrPayload } from '../utils/qrPayload';
 import { clearOfflineQueryCache } from '../offline/queryPersister';
 import { syncQueue } from '../offline/syncQueue';
+
+export const BIOMETRIC_CREDENTIAL_KEY = 'hrms_employee_biometric_credential';
 
 export interface AuthApiError extends Error {
     code?: 'DEVICE_MISMATCH' | 'DEVICE_TAKEN' | string;
@@ -25,7 +27,7 @@ interface AuthContextType {
     loginWithBiometrics: () => Promise<boolean>;
     completeOnboarding: () => Promise<void>;
     resetOnboardingState: () => Promise<void>;
-    logout: () => Promise<void>;
+    logout: (clearBiometrics?: boolean) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -40,6 +42,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     useEffect(() => {
         checkStoredAuth();
         checkBiometrics();
+
+        // Listen for 401 Unauthorized from API layer and reset React auth state immediately
+        const unsubscribe = authEvents.subscribeUnauthorized(() => {
+            setToken(null);
+            setUser(null);
+        });
+
+        return () => {
+            unsubscribe();
+        };
     }, []);
 
     const checkBiometrics = async () => {
@@ -86,6 +98,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const saveAuthData = async (newToken: string, newUser: User) => {
         await storage.setItem(AUTH_TOKEN_KEY, newToken);
         await storage.setItem(USER_DATA_KEY, JSON.stringify(newUser));
+        try {
+            await secureStorage.setItem(
+                BIOMETRIC_CREDENTIAL_KEY,
+                JSON.stringify({ token: newToken, user: newUser })
+            );
+        } catch (e) {
+            console.warn('Failed to save hardware-backed biometric profile:', e);
+        }
         setToken(newToken);
         setUser(newUser);
     };
@@ -219,8 +239,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
 
         if (result.success) {
-            const storedToken = await storage.getItem(AUTH_TOKEN_KEY);
-            const storedUserJson = await storage.getItem(USER_DATA_KEY);
+            let storedToken = await storage.getItem(AUTH_TOKEN_KEY);
+            let storedUserJson = await storage.getItem(USER_DATA_KEY);
+
+            // If session was cleared/logged out, recover from hardware-backed secure storage
+            if (!storedToken || !storedUserJson) {
+                const bioDataRaw = await secureStorage.getItem(BIOMETRIC_CREDENTIAL_KEY);
+                if (bioDataRaw) {
+                    try {
+                        const parsed = JSON.parse(bioDataRaw);
+                        if (parsed.token && parsed.user) {
+                            const recoveryToken: string = parsed.token;
+                            const recoveryUserJson: string = JSON.stringify(parsed.user);
+                            await storage.setItem(AUTH_TOKEN_KEY, recoveryToken);
+                            await storage.setItem(USER_DATA_KEY, recoveryUserJson);
+                            storedToken = recoveryToken;
+                            storedUserJson = recoveryUserJson;
+                        }
+                    } catch (e) {
+                        console.warn('Failed to parse biometric credential:', e);
+                    }
+                }
+            }
+
             if (storedToken && storedUserJson) {
                 setToken(storedToken);
                 setUser(JSON.parse(storedUserJson));
@@ -230,19 +271,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
     };
 
-    const logout = async () => {
+    const logout = async (clearBiometrics: boolean = false) => {
         setIsLoading(true);
         try {
             // 1. Notify backend to revoke session token (fire and forget)
             apiClient.post('/attendance/logout').catch(() => {});
 
             // 2. Clear query caches (memory + disk) and offline mutation queue to prevent data bleed
-            await Promise.all([
+            const cleanupTasks: Promise<any>[] = [
                 clearOfflineQueryCache(),
                 syncQueue.clear(),
                 storage.removeItem(AUTH_TOKEN_KEY),
                 storage.removeItem(USER_DATA_KEY),
-            ]);
+            ];
+
+            if (clearBiometrics) {
+                cleanupTasks.push(secureStorage.removeItem(BIOMETRIC_CREDENTIAL_KEY));
+            }
+
+            await Promise.all(cleanupTasks);
 
             setToken(null);
             setUser(null);

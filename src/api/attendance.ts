@@ -1,4 +1,4 @@
-import { apiClient } from './client';
+import { apiClient, generateIdempotencyKey } from './client';
 
 export interface HistoryRecord {
     id: number;
@@ -55,10 +55,16 @@ export const attendanceApi = {
     /**
      * Submit an employee attendance punch (clock in / clock out / break)
      */
-    clockIn: async (payload: AttendanceClockInPayload): Promise<AttendanceClockInResponse> => {
+    clockIn: async (payload: AttendanceClockInPayload, idempotencyKey?: string): Promise<AttendanceClockInResponse> => {
+        const key = idempotencyKey || generateIdempotencyKey('punch');
         const response = await apiClient.post<AttendanceClockInResponse>(
             '/employee-app/attendance/clock-in',
-            payload
+            payload,
+            {
+                headers: {
+                    'X-Idempotency-Key': key,
+                },
+            }
         );
         return response.data;
     },

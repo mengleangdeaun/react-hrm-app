@@ -2,13 +2,13 @@ import React, { useState, useCallback, memo } from 'react';
 import {
     View,
     ScrollView,
-    FlatList,
     TouchableOpacity,
     ActivityIndicator,
     RefreshControl,
     Alert,
     TextInput,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -408,19 +408,23 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         isLoading ? (
             <LeaveListSkeleton />
         ) : activeTab === 'my_requests' ? (
-            <EmptyState
-                icon={<FileText color={theme.colors.textSecondary} size={36} />}
-                title={t('no_leave_requests', 'No Leave Requests')}
-                description={t('no_leave_requests_desc', 'You have not submitted any leave applications yet.')}
-                actionTitle={t('apply_leave', 'Apply Leave')}
-                onAction={() => navigation.navigate('CreateLeave')}
-            />
+            <View style={styles.emptyContainer}>
+                <EmptyState
+                    icon={<FileText color={theme.colors.textSecondary} size={36} />}
+                    title={t('no_leave_requests', 'No Leave Requests')}
+                    description={t('no_leave_requests_desc', 'You have not submitted any leave applications yet.')}
+                    actionTitle={t('apply_leave', 'Apply Leave')}
+                    onAction={() => navigation.navigate('CreateLeave')}
+                />
+            </View>
         ) : (
-            <EmptyState
-                icon={<CheckCircle2 color={theme.colors.status.success} size={36} />}
-                title={t('no_pending_approvals', 'No Pending Approvals')}
-                description={t('no_pending_approvals_desc', 'All subordinate leave requests have been processed.')}
-            />
+            <View style={styles.emptyContainer}>
+                <EmptyState
+                    icon={<CheckCircle2 color={theme.colors.status.success} size={36} />}
+                    title={t('no_pending_approvals', 'No Pending Approvals')}
+                    description={t('no_pending_approvals_desc', 'All subordinate leave requests have been processed.')}
+                />
+            </View>
         )
     );
 
@@ -431,10 +435,11 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             headerRight={headerRight}
             scrollable={false}
         >
-            <FlatList
+            <FlashList
                 data={isLoading ? [] : leaveRequests}
                 keyExtractor={keyExtractor}
                 renderItem={renderItem}
+                estimatedItemSize={130}
                 contentContainerStyle={styles.scrollContent}
                 showsVerticalScrollIndicator={false}
                 ListHeaderComponent={listHeader}
@@ -493,8 +498,16 @@ const stylesheet = StyleSheet.create((theme) => ({
         flex: 1,
     },
     scrollContent: {
-        paddingHorizontal: theme.spacing.md,
+        flexGrow: 1,
+        paddingHorizontal: theme.spacing.screenGutter,
+        paddingTop: theme.spacing.md,
         paddingBottom: theme.spacing.xl,
+    },
+    emptyContainer: {
+        paddingTop: theme.spacing.md,
+        paddingBottom: theme.spacing.xl,
+        width: '100%',
+        alignItems: 'center',
     },
     headerRow: {
         flexDirection: 'row',
