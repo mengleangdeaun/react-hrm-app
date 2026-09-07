@@ -8,6 +8,7 @@ import {
     Alert,
 } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isToday, isYesterday, isThisWeek, parseISO, isValid, formatRelativeTime } from '../../utils/dateTime';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notificationApi, NotificationItem, CelebrantItem } from '../../api/notification';
@@ -128,6 +129,7 @@ const getNotificationCategory = (item: NotificationItem): string => {
 };
 
 export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+    const insets = useSafeAreaInsets();
     const { primaryColor } = useAppTheme();
     const { t, locale } = useTranslation();
     const { theme } = useUnistyles();
@@ -368,7 +370,10 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
                     return (
                         <TouchableOpacity
                             key={cat.id}
-                            style={styles.tabItem}
+                            style={[
+                                styles.tabItem,
+                                isActive && { backgroundColor: primaryColor },
+                            ]}
                             onPress={() => setSelectedCategory(cat.id)}
                             activeOpacity={0.8}
                         >
@@ -376,7 +381,7 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
                                 <Text
                                     style={[
                                         styles.tabLabel,
-                                        isActive && { color: primaryColor, fontWeight: '800' },
+                                        isActive && { color: '#FFFFFF', fontWeight: '800' },
                                     ]}
                                 >
                                     {t(cat.labelKey, cat.fallback)}
@@ -384,14 +389,12 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
 
                                 {/* Smart Indicator Dot for Celebrations */}
                                 {showBirthdayDot && (
-                                    <View style={[styles.smartDot, { backgroundColor: '#EC4899' }]} />
+                                    <View style={[styles.smartDot, { backgroundColor: isActive ? '#FFFFFF' : '#EC4899' }]} />
                                 )}
                                 {showAnniversaryDot && (
-                                    <View style={[styles.smartDot, { backgroundColor: '#F59E0B' }]} />
+                                    <View style={[styles.smartDot, { backgroundColor: isActive ? '#FFFFFF' : '#F59E0B' }]} />
                                 )}
                             </View>
-
-                            {isActive && <View style={[styles.tabIndicator, { backgroundColor: primaryColor }]} />}
                         </TouchableOpacity>
                     );
                 })}
@@ -415,38 +418,58 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
                         styles.card,
                         isUnread && [
                             styles.unreadCard,
-                            { borderColor: primaryColor, backgroundColor: `${primaryColor}08` },
+                            { borderColor: `${primaryColor}35`, backgroundColor: `${primaryColor}0C` },
                         ],
                     ]}
                     onPress={() => handleItemPress(item)}
                     activeOpacity={0.8}
                 >
-                    <View style={styles.cardHeader}>
-                        <View style={styles.iconBg}>{getCategoryIcon(itemCat)}</View>
+                    {/* Bold left accent bar — instantly signals unread */}
+                    {isUnread && <View style={[styles.unreadAccentBar, { backgroundColor: primaryColor }]} />}
 
-                        <View style={styles.headerTextGroup}>
-                            <Text style={[styles.cardTitle, isUnread && styles.unreadCardTitle]} numberOfLines={1}>
-                                {titleText}
-                            </Text>
-                            <Text style={styles.cardDate}>{relativeDate}</Text>
+                    <View style={styles.cardInner}>
+                        <View style={styles.cardHeader}>
+                            <View style={[
+                                styles.iconBg,
+                                isUnread && { backgroundColor: `${primaryColor}18`, borderColor: `${primaryColor}35` },
+                            ]}>
+                                {getCategoryIcon(itemCat)}
+                            </View>
+
+                            <View style={styles.headerTextGroup}>
+                                <Text style={[styles.cardTitle, isUnread && styles.unreadCardTitle]} numberOfLines={1}>
+                                    {titleText}
+                                </Text>
+                                <Text style={styles.cardDate}>{relativeDate}</Text>
+                            </View>
+
+                            {isUnread && (
+                                <View style={[styles.unreadBadge, { backgroundColor: primaryColor }]}>
+                                    <Text style={styles.unreadBadgeText}>NEW</Text>
+                                </View>
+                            )}
                         </View>
 
-                        {isUnread && <View style={[styles.unreadDot, { backgroundColor: primaryColor }]} />}
-                    </View>
-
-                    <Text style={styles.cardMessage} numberOfLines={2}>
-                        {messageText}
-                    </Text>
-
-                    <View style={styles.cardFooter}>
-                        <TouchableOpacity
-                            style={styles.deleteBtn}
-                            onPress={() => handleDeleteItem(item.id)}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        <Text
+                            style={[
+                                styles.cardMessage,
+                                isUnread && { color: theme.colors.textPrimary, opacity: 0.8 },
+                            ]}
+                            numberOfLines={2}
                         >
-                            <Trash2 color={theme.colors.textSecondary} size={14} />
-                        </TouchableOpacity>
-                        <ChevronRight color={theme.colors.textSecondary} size={16} />
+                            {messageText}
+                        </Text>
+
+                        <View style={styles.cardFooter}>
+                            <TouchableOpacity
+                                style={styles.deleteBtn}
+                                onPress={() => handleDeleteItem(item.id)}
+                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            >
+                                <Trash2 color={theme.colors.textSecondary} size={14} />
+                            </TouchableOpacity>
+                            <ChevronRight color={theme.colors.textSecondary} size={16} />
+                        </View>
                     </View>
                 </TouchableOpacity>
             );
@@ -500,13 +523,17 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
             headerRight={headerRight}
             subHeader={subHeader}
             scrollable={false}
+            hasTabBar={!navigation.canGoBack()}
         >
             <SectionList
                 sections={isLoadingNotifs ? [] : groupedData}
                 keyExtractor={keyExtractor}
                 renderItem={renderItem}
                 renderSectionHeader={renderSectionHeader}
-                contentContainerStyle={styles.scrollContent}
+                contentContainerStyle={[
+                    styles.scrollContent,
+                    { paddingBottom: !navigation.canGoBack() ? 16 : Math.max(16, insets.bottom + 12) },
+                ]}
                 stickySectionHeadersEnabled={false}
                 showsVerticalScrollIndicator={false}
                 ListHeaderComponent={celebrationHeader}
@@ -528,11 +555,11 @@ const stylesheet = StyleSheet.create((theme) => ({
         flexGrow: 1,
         paddingHorizontal: theme.spacing.screenGutter,
         paddingTop: theme.spacing.md,
-        paddingBottom: 96,
+        paddingBottom: theme.spacing.lg,
     },
     emptyContainer: {
-        paddingTop: theme.spacing.md,
-        paddingBottom: theme.spacing.xl,
+        paddingTop: theme.spacing.xl,
+        paddingBottom: theme.spacing.xxl,
         width: '100%',
         alignItems: 'center',
     },
@@ -548,14 +575,16 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     tabBarScrollContent: {
         paddingHorizontal: theme.spacing.md,
+        paddingVertical: theme.spacing.xs + 2,
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 6,
     },
     tabItem: {
         paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.sm + 4,
+        paddingVertical: theme.spacing.xs + 3,
         alignItems: 'center',
-        position: 'relative',
+        borderRadius: 20,
     },
     tabLabelRow: {
         flexDirection: 'row',
@@ -570,18 +599,9 @@ const stylesheet = StyleSheet.create((theme) => ({
         letterSpacing: 0.4,
     },
     smartDot: {
-        width: 7,
-        height: 7,
-        borderRadius: 4,
-    },
-    tabIndicator: {
-        position: 'absolute',
-        bottom: 0,
-        left: 16,
-        right: 16,
-        height: 3,
-        borderTopLeftRadius: 3,
-        borderTopRightRadius: 3,
+        width: 6,
+        height: 6,
+        borderRadius: 3,
     },
     dateSectionHeader: {
         fontSize: 11,
@@ -595,14 +615,24 @@ const stylesheet = StyleSheet.create((theme) => ({
     card: {
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg,
-        padding: theme.spacing.md,
         marginBottom: theme.spacing.sm + 4,
         borderWidth: 1,
         borderColor: theme.colors.border,
+        overflow: 'hidden',
         ...theme.shadows.sm,
     },
     unreadCard: {
-        borderWidth: 1,
+        borderWidth: 1.5,
+    },
+    unreadAccentBar: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        bottom: 0,
+        width: 4,
+    },
+    cardInner: {
+        padding: theme.spacing.md,
     },
     cardHeader: {
         flexDirection: 'row',
@@ -636,10 +666,20 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textSecondary,
         marginTop: 1,
     },
-    unreadDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
+    unreadBadge: {
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginLeft: 6,
+    },
+    unreadBadgeText: {
+        color: '#FFFFFF',
+        fontSize: 9,
+        fontWeight: '900',
+        letterSpacing: 0.8,
+        textTransform: 'uppercase',
     },
     cardMessage: {
         fontSize: 13,

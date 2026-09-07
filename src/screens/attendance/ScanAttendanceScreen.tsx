@@ -8,7 +8,7 @@ import {
     Modal,
     BackHandler,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
@@ -19,6 +19,11 @@ import {
     Navigation as NavigationIcon,
     CheckCircle2,
     QrCode,
+    AlertCircle,
+    Clock,
+    ShieldCheck,
+    Calendar,
+    X,
 } from 'lucide-react-native';
 import { attendanceApi, AttendanceClockInResponse } from '../../api/attendance';
 import { syncQueue } from '../../offline/syncQueue';
@@ -32,6 +37,7 @@ import { useTranslation } from '../../context/LanguageContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
 import { ModernScannerCanvas } from '../../components/scanner/ModernScannerCanvas';
 import { useImageQrDecoder } from '../../components/scanner/useImageQrDecoder';
+import { useAttendanceGuard } from '../../hooks/useAttendanceGuard';
 
 export interface GpsLocation {
     coords: {
@@ -46,11 +52,90 @@ export interface GpsLocation {
     timestamp: number;
 }
 
-export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation, route }) => {
     const { isDark } = useAppTheme();
     const { t } = useTranslation();
     const theme = isDark ? darkTheme : lightTheme;
     const queryClient = useQueryClient();
+
+    // Proactive Attendance Guard
+    const { evaluateGuard, reasonPresets, shiftPhase } = useAttendanceGuard();
+    const routeReason = route?.params?.reason;
+    const [activeReason, setActiveReason] = useState<string>(routeReason || '');
+    // guardReady starts false so camera never mounts before the guard check runs
+    const [guardReady, setGuardReady] = useState<boolean>(false);
+
+    const isFocused = useIsFocused();
+    const [isSuccess, setIsSuccess] = useState<boolean>(false);
+    const autoReturnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+
+    const handleReturnToDashboard = useCallback(() => {
+        if (autoReturnTimerRef.current) {
+            clearTimeout(autoReturnTimerRef.current);
+            autoReturnTimerRef.current = null;
+        }
+        setIsSuccess(false);
+        resetScanState();
+        navigation.navigate('HomeTab');
+    }, [navigation]);
+
+    useEffect(() => {
+        if (isSuccess) {
+            autoReturnTimerRef.current = setTimeout(() => {
+                handleReturnToDashboard();
+            }, 3200);
+        }
+        return () => {
+            if (autoReturnTimerRef.current) {
+                clearTimeout(autoReturnTimerRef.current);
+                autoReturnTimerRef.current = null;
+            }
+        };
+    }, [isSuccess, handleReturnToDashboard]);
+
+    useFocusEffect(
+        useCallback(() => {
+            setIsSuccess(false);
+            setScanned(false);
+            isProcessingRef.current = false;
+
+            // -- Issue 1 Fix: Always reset activeReason on focus.
+            // When navigating via bottom tab (no route.params), reason is cleared so
+            // the guard correctly re-prompts for a new session instead of reusing
+            // the stale reason from the previous session.
+            const paramReason = route?.params?.reason || '';
+            setActiveReason(paramReason);
+
+            // -- Issue 2 Fix: Evaluate guard BEFORE activating the camera.
+            // guardReady starts false, so the camera is not mounted yet.
+            // We check here whether a reason is mandatory for the current punch type.
+            setGuardReady(false);
+            const guard = evaluateGuard(new Date());
+            if (!paramReason && guard.require_reason && (guard.type === 'late' || guard.type === 'early_departure')) {
+                // Reason is required — show modal first. Camera stays off (guardReady = false).
+                setReasonType(guard.type);
+                setDelayMinutes(guard.minutes);
+                setReasonModalVisible(true);
+            } else {
+                // No guard needed — allow camera to mount immediately.
+                setGuardReady(true);
+            }
+
+            return () => {
+                if (autoReturnTimerRef.current) {
+                    clearTimeout(autoReturnTimerRef.current);
+                    autoReturnTimerRef.current = null;
+                }
+            };
+        }, [route?.params?.reason, evaluateGuard])
+    );
+
+    useEffect(() => {
+        if (route?.params?.reason) {
+            setActiveReason(route.params.reason);
+        }
+    }, [route?.params?.reason]);
 
     // Camera & Location Permissions
     const [cameraPermission, requestCameraPermission] = useCameraPermissions();
@@ -70,12 +155,23 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
     const [delayMinutes, setDelayMinutes] = useState<number>(0);
     const [pendingQrResult, setPendingQrResult] = useState<BranchQrParseResult | null>(null);
 
+    // Camera only activates once the guard has been evaluated (guardReady) and no reason modal is blocking
+    const isCameraActive = isFocused && !isSuccess && shiftPhase !== 'done' && guardReady && !reasonModalVisible;
+
     // Success Punch Confirmation State
-    const [successModalVisible, setSuccessModalVisible] = useState<boolean>(false);
     const [punchResult, setPunchResult] = useState<{
         time: string;
         message: string;
         action?: string;
+    } | null>(null);
+
+    // Error Modal State (Prominent In-App Geofence & Business Error Sheet)
+    const [errorModalVisible, setErrorModalVisible] = useState<boolean>(false);
+    const [errorDetails, setErrorDetails] = useState<{
+        title: string;
+        message: string;
+        distance?: number | null;
+        code?: string | null;
     } | null>(null);
 
     // Anti-race condition locks & in-flight promises
@@ -165,6 +261,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
         setIsSubmitting(false);
         setPendingQrResult(null);
         setReasonModalVisible(false);
+        setErrorModalVisible(false);
     };
 
     /**
@@ -245,7 +342,8 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
                     });
 
                     setReasonModalVisible(false);
-                    setSuccessModalVisible(true);
+                    setIsSubmitting(false);
+                    setIsSuccess(true);
                     return;
                 }
 
@@ -263,15 +361,8 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
                 return;
             }
 
-            // Attendance punch successful!
-            await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-            // Invalidate React Query caches for instant dashboard & history sync
-            await Promise.all([
-                queryClient.invalidateQueries({ queryKey: ['dashboardBootstrap'] }),
-                queryClient.invalidateQueries({ queryKey: ['attendanceHistory'] }),
-                queryClient.invalidateQueries({ queryKey: ['shiftToday'] }),
-            ]);
+            // Attendance punch successful! Instant UI feedback without blocking on background sync
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
 
             setPunchResult({
                 time: response.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
@@ -280,36 +371,47 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
             });
 
             setReasonModalVisible(false);
-            setSuccessModalVisible(true);
+            setIsSubmitting(false);
+            setIsSuccess(true);
+
+            // Fire-and-forget cache invalidation in background (never block success screen)
+            queryClient.invalidateQueries({ queryKey: ['dashboardBootstrap'] });
+            queryClient.invalidateQueries({ queryKey: ['attendanceHistory'] });
+            queryClient.invalidateQueries({ queryKey: ['shiftToday'] });
         } catch (error: any) {
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 
             const resData = error?.response?.data;
-            const message = resData?.message || error?.message || t('attendance_record_failed', 'Attendance recording failed.');
+            const rawMessage = resData?.message || error?.message || t('attendance_record_failed', 'Attendance recording failed.');
 
-            if (resData?.distance) {
-                Alert.alert(
-                    t('outside_branch_geofence', 'Outside Branch Geofence'),
-                    `${t('you_are_away_by', 'You are')} ${Math.round(resData.distance)}m ${t('away_from_branch', 'away from this branch. Please scan while inside the office premises.')}`,
-                    [{ text: t('try_again', 'Try Again'), onPress: resetScanState }]
-                );
+            const distMatch = rawMessage?.match(/Distance:\s*(\d+)m/i);
+            const distanceVal = resData?.distance ?? (distMatch ? Number(distMatch[1]) : null);
+
+            let errTitle = t('clock_in_failed', 'Clock-in Failed');
+            let errDesc = rawMessage;
+
+            if (distanceVal !== null && distanceVal !== undefined) {
+                const roundedDist = Math.round(distanceVal);
+                errTitle = t('outside_branch_geofence', 'Outside Branch Geofence');
+                errDesc = `${t('you_are_away_by', 'You are')} ${roundedDist}m ${t('away_from_branch', 'away from this branch. Please scan while inside the office premises.')}`;
             } else if (resData?.code === 'BRANCH_NOT_FOUND_QR') {
-                Alert.alert(t('invalid_qr_code', 'Invalid QR Code'), t('branch_invalid_qr', 'Branch not found. Please scan an authorized branch QR code.'), [
-                    { text: t('try_again', 'Try Again'), onPress: resetScanState },
-                ]);
+                errTitle = t('invalid_qr_code', 'Invalid QR Code');
+                errDesc = t('branch_invalid_qr', 'Branch not found. Please scan an authorized branch QR code.');
             } else if (resData?.code === 'ATTENDANCE_ALREADY_COMPLETED') {
-                Alert.alert(t('attendance_recorded', 'Attendance Completed'), t('attendance_completed_today', 'All attendance sessions for today have already been completed.'), [
-                    { text: t('ok', 'OK'), onPress: () => navigation.navigate('HomeTab') },
-                ]);
+                errTitle = t('attendance_recorded', 'Attendance Completed');
+                errDesc = t('attendance_completed_today', 'All attendance sessions for today have already been completed.');
             } else if (resData?.code === 'DEVICE_TAKEN') {
-                Alert.alert(t('security_error', 'Security Error'), t('device_registered_to_other', 'This device is bound to another employee account.'), [
-                    { text: t('try_again', 'Try Again'), onPress: resetScanState },
-                ]);
-            } else {
-                Alert.alert(t('attendance_audit', 'Attendance Error'), message, [
-                    { text: t('try_again', 'Try Again'), onPress: resetScanState },
-                ]);
+                errTitle = t('security_error', 'Security Error');
+                errDesc = t('device_registered_to_other', 'This device is bound to another employee account.');
             }
+
+            setErrorDetails({
+                title: errTitle,
+                message: errDesc,
+                distance: distanceVal,
+                code: resData?.code || null,
+            });
+            setErrorModalVisible(true);
         } finally {
             setIsSubmitting(false);
         }
@@ -332,7 +434,21 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
             return;
         }
 
-        await executePunch(parseResult);
+        // Proactive Guard: If reason is required but not yet provided, block scan and prompt reason modal
+        const currentReason = activeReason || route?.params?.reason || '';
+        if (!currentReason) {
+            const guard = evaluateGuard(new Date());
+            if (guard.require_reason && (guard.type === 'late' || guard.type === 'early_departure')) {
+                setPendingQrResult(parseResult);
+                setReasonType(guard.type);
+                setDelayMinutes(guard.minutes);
+                setReasonModalVisible(true);
+                isProcessingRef.current = false;
+                return;
+            }
+        }
+
+        await executePunch(parseResult, currentReason);
     };
 
     // Photo QR Decoder
@@ -363,6 +479,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
                 return true;
             };
             const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+            // Guard check is now handled in the first useFocusEffect above.
             return () => subscription.remove();
         }, [handleBackNavigation])
     );
@@ -370,12 +487,12 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
     // Permission Screen: Camera Explicitly Denied
     if (cameraPermission && !cameraPermission.granted) {
         return (
-            <SafeAreaView {...({ style: styles.centerContainer } as any)}>
+            <SafeAreaView {...({ style: [styles.centerContainer, { backgroundColor: theme.colors.background }] } as any)}>
                 <View style={styles.permIconCircle}>
                     <QrCode color={theme.colors.brand} size={48} />
                 </View>
-                <AppText style={styles.permTitle}>{t('camera_permission_required', 'Camera Permission Required')}</AppText>
-                <AppText style={styles.permDesc}>
+                <AppText style={[styles.permTitle, { color: theme.colors.textPrimary }]}>{t('camera_permission_required', 'Camera Permission Required')}</AppText>
+                <AppText style={[styles.permDesc, { color: theme.colors.textSecondary }]}>
                     {t('camera_perm_desc_attendance', 'Camera access is required to scan physical branch QR codes for attendance.')}
                 </AppText>
                 <TouchableOpacity
@@ -392,12 +509,12 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
     // Permission Screen: Location Explicitly Denied
     if (locationPermission === false) {
         return (
-            <SafeAreaView {...({ style: styles.centerContainer } as any)}>
+            <SafeAreaView {...({ style: [styles.centerContainer, { backgroundColor: theme.colors.background }] } as any)}>
                 <View style={[styles.permIconCircle, { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}>
                     <MapPin color="#EF4444" size={48} />
                 </View>
-                <AppText style={styles.permTitle}>{t('gps_location_required', 'GPS Location Required')}</AppText>
-                <AppText style={styles.permDesc}>
+                <AppText style={[styles.permTitle, { color: theme.colors.textPrimary }]}>{t('gps_location_required', 'GPS Location Required')}</AppText>
+                <AppText style={[styles.permDesc, { color: theme.colors.textSecondary }]}>
                     {t('gps_location_desc', 'High-accuracy GPS location is required to verify physical branch presence.')}
                 </AppText>
                 <TouchableOpacity
@@ -413,7 +530,166 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
         );
     }
 
-    // Instant Scanner Viewport (Camera renders immediately while GPS resolves concurrently)
+    // 1. Enterprise Success Screen (Full-screen, Camera Hardware Released)
+    if (isSuccess) {
+        return (
+            <SafeAreaView {...({ style: [styles.fullScreenSuccess, { backgroundColor: theme.colors.background }] } as any)}>
+                {/* Clean Top Bar */}
+                <View style={styles.successTopBar}>
+                    <TouchableOpacity
+                        style={[styles.successCloseBtn, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)' }]}
+                        onPress={handleReturnToDashboard}
+                        activeOpacity={0.7}
+                        accessibilityLabel={t('close', 'Close')}
+                    >
+                        <X color={isDark ? '#94A3B8' : '#64748B'} size={22} />
+                    </TouchableOpacity>
+                </View>
+
+                {/* Centered Success Confirmation Body */}
+                <View style={styles.successBody}>
+                    <View style={styles.successBadgeOuter}>
+                        <View style={styles.successBadgeMiddle}>
+                            <View style={styles.successBadgeInner}>
+                                <CheckCircle2 color="#10B981" size={48} />
+                            </View>
+                        </View>
+                    </View>
+
+                    <AppText style={[styles.successTitle, { color: theme.colors.textPrimary }]}>
+                        {t('attendance_recorded', 'Attendance Recorded!')}
+                    </AppText>
+
+                    {Boolean(punchResult?.message) && (
+                        <AppText style={[styles.successSubtitle, { color: theme.colors.textSecondary }]}>
+                            {punchResult?.message}
+                        </AppText>
+                    )}
+
+                    {/* Formatted Timestamp Pill */}
+                    {Boolean(punchResult?.time) && (
+                        <View style={[
+                            styles.timePill,
+                            {
+                                backgroundColor: isDark ? 'rgba(16, 185, 129, 0.14)' : 'rgba(16, 185, 129, 0.10)',
+                                borderColor: isDark ? 'rgba(16, 185, 129, 0.35)' : 'rgba(16, 185, 129, 0.25)',
+                            }
+                        ]}>
+                            <Clock size={16} color={isDark ? '#34D399' : '#059669'} style={{ marginRight: 6 }} />
+                            <AppText style={[styles.timePillText, { color: isDark ? '#34D399' : '#059669' }]}>
+                                {punchResult?.time}
+                            </AppText>
+                        </View>
+                    )}
+
+                    <AppText style={[styles.autoReturnHint, { color: theme.colors.textSecondary }]}>
+                        {t('returning_to_dashboard', 'Returning to dashboard in a moment...')}
+                    </AppText>
+                </View>
+
+                {/* Bottom Actions */}
+                <View style={styles.successActions}>
+                    <TouchableOpacity
+                        style={[styles.primarySuccessBtn, { backgroundColor: theme.colors.brand }]}
+                        onPress={handleReturnToDashboard}
+                        activeOpacity={0.85}
+                    >
+                        <AppText style={styles.primarySuccessBtnText}>
+                            {t('back_to_dashboard', 'Back to Dashboard')}
+                        </AppText>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[
+                            styles.secondarySuccessBtn,
+                            {
+                                backgroundColor: isDark ? 'rgba(255, 255, 255, 0.04)' : theme.colors.surface,
+                                borderColor: isDark ? 'rgba(255, 255, 255, 0.15)' : theme.colors.border,
+                            }
+                        ]}
+                        onPress={() => {
+                            if (autoReturnTimerRef.current) {
+                                clearTimeout(autoReturnTimerRef.current);
+                                autoReturnTimerRef.current = null;
+                            }
+                            setIsSuccess(false);
+                            resetScanState();
+                            navigation.navigate('History');
+                        }}
+                        activeOpacity={0.8}
+                    >
+                        <AppText style={[styles.secondarySuccessBtnText, { color: theme.colors.textPrimary }]}>
+                            {t('view_attendance_history', 'View Attendance History')}
+                        </AppText>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    // 2. Shift Completed Screen (No camera hardware mounted if employee is already done)
+    if (shiftPhase === 'done' && !isSuccess) {
+        return (
+            <SafeAreaView {...({ style: [styles.fullScreenSuccess, { backgroundColor: theme.colors.background }] } as any)}>
+                <View style={styles.successTopBar}>
+                    <TouchableOpacity
+                        style={[styles.successCloseBtn, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : theme.colors.surfaceSubtle }]}
+                        onPress={() => navigation.navigate('HomeTab')}
+                        activeOpacity={0.7}
+                    >
+                        <X color={isDark ? '#94A3B8' : theme.colors.textSecondary} size={22} />
+                    </TouchableOpacity>
+                </View>
+
+                <View style={styles.successBody}>
+                    <View style={styles.successBadgeOuter}>
+                        <View style={styles.successBadgeMiddle}>
+                            <View style={styles.successBadgeInner}>
+                                <CheckCircle2 color="#10B981" size={48} />
+                            </View>
+                        </View>
+                    </View>
+
+                    <AppText style={[styles.successTitle, { color: theme.colors.textPrimary }]}>
+                        {t('shift_completed', 'Shift Completed')}
+                    </AppText>
+                    <AppText style={[styles.successSubtitle, { color: theme.colors.textSecondary }]}>
+                        {t('you_have_completed_today_shift', 'All scheduled attendance punches for today have already been completed.')}
+                    </AppText>
+                </View>
+
+                <View style={styles.successActions}>
+                    <TouchableOpacity
+                        style={[styles.primarySuccessBtn, { backgroundColor: theme.colors.brand }]}
+                        onPress={() => navigation.navigate('HomeTab')}
+                        activeOpacity={0.85}
+                    >
+                        <AppText style={styles.primarySuccessBtnText}>
+                            {t('back_to_dashboard', 'Back to Dashboard')}
+                        </AppText>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                        style={[
+                            styles.secondarySuccessBtn,
+                            {
+                                borderColor: theme.colors.border,
+                                backgroundColor: theme.colors.surface,
+                            },
+                        ]}
+                        onPress={() => navigation.navigate('History')}
+                        activeOpacity={0.8}
+                    >
+                        <AppText style={[styles.secondarySuccessBtnText, { color: theme.colors.textPrimary }]}>
+                            {t('view_attendance_history', 'View Attendance History')}
+                        </AppText>
+                    </TouchableOpacity>
+                </View>
+            </SafeAreaView>
+        );
+    }
+
+    // 3. Instant Scanner Viewport (Camera renders only when active and focused)
     return (
         <View style={styles.container}>
             {/* Modern Scanner Canvas */}
@@ -422,6 +698,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
                 onUploadPhotoPress={pickAndDecodeImage}
                 onBackPress={handleBackNavigation}
                 isScanned={scanned}
+                isActive={isCameraActive}
                 isLoading={isSubmitting}
                 isDecodingImage={isDecoding}
                 loadingText={t('verifying_geofence_punch', 'Verifying Geofence & Punch...')}
@@ -429,17 +706,26 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
                 accentColor={theme.colors.brand}
                 onRescanPress={resetScanState}
                 topContent={
-                    <View style={styles.gpsChip}>
-                        <NavigationIcon color={currentLocation ? '#10B981' : '#FBBF24'} size={13} />
-                        <AppText style={styles.gpsChipText}>
-                            {currentLocation
-                                ? t('gps_calibrated', 'GPS Calibrated')
-                                : isLocating
-                                ? t('acquiring_gps', 'Acquiring GPS...')
-                                : t('gps_ready', 'GPS Ready')}
-                        </AppText>
-                        {isLocating && !currentLocation && (
-                            <ActivityIndicator size="small" color="#FBBF24" style={{ marginLeft: 2 }} />
+                    <View style={{ alignItems: 'center' }}>
+                        <View style={styles.gpsChip}>
+                            <NavigationIcon color={currentLocation ? '#10B981' : '#FBBF24'} size={13} />
+                            <AppText style={styles.gpsChipText}>
+                                {currentLocation
+                                    ? t('gps_calibrated', 'GPS Calibrated')
+                                    : isLocating
+                                    ? t('acquiring_gps', 'Acquiring GPS...')
+                                    : t('gps_ready', 'GPS Ready')}
+                            </AppText>
+                            {isLocating && !currentLocation && (
+                                <ActivityIndicator size="small" color="#FBBF24" style={{ marginLeft: 2 }} />
+                            )}
+                        </View>
+                        {Boolean(activeReason || route?.params?.reason) && (
+                            <View style={styles.attachedReasonChip}>
+                                <AppText style={styles.attachedReasonText} numberOfLines={1}>
+                                    {t('reason_attached', 'Reason')}: {activeReason || route?.params?.reason}
+                                </AppText>
+                            </View>
                         )}
                     </View>
                 }
@@ -451,56 +737,154 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any }> = ({ navigation
                 reasonType={reasonType}
                 delayMinutes={delayMinutes}
                 isLoading={isSubmitting}
-                onProceed={(reason) => {
+                presets={reasonPresets}
+                submitLabel={pendingQrResult ? t('confirm_and_submit_attendance', 'Confirm & Submit Attendance') : t('confirm_and_proceed', 'Confirm & Proceed')}
+                onProceed={async (reasonText) => {
+                    setActiveReason(reasonText);
+                    setReasonModalVisible(false);
+
                     if (pendingQrResult) {
-                        executePunch(pendingQrResult, reason);
+                        const qr = pendingQrResult;
+                        setPendingQrResult(null);
+                        await executePunch(qr, reasonText);
+                    } else {
+                        // Guard cleared — reason provided proactively before any scan.
+                        // Activate the camera now that the guard is satisfied.
+                        setGuardReady(true);
+                        setScanned(false);
+                        isProcessingRef.current = false;
                     }
                 }}
-                onCancel={resetScanState}
+                onCancel={() => {
+                    setReasonModalVisible(false);
+                    setPendingQrResult(null);
+                    const currentReason = activeReason || route?.params?.reason;
+                    if (!currentReason) {
+                        handleBackNavigation();
+                    } else {
+                        setScanned(false);
+                        isProcessingRef.current = false;
+                    }
+                }}
             />
 
-            {/* Success Confirmation Modal */}
+            {/* Error Confirmation Sheet (Rich In-App Feedback for Distance & Geofence Errors) */}
             <AppBottomSheet
-                visible={successModalVisible}
+                visible={errorModalVisible}
                 onClose={() => {
-                    setSuccessModalVisible(false);
+                    setErrorModalVisible(false);
                     resetScanState();
-                    navigation.navigate('HomeTab');
                 }}
-                title={t('attendance_recorded', 'Attendance Recorded!')}
-                subtitle={punchResult?.message}
+                title={errorDetails?.title || t('clock_in_failed', 'Clock-in Failed')}
+                subtitle={errorDetails?.distance ? `${Math.round(errorDetails.distance)}m ${t('away', 'Away')}` : undefined}
                 footer={
-                    <TouchableOpacity
-                        style={[styles.modalBtn, { backgroundColor: theme.colors.brand }]}
-                        onPress={() => {
-                            setSuccessModalVisible(false);
-                            resetScanState();
-                            navigation.navigate('HomeTab');
-                        }}
-                        activeOpacity={0.85}
-                    >
-                        <AppText style={styles.modalBtnText}>{t('done', 'Done')}</AppText>
-                    </TouchableOpacity>
+                    <View style={styles.errorBtnRow}>
+                        <TouchableOpacity
+                            style={[styles.modalSecondaryBtn, { borderColor: theme.colors.border }]}
+                            onPress={() => {
+                                setErrorModalVisible(false);
+                                resetScanState();
+                                handleBackNavigation();
+                            }}
+                            activeOpacity={0.8}
+                        >
+                            <AppText style={[styles.modalSecondaryBtnText, { color: theme.colors.textPrimary }]}>
+                                {t('cancel', 'Cancel')}
+                            </AppText>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                            style={[styles.modalPrimaryBtn, { backgroundColor: theme.colors.brand }]}
+                            onPress={() => {
+                                setErrorModalVisible(false);
+                                resetScanState();
+                            }}
+                            activeOpacity={0.85}
+                        >
+                            <AppText style={styles.modalPrimaryBtnText}>{t('try_again', 'Try Again')}</AppText>
+                        </TouchableOpacity>
+                    </View>
                 }
             >
-                <View style={styles.successIconCircle}>
-                    <CheckCircle2 color={theme.colors.status.success} size={56} />
+                <View style={styles.errorIconWrapper}>
+                    <View
+                        style={[
+                            styles.errorIconOuter,
+                            {
+                                backgroundColor: isDark
+                                    ? 'rgba(239, 68, 68, 0.12)'
+                                    : 'rgba(254, 226, 226, 0.7)',
+                            },
+                        ]}
+                    >
+                        <View
+                            style={[
+                                styles.errorIconInner,
+                                {
+                                    backgroundColor: isDark
+                                        ? 'rgba(239, 68, 68, 0.22)'
+                                        : 'rgba(254, 202, 202, 0.8)',
+                                },
+                            ]}
+                        >
+                            <AlertCircle color={theme.colors.status.danger} size={32} />
+                        </View>
+                    </View>
                 </View>
 
-                <View style={[styles.modalDetailsCard, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}>
-                    <View style={styles.detailRow}>
-                        <AppText style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>{t('timestamp', 'Timestamp')}</AppText>
-                        <AppText style={[styles.detailVal, { color: theme.colors.textPrimary }]}>
-                            {punchResult?.time}
-                        </AppText>
-                    </View>
-                    <View style={styles.detailRow}>
-                        <AppText style={[styles.detailLabel, { color: theme.colors.textSecondary }]}>{t('status', 'Status')}</AppText>
-                        <AppText style={[styles.detailVal, { color: theme.colors.status.success }]}>
-                            {t('verified_and_saved', 'Verified & Saved')}
-                        </AppText>
-                    </View>
+                {/* Refined Error Confirmation Card with Clean Typography & Subtle Semantic Tint */}
+                <View
+                    style={[
+                        styles.errorDetailsCard,
+                        {
+                            backgroundColor: isDark
+                                ? 'rgba(239, 68, 68, 0.08)'
+                                : '#FEF2F2',
+                            borderColor: isDark
+                                ? 'rgba(239, 68, 68, 0.25)'
+                                : 'rgba(248, 113, 113, 0.35)',
+                        },
+                    ]}
+                >
+                    <AppText
+                        style={[
+                            styles.errorDescText,
+                            { color: isDark ? '#F1F5F9' : '#1E293B' },
+                        ]}
+                    >
+                        {errorDetails?.message}
+                    </AppText>
+
+                    {Boolean(errorDetails?.distance) && (
+                        <View
+                            style={[
+                                styles.distancePill,
+                                {
+                                    backgroundColor: isDark
+                                        ? 'rgba(239, 68, 68, 0.18)'
+                                        : 'rgba(239, 68, 68, 0.10)',
+                                    borderColor: isDark
+                                        ? 'rgba(239, 68, 68, 0.35)'
+                                        : 'rgba(239, 68, 68, 0.25)',
+                                },
+                            ]}
+                        >
+                            <MapPin color={theme.colors.status.danger} size={13} />
+                            <AppText
+                                style={[
+                                    styles.distancePillText,
+                                    { color: isDark ? '#F87171' : '#DC2626' },
+                                ]}
+                            >
+                                {t('detected_distance', 'Detected Distance')}: {Math.round(errorDetails!.distance!)}m
+                            </AppText>
+                        </View>
+                    )}
                 </View>
+
+                <AppText style={[styles.errorHelperText, { color: theme.colors.textSecondary }]}>
+                    {t('geofence_tip', 'Tip: Please ensure you are physically located inside the branch office premises before scanning.')}
+                </AppText>
             </AppBottomSheet>
         </View>
     );
@@ -531,6 +915,111 @@ const styles = StyleSheet.create({
         color: '#F8FAFC',
         fontSize: 12,
         fontWeight: '600',
+    },
+    attachedReasonChip: {
+        marginTop: 6,
+        backgroundColor: 'rgba(245, 158, 11, 0.9)',
+        paddingHorizontal: 12,
+        paddingVertical: 4,
+        borderRadius: 12,
+        maxWidth: 260,
+    },
+    attachedReasonText: {
+        color: '#FFFFFF',
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    errorIconWrapper: {
+        width: '100%',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 16,
+    },
+    errorIconOuter: {
+        width: 80,
+        height: 80,
+        borderRadius: 40,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    errorIconInner: {
+        width: 56,
+        height: 56,
+        borderRadius: 28,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    errorDetailsCard: {
+        width: '100%',
+        borderRadius: 16,
+        borderWidth: 1,
+        paddingHorizontal: 18,
+        paddingVertical: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    errorDescText: {
+        fontSize: 14,
+        lineHeight: 22,
+        fontWeight: '500',
+        textAlign: 'center',
+    },
+    distancePill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        marginTop: 12,
+        paddingHorizontal: 14,
+        paddingVertical: 6,
+        borderRadius: 20,
+        borderWidth: 1,
+        alignSelf: 'center',
+    },
+    distancePillText: {
+        fontSize: 12,
+        fontWeight: '700',
+        letterSpacing: 0.2,
+    },
+    errorHelperText: {
+        fontSize: 12,
+        lineHeight: 18,
+        textAlign: 'center',
+        marginTop: 10,
+        marginBottom: 4,
+        paddingHorizontal: 8,
+    },
+    errorBtnRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        width: '100%',
+    },
+    modalSecondaryBtn: {
+        flex: 1,
+        minHeight: 48,
+        borderRadius: 14,
+        borderWidth: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+    },
+    modalSecondaryBtnText: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    modalPrimaryBtn: {
+        flex: 1,
+        minHeight: 48,
+        borderRadius: 14,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+    },
+    modalPrimaryBtnText: {
+        fontSize: 14,
+        fontWeight: '700',
+        color: '#FFFFFF',
     },
     centerContainer: {
         flex: 1,
@@ -579,77 +1068,158 @@ const styles = StyleSheet.create({
         fontWeight: '700',
         fontSize: 15,
     },
-    modalBackdrop: {
+    fullScreenSuccess: {
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.65)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 24,
+        justifyContent: 'space-between',
+        paddingHorizontal: 24,
+        paddingBottom: 24,
     },
-    modalContent: {
+    successTopBar: {
+        flexDirection: 'row',
+        justifyContent: 'flex-end',
+        paddingTop: 8,
+        paddingBottom: 8,
+    },
+    successCloseBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    successBody: {
+        flex: 1,
+        alignItems: 'center',
+        justifyContent: 'center',
+        paddingHorizontal: 8,
+    },
+    successBadgeOuter: {
+        width: 112,
+        height: 112,
+        borderRadius: 56,
+        backgroundColor: 'rgba(16, 185, 129, 0.08)',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginBottom: 20,
+    },
+    successBadgeMiddle: {
+        width: 88,
+        height: 88,
+        borderRadius: 44,
+        backgroundColor: 'rgba(16, 185, 129, 0.16)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    successBadgeInner: {
+        width: 68,
+        height: 68,
+        borderRadius: 34,
+        backgroundColor: 'rgba(16, 185, 129, 0.28)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    successTitle: {
+        fontSize: 24,
+        fontWeight: '800',
+        color: '#F8FAFC',
+        textAlign: 'center',
+        marginBottom: 8,
+        letterSpacing: -0.3,
+    },
+    successSubtitle: {
+        fontSize: 14,
+        color: '#94A3B8',
+        textAlign: 'center',
+        marginBottom: 16,
+        lineHeight: 20,
+        maxWidth: 290,
+    },
+    timePill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(16, 185, 129, 0.14)',
+        borderWidth: 1,
+        borderColor: 'rgba(16, 185, 129, 0.35)',
+        paddingHorizontal: 16,
+        paddingVertical: 7,
         borderRadius: 24,
-        padding: 24,
-        width: '100%',
-        maxWidth: 380,
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.2,
-        shadowRadius: 20,
-        elevation: 10,
+        marginBottom: 20,
     },
-    successIconCircle: {
-        width: 80,
-        height: 80,
-        borderRadius: 40,
-        backgroundColor: 'rgba(16, 185, 129, 0.12)',
-        justifyContent: 'center',
-        alignItems: 'center',
+    timePillText: {
+        color: '#34D399',
+        fontSize: 15,
+        fontWeight: '800',
+        letterSpacing: 0.5,
+    },
+    verifiedCard: {
+        width: '100%',
+        borderRadius: 18,
+        borderWidth: 1,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
         marginBottom: 16,
     },
-    modalTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-        textAlign: 'center',
-    },
-    modalSub: {
-        fontSize: 14,
-        textAlign: 'center',
-        marginTop: 6,
-        marginBottom: 20,
-    },
-    modalDetailsCard: {
-        width: '100%',
-        borderRadius: 16,
-        padding: 16,
-        marginBottom: 20,
-        borderWidth: 1,
-        gap: 10,
-    },
-    detailRow: {
+    verifiedRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
+        paddingVertical: 6,
     },
-    detailLabel: {
-        fontSize: 13,
-        fontWeight: '500',
-    },
-    detailVal: {
-        fontSize: 14,
-        fontWeight: '700',
-    },
-    modalBtn: {
-        width: '100%',
-        borderRadius: 16,
-        paddingVertical: 14,
-        minHeight: 48,
-        justifyContent: 'center',
+    verifiedRowLeft: {
+        flexDirection: 'row',
         alignItems: 'center',
     },
-    modalBtnText: {
+    verifiedLabel: {
+        fontSize: 13,
+        color: '#94A3B8',
+        fontWeight: '600',
+    },
+    verifiedVal: {
+        fontSize: 13,
+        color: '#F8FAFC',
+        fontWeight: '700',
+    },
+    cardDivider: {
+        height: 1,
+        backgroundColor: 'rgba(255, 255, 255, 0.08)',
+        marginVertical: 4,
+    },
+    autoReturnHint: {
+        fontSize: 12,
+        color: '#64748B',
+        textAlign: 'center',
+        marginTop: 6,
+    },
+    successActions: {
+        width: '100%',
+        gap: 12,
+    },
+    primarySuccessBtn: {
+        width: '100%',
+        minHeight: 52,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    primarySuccessBtnText: {
         color: '#FFFFFF',
         fontSize: 15,
+        fontWeight: '800',
+    },
+    secondarySuccessBtn: {
+        width: '100%',
+        minHeight: 50,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.15)',
+        backgroundColor: 'rgba(255, 255, 255, 0.04)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    secondarySuccessBtnText: {
+        color: '#E2E8F0',
+        fontSize: 14,
         fontWeight: '700',
     },
 });

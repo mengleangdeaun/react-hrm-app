@@ -180,6 +180,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             headerRight={headerRight}
             refreshing={isFetching}
             onRefresh={handleRefresh}
+            hasTabBar={true}
         >
             {/* Hero Profile Card */}
             <View style={styles.heroCard}>
@@ -397,7 +398,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     scrollContent: {
         flexGrow: 1,
         paddingHorizontal: theme.spacing.md + 4,
-        paddingBottom: theme.spacing.xl + 40,
+        paddingBottom: theme.spacing.lg,
     },
     heroCard: {
         backgroundColor: theme.colors.surface,

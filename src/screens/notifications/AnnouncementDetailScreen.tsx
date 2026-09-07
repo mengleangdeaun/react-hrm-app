@@ -72,6 +72,7 @@ export const AnnouncementDetailScreen: React.FC<{ route: any; navigation: any }>
     const { t } = useTranslation();
     const { theme } = useUnistyles();
     const { width: screenWidth } = useWindowDimensions();
+    const insets = useSafeAreaInsets();
     const styles = stylesheet;
     const queryClient = useQueryClient();
 
@@ -329,7 +330,7 @@ export const AnnouncementDetailScreen: React.FC<{ route: any; navigation: any }>
                 >
                     <View style={styles.imageModalOverlay}>
                         <TouchableOpacity
-                            style={styles.imageModalCloseBtn}
+                            style={[styles.imageModalCloseBtn, { top: Math.max(40, insets.top + 10) }]}
                             onPress={() => setPreviewImageUrl(null)}
                             activeOpacity={0.8}
                         >
@@ -380,7 +381,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     scrollContent: {
         flexGrow: 1,
         paddingHorizontal: theme.spacing.md + 4,
-        paddingBottom: theme.spacing.xl + 40,
+        paddingBottom: theme.spacing.lg,
     },
     loadingContainer: {
         paddingVertical: theme.spacing.xxl,

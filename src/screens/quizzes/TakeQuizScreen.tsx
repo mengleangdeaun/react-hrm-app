@@ -74,7 +74,7 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
     const [tabSwitchCount, setTabSwitchCount] = useState<number>(0);
 
     // Refs for timer callbacks
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const answersRef = useRef<QuizAnswerPayload[]>([]);
     const lastWarningTimeRef = useRef<number>(0);
     const questionScrollRef = useRef<any>(null);
@@ -1019,7 +1019,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         flexGrow: 1,
         paddingHorizontal: theme.spacing.md,
         paddingTop: theme.spacing.md,
-        paddingBottom: theme.spacing.xl + 40,
+        paddingBottom: theme.spacing.lg,
     },
     loadingContainer: {
         flex: 1,

@@ -30,6 +30,7 @@ interface AppShellProps {
     showHeader?: boolean;
     includeTopInset?: boolean;
     includeBottomInset?: boolean;
+    hasTabBar?: boolean;
     onScroll?: (event: any) => void;
     scrollEventThrottle?: number;
     keyboardAvoiding?: boolean;
@@ -52,6 +53,7 @@ export const AppShell: React.FC<AppShellProps> = ({
     showHeader = true,
     includeTopInset = true,
     includeBottomInset = true,
+    hasTabBar = false,
     onScroll,
     scrollEventThrottle = 16,
     keyboardAvoiding = true,
@@ -63,7 +65,7 @@ export const AppShell: React.FC<AppShellProps> = ({
 
     const hasHeader = showHeader && (title || onBack || onClose || headerRight);
     const topInset = includeTopInset ? insets.top : 0;
-    const bottomInset = includeBottomInset ? insets.bottom : 0;
+    const bottomInset = includeBottomInset ? (hasTabBar ? 0 : insets.bottom) : 0;
 
     const defaultOffset = Platform.OS === 'ios' ? (hasHeader ? 12 : 0) : 0;
     const verticalOffset = keyboardVerticalOffset !== undefined ? keyboardVerticalOffset : defaultOffset;
@@ -75,7 +77,7 @@ export const AppShell: React.FC<AppShellProps> = ({
                     style={styles.scrollContainer}
                     contentContainerStyle={[
                         styles.scrollContent,
-                        { paddingBottom: Math.max(36, bottomInset + 24) },
+                        { paddingBottom: hasTabBar ? 16 : Math.max(20, bottomInset + 16) },
                         contentContainerStyle,
                     ]}
                     keyboardShouldPersistTaps="handled"
@@ -96,7 +98,7 @@ export const AppShell: React.FC<AppShellProps> = ({
         }
 
         return (
-            <View style={[styles.fixedContainer, { paddingBottom: bottomInset }, contentContainerStyle]}>
+            <View style={[styles.fixedContainer, contentContainerStyle]}>
                 {children}
             </View>
         );
@@ -110,16 +112,13 @@ export const AppShell: React.FC<AppShellProps> = ({
 
             {hasHeader && (
                 <View style={styles.headerWrapper}>
-                    {title || onBack || onClose ? (
-                        <AppHeader
-                            title={title || ''}
-                            subtitle={subtitle}
-                            onBack={onBack}
-                            onClose={onClose}
-                            rightActions={[]}
-                        />
-                    ) : null}
-                    {headerRight && <View style={styles.customHeaderRight}>{headerRight}</View>}
+                    <AppHeader
+                        title={title || ''}
+                        subtitle={subtitle}
+                        onBack={onBack}
+                        onClose={onClose}
+                        headerRight={headerRight}
+                    />
                 </View>
             )}
 
@@ -147,12 +146,6 @@ const styles = StyleSheet.create({
     headerWrapper: {
         position: 'relative',
     },
-    customHeaderRight: {
-        position: 'absolute',
-        right: 16,
-        top: 7,
-        zIndex: 20,
-    },
     subHeaderContainer: {
         zIndex: 10,
     },
@@ -166,7 +159,7 @@ const styles = StyleSheet.create({
         flexGrow: 1,
         paddingHorizontal: 16,
         paddingTop: 12,
-        paddingBottom: 36,
+        paddingBottom: 24,
     },
     fixedContainer: {
         flex: 1,

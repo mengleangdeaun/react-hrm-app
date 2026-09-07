@@ -602,7 +602,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         height: 100,
         textAlignVertical: 'top',
         paddingTop: theme.spacing.md,
-        marginBottom: theme.spacing.lg,
+        marginBottom: theme.spacing.md,
     },
     btnRow: {
         flexDirection: 'row',
@@ -671,7 +671,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         flexDirection: 'row',
         flexWrap: 'wrap',
         justifyContent: 'space-between',
-        marginBottom: theme.spacing.sm,
+        marginBottom: 0,
     },
     gridCardTile: {
         width: '48%',
