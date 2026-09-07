@@ -167,7 +167,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                     backgroundColor: theme.colors.surface,
                     borderColor: theme.colors.border,
                     maxHeight: maxSheetHeight,
-                    paddingBottom: Math.max(insets.bottom, 16),
+                    paddingBottom: footer ? 0 : Math.max(insets.bottom, 16),
                     transform: [{ translateY }],
                 },
                 containerStyle,
@@ -225,7 +225,11 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
             {scrollable ? (
                 <ScrollView
                     style={styles.scrollContent}
-                    contentContainerStyle={[styles.scrollContentContainer, contentContainerStyle]}
+                    contentContainerStyle={[
+                        styles.scrollContentContainer,
+                        { paddingBottom: footer ? 8 : Math.max(insets.bottom + 8, 20) },
+                        contentContainerStyle,
+                    ]}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                     bounces={false}
@@ -233,11 +237,25 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                     {children}
                 </ScrollView>
             ) : (
-                <View style={[styles.fixedContent, contentContainerStyle]}>{children}</View>
+                <View style={[styles.fixedContent, { paddingBottom: footer ? 8 : Math.max(insets.bottom + 8, 20) }, contentContainerStyle]}>
+                    {children}
+                </View>
             )}
 
             {/* 4. Optional Sticky Footer (e.g. CTA buttons) */}
-            {footer && <View style={styles.footerContainer}>{footer}</View>}
+            {footer && (
+                <View
+                    style={[
+                        styles.footerContainer,
+                        {
+                            borderTopColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)',
+                            paddingBottom: Math.max(insets.bottom, 16),
+                        },
+                    ]}
+                >
+                    {footer}
+                </View>
+            )}
         </Animated.View>
     );
 
@@ -369,7 +387,7 @@ const styles = StyleSheet.create({
     },
     footerContainer: {
         paddingHorizontal: 20,
-        paddingTop: 12,
-        paddingBottom: 4,
+        paddingTop: 10,
+        borderTopWidth: StyleSheet.hairlineWidth,
     },
 });

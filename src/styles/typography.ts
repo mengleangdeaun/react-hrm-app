@@ -138,13 +138,16 @@ export function hasKhmerText(text?: any): boolean {
     if (typeof text === 'string') {
         return KHMER_REGEX.test(text);
     }
-    if (typeof text === 'number') {
+    if (typeof text === 'number' || typeof text === 'boolean' || !text) {
         return false;
     }
     if (Array.isArray(text)) {
-        return text.some((child) => hasKhmerText(child));
+        for (let i = 0; i < text.length; i++) {
+            if (hasKhmerText(text[i])) return true;
+        }
+        return false;
     }
-    if (text && typeof text === 'object' && text.props && text.props.children) {
+    if (typeof text === 'object' && text.props && text.props.children) {
         return hasKhmerText(text.props.children);
     }
     return false;

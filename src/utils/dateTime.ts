@@ -35,9 +35,25 @@ export function parseDateOnly(dateStr?: string | null): Date {
 
     const trimmed = String(dateStr).trim();
 
-    // Match YYYY-MM-DD pattern
+    // 1. If it's an ISO timestamp that shifted from UTC+7 midnight (e.g. T17:00:00.000000Z or 17:00:00)
+    // In UTC+7 (Asia/Bangkok), 17:00 UTC corresponds to 00:00:00 of the NEXT calendar day.
+    if (trimmed.includes('T17:00:00') || trimmed.includes(' 17:00:00')) {
+        try {
+            const parsed = parseISO(trimmed);
+            if (isValid(parsed)) {
+                const clientTzOffsetMin = parsed.getTimezoneOffset(); // 0 in UTC, -420 in UTC+7
+                const targetShiftMin = 420 + clientTzOffsetMin;
+                const adjusted = new Date(parsed.getTime() + targetShiftMin * 60 * 1000);
+                return new Date(adjusted.getFullYear(), adjusted.getMonth(), adjusted.getDate(), 0, 0, 0, 0);
+            }
+        } catch {
+            // Fallback
+        }
+    }
+
+    // 2. Match YYYY-MM-DD pattern (e.g. "2026-09-08" or "2026-09-08 00:00:00")
     const match = trimmed.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-    if (match) {
+    if (match && !trimmed.includes('T')) {
         const year = parseInt(match[1], 10);
         const month = parseInt(match[2], 10) - 1;
         const day = parseInt(match[3], 10);

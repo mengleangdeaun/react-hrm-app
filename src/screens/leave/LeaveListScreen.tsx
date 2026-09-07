@@ -2,15 +2,16 @@ import React, { useState, useCallback, memo } from 'react';
 import {
     View,
     ScrollView,
-    FlatList,
     TouchableOpacity,
     ActivityIndicator,
     RefreshControl,
     Alert,
     TextInput,
 } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '../../components/common/AppShell';
 import { HeaderIconButton } from '../../components/common/AppHeader';
@@ -198,6 +199,7 @@ const ManagerApprovalCard = memo(({ item, theme, styles, t, onApprove, onReject 
 });
 
 export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+    const insets = useSafeAreaInsets();
     const { isDark, toggleTheme } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
@@ -363,7 +365,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     );
 
     const listHeader = (
-        <View>
+        <View style={styles.listHeader}>
             {/* Tab Navigation Switcher (Top priority on Requests page) */}
             <View style={styles.tabSwitcher}>
                 <TouchableOpacity
@@ -388,7 +390,12 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             {leaveBalances.length > 0 && (
                 <View style={styles.balanceSection}>
                     <Text style={styles.sectionTitle}>{t('leave_balances_summary', 'Leave Balances Summary')}</Text>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.balanceCarousel}>
+                    <ScrollView
+                        horizontal
+                        showsHorizontalScrollIndicator={false}
+                        style={styles.balanceCarousel}
+                        contentContainerStyle={styles.balanceCarouselContent}
+                    >
                         {leaveBalances.map((item, idx) => (
                             <View key={idx} style={styles.balanceCard}>
                                 <Text style={styles.balanceType}>{getLeaveTypeName(item.leave_type, item)}</Text>
@@ -408,19 +415,23 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         isLoading ? (
             <LeaveListSkeleton />
         ) : activeTab === 'my_requests' ? (
-            <EmptyState
-                icon={<FileText color={theme.colors.textSecondary} size={36} />}
-                title={t('no_leave_requests', 'No Leave Requests')}
-                description={t('no_leave_requests_desc', 'You have not submitted any leave applications yet.')}
-                actionTitle={t('apply_leave', 'Apply Leave')}
-                onAction={() => navigation.navigate('CreateLeave')}
-            />
+            <View style={styles.emptyContainer}>
+                <EmptyState
+                    icon={<FileText color={theme.colors.textSecondary} size={36} />}
+                    title={t('no_leave_requests', 'No Leave Requests')}
+                    description={t('no_leave_requests_desc', 'You have not submitted any leave applications yet.')}
+                    actionTitle={t('apply_leave', 'Apply Leave')}
+                    onAction={() => navigation.navigate('CreateLeave')}
+                />
+            </View>
         ) : (
-            <EmptyState
-                icon={<CheckCircle2 color={theme.colors.status.success} size={36} />}
-                title={t('no_pending_approvals', 'No Pending Approvals')}
-                description={t('no_pending_approvals_desc', 'All subordinate leave requests have been processed.')}
-            />
+            <View style={styles.emptyContainer}>
+                <EmptyState
+                    icon={<CheckCircle2 color={theme.colors.status.success} size={36} />}
+                    title={t('no_pending_approvals', 'No Pending Approvals')}
+                    description={t('no_pending_approvals_desc', 'All subordinate leave requests have been processed.')}
+                />
+            </View>
         )
     );
 
@@ -431,11 +442,12 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             headerRight={headerRight}
             scrollable={false}
         >
-            <FlatList
+            <FlashList
                 data={isLoading ? [] : leaveRequests}
                 keyExtractor={keyExtractor}
                 renderItem={renderItem}
-                contentContainerStyle={styles.scrollContent}
+                estimatedItemSize={130}
+                contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(16, insets.bottom + 8) }]}
                 showsVerticalScrollIndicator={false}
                 ListHeaderComponent={listHeader}
                 ListEmptyComponent={emptyStateComponent}
@@ -492,9 +504,20 @@ const stylesheet = StyleSheet.create((theme) => ({
     container: {
         flex: 1,
     },
+    listHeader: {
+        paddingTop: theme.spacing.screenGutter,
+    },
     scrollContent: {
-        paddingHorizontal: theme.spacing.md,
-        paddingBottom: theme.spacing.xl,
+        flexGrow: 1,
+        paddingTop: theme.spacing.md,
+        paddingBottom: theme.spacing.lg,
+    },
+    emptyContainer: {
+        paddingTop: theme.spacing.md,
+        paddingBottom: theme.spacing.xxl,
+        paddingHorizontal: theme.spacing.screenGutter,
+        alignSelf: 'stretch',
+        alignItems: 'center',
     },
     headerRow: {
         flexDirection: 'row',
@@ -536,10 +559,14 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontSize: 15,
         fontWeight: '700',
         color: theme.colors.textPrimary,
+        paddingHorizontal: theme.spacing.screenGutter,
         marginBottom: theme.spacing.xs + 2,
     },
     balanceCarousel: {
         flexDirection: 'row',
+    },
+    balanceCarouselContent: {
+        paddingHorizontal: theme.spacing.screenGutter,
     },
     balanceCard: {
         backgroundColor: theme.colors.surface,
@@ -547,6 +574,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         padding: theme.spacing.md,
         marginRight: theme.spacing.md,
         width: 160,
+        ...theme.shadows.sm,
     },
     balanceType: {
         fontSize: 12,
@@ -568,6 +596,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         backgroundColor: theme.colors.surfaceSubtle,
         borderRadius: theme.borderRadius.md,
         padding: 4,
+        marginHorizontal: theme.spacing.screenGutter,
         marginBottom: theme.spacing.lg,
     },
     tabBtn: {
@@ -615,7 +644,11 @@ const stylesheet = StyleSheet.create((theme) => ({
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg,
         padding: theme.spacing.md,
+        marginHorizontal: theme.spacing.screenGutter,
         marginBottom: theme.spacing.md,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        ...theme.shadows.sm,
     },
     cardHeader: {
         flexDirection: 'row',

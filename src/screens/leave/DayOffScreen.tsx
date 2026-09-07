@@ -866,9 +866,9 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
 const styles = StyleSheet.create({
     tabBar: {
         flexDirection: 'row',
-        borderRadius: 14,
+        borderRadius: 12,
         borderWidth: 1,
-        marginBottom: 14,
+        marginBottom: 12,
         overflow: 'hidden',
     },
     tabBtn: {
@@ -897,16 +897,16 @@ const styles = StyleSheet.create({
         fontWeight: '800',
     },
     scheduleCard: {
-        borderRadius: 18,
+        borderRadius: 16,
         borderWidth: 1,
         padding: 16,
-        marginBottom: 14,
+        marginBottom: 12,
     },
     scheduleHeader: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
-        marginBottom: 14,
+        marginBottom: 12,
     },
     scheduleIconWrapper: {
         width: 40,
@@ -987,7 +987,7 @@ const styles = StyleSheet.create({
         marginVertical: 4,
     },
     formCard: {
-        borderRadius: 18,
+        borderRadius: 16,
         borderWidth: 1,
         padding: 16,
         marginBottom: 16,
@@ -996,7 +996,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 10,
-        marginBottom: 14,
+        marginBottom: 12,
     },
     formIconWrapper: {
         width: 36,

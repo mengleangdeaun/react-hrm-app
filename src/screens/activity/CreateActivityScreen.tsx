@@ -4,16 +4,17 @@ import {
     TextInput,
     TouchableOpacity,
     Alert,
-    Image,
     ScrollView,
     ActivityIndicator,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import * as Location from 'expo-location';
 import { activityApi, OFFICIAL_ACTIVITY_TYPES } from '../../api/activity';
+import { optimizeImagesBatch, cleanupTempImages } from '../../utils/imageOptimizer';
 import { useAppTheme } from '../../context/ThemeContext';
 import { AppShell } from '../../components/common/AppShell';
 import { HeaderIconButton } from '../../components/common/AppHeader';
@@ -68,6 +69,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
     const [location, setLocation] = useState<{ lat?: number; lng?: number; address?: string } | null>(null);
     const [isLocating, setIsLocating] = useState<boolean>(false);
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+    const [submittingStatus, setSubmittingStatus] = useState<string>('');
 
     useEffect(() => {
         captureGpsLocation();
@@ -166,17 +168,36 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
         }
 
         setIsSubmitting(true);
+        setSubmittingStatus(t('optimizing_photos', 'Optimizing photos...'));
+        let optimizedToCleanup: string[] = [];
+
         try {
+            // 1. Client-side native GPU downscaling & compression
+            const optimized = await optimizeImagesBatch(
+                attachments,
+                (curr, total) => {
+                    setSubmittingStatus(
+                        t('optimizing_photo_count', `Optimizing photo ${curr} of ${total}...`)
+                    );
+                }
+            );
+            optimizedToCleanup = optimized.map((o) => o.uri);
+
+            // 2. Submit optimized payload
+            setSubmittingStatus(t('uploading_activity', 'Uploading activity report...'));
             await activityApi.submitActivity({
                 activity_type: selectedCategory,
                 comment,
                 latitude: location?.lat,
                 longitude: location?.lng,
                 location_name: location?.address,
-                attachments,
+                attachments: optimized,
             });
 
             await queryClient.invalidateQueries({ queryKey: ['activities'] });
+
+            // 3. Purge temp cache files
+            cleanupTempImages(optimizedToCleanup).catch(() => {});
 
             if (Platform.OS === 'web') {
                 window.alert(t('activity_submitted_msg', 'Activity Submitted: Your work log entry has been submitted.'));
@@ -190,6 +211,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
             Alert.alert(t('submission_error', 'Submission Error'), error?.message || t('fail_submit_activity', 'Failed to submit activity report.'));
         } finally {
             setIsSubmitting(false);
+            setSubmittingStatus('');
         }
     };
 
@@ -365,7 +387,12 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                             activeOpacity={0.85}
                         >
                             {isSubmitting ? (
-                                <ActivityIndicator color="#FFFFFF" />
+                                <View style={styles.submittingStatusRow}>
+                                    <ActivityIndicator color="#FFFFFF" size="small" />
+                                    <Text style={styles.submittingStatusText} numberOfLines={1}>
+                                        {submittingStatus || t('submitting', 'Submitting...')}
+                                    </Text>
+                                </View>
                             ) : (
                                 <Text style={styles.submitBtnText}>{t('submit_activity', 'Submit Activity')}</Text>
                             )}
@@ -575,7 +602,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         height: 100,
         textAlignVertical: 'top',
         paddingTop: theme.spacing.md,
-        marginBottom: theme.spacing.lg,
+        marginBottom: theme.spacing.md,
     },
     btnRow: {
         flexDirection: 'row',
@@ -644,7 +671,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         flexDirection: 'row',
         flexWrap: 'wrap',
         justifyContent: 'space-between',
-        marginBottom: theme.spacing.sm,
+        marginBottom: 0,
     },
     gridCardTile: {
         width: '48%',
@@ -698,5 +725,16 @@ const stylesheet = StyleSheet.create((theme) => ({
         backgroundColor: theme.colors.primary,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    submittingStatusRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    submittingStatusText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700',
     },
 }));

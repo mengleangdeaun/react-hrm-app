@@ -9,11 +9,14 @@ import {
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useQuery } from '@tanstack/react-query';
+import { useFocusEffect } from '@react-navigation/native';
 import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { AppShell } from '../../components/common/AppShell';
 import { HeaderIconButton } from '../../components/common/AppHeader';
 import { DashboardSkeleton } from '../../components/common/Skeletons';
+import { DigitalClock } from '../../components/dashboard/DigitalClock';
+import { useAttendanceGuard } from '../../hooks/useAttendanceGuard';
 import { useAuth } from '../../context/AuthContext';
 import { useAppTheme } from '../../context/ThemeContext';
 import { apiClient } from '../../api/client';
@@ -29,17 +32,17 @@ import {
     Clock,
     ChevronRight,
     CheckCircle2,
-    XCircle,
     Sun,
     Moon,
     History,
     Settings,
-    Sparkles,
     AlertTriangle,
     X,
+    Check,
+    Coffee,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import { format, formatDateDisplay, formatTimeDisplay } from '../../utils/dateTime';
+import { format, formatDateDisplay, formatTimeDisplay, parseDateOnly } from '../../utils/dateTime';
 import { getDismissedBannerIds, dismissBannerId } from '../../utils/storage';
 
 import { useTranslation } from '../../context/LanguageContext';
@@ -51,14 +54,18 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     const { theme } = useUnistyles();
     const styles = stylesheet;
 
-    const [currentTime, setCurrentTime] = useState(new Date());
     const [dismissedBannerIds, setDismissedBannerIds] = useState<string[]>([]);
     const [avatarLoadError, setAvatarLoadError] = useState(false);
 
+    // Attendance guard for phase awareness and proactive UI hints
+    const {
+        proactiveStatus,
+        shiftPhase,
+        isSplitShift,
+    } = useAttendanceGuard();
+
     useEffect(() => {
         loadDismissedBanners();
-        const timer = setInterval(() => setCurrentTime(new Date()), 30000);
-        return () => clearInterval(timer);
     }, []);
 
     const loadDismissedBanners = async () => {
@@ -78,28 +85,108 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             const response = await apiClient.get('/employee-app/bootstrap');
             return response.data;
         },
-        staleTime: 1000 * 60 * 5, // 5 minutes fresh
+        staleTime: 1000 * 60 * 5, // 5 minutes
         gcTime: 1000 * 60 * 60 * 24 * 7, // 7 days offline retention
     });
 
-    const employeeInfo = bootstrapData?.employee || null;
-    const attendance = bootstrapData?.today_attendance || bootstrapData?.todayShiftMerged?.attendance_today || null;
-    const shiftData = bootstrapData?.today_shift || bootstrapData?.todayShiftMerged?.shift || null;
-    const daysPresent = typeof bootstrapData?.days_present_this_week === 'number' ? bootstrapData.days_present_this_week : 0;
-    const announcements = Array.isArray(bootstrapData?.announcements) ? bootstrapData.announcements : [];
-    const celebration = bootstrapData?.today_celebration || bootstrapData?.today_celebrations || null;
-    const unreadNotifications = typeof bootstrapData?.unread_notifications_count === 'number' ? bootstrapData.unread_notifications_count : 0;
+    // ── Resilient Data Extraction from Bootstrap Object ──────────────────────
+    const dashboard = bootstrapData?.dashboard || bootstrapData || {};
+    const employeeInfo = dashboard?.employee || bootstrapData?.employee || null;
+    const todayShiftMerged = dashboard?.today_shift || bootstrapData?.today_shift || bootstrapData?.todayShiftMerged || null;
+    const attendanceToday = todayShiftMerged?.attendance_today || dashboard?.today_attendance || bootstrapData?.today_attendance || null;
+    const shiftData = todayShiftMerged?.shift || dashboard?.shift || bootstrapData?.today_shift || null;
+    const announcements = Array.isArray(dashboard?.announcements)
+        ? dashboard.announcements
+        : Array.isArray(bootstrapData?.announcements)
+        ? bootstrapData.announcements
+        : [];
+    const celebration = dashboard?.celebration || bootstrapData?.today_celebration || bootstrapData?.today_celebrations || null;
+    const unreadNotifications = typeof (bootstrapData?.notifications?.unread_count ?? bootstrapData?.unread_notifications_count) === 'number'
+        ? (bootstrapData?.notifications?.unread_count ?? bootstrapData?.unread_notifications_count)
+        : 0;
 
-    const isClockedIn = !!(attendance?.clock_in || attendance?.in1) && !(attendance?.clock_out || attendance?.out1);
-    const clockInTime = (attendance?.clock_in || attendance?.in1) ? formatTimeDisplay(attendance.clock_in || attendance.in1) : null;
-    const clockOutTime = (attendance?.clock_out || attendance?.out1) ? formatTimeDisplay(attendance.clock_out || attendance.out1) : null;
+    // ── 4 Scan Sessions for Split Shifts (In1, Out1, In2, Out2) ─────────────
+    const in1 = attendanceToday?.in1 || dashboard?.clock_in_time || attendanceToday?.clock_in || null;
+    const out1 = attendanceToday?.out1 || dashboard?.session_1_out_time || null;
+    const in2 = attendanceToday?.in2 || dashboard?.session_2_in_time || null;
+    const out2 = attendanceToday?.out2 || dashboard?.clock_out_time || attendanceToday?.clock_out || null;
+
+    const todayDateStr = todayShiftMerged?.server_time
+        ? String(todayShiftMerged.server_time).trim().substring(0, 10)
+        : null;
+    const todayDisplayDate = todayDateStr ? parseDateOnly(todayDateStr) : new Date();
+
+    // Navigate to scanner — ScanAttendanceScreen owns all guard/reason logic
+    const handleScanPress = () => {
+        navigation.navigate('ScanTab');
+    };
+
+    // Timeline Nodes (2 for regular shift, 4 for split shift)
+    const timelineNodes = useMemo(() => {
+        if (isSplitShift) {
+            return [
+                {
+                    key: 'in1',
+                    label: t('in', 'In'),
+                    time: in1 ? formatTimeDisplay(in1) : null,
+                    active: !!in1,
+                    isCurrent: shiftPhase === 'ready',
+                },
+                {
+                    key: 'out1',
+                    label: t('lunch', 'Lunch'),
+                    time: out1 ? formatTimeDisplay(out1) : null,
+                    active: !!out1,
+                    isCurrent: shiftPhase === 'session1',
+                },
+                {
+                    key: 'in2',
+                    label: t('back_in', 'Back'),
+                    time: in2 ? formatTimeDisplay(in2) : null,
+                    active: !!in2,
+                    isCurrent: shiftPhase === 'break',
+                },
+                {
+                    key: 'out2',
+                    label: t('out', 'Out'),
+                    time: out2 ? formatTimeDisplay(out2) : null,
+                    active: !!out2,
+                    isCurrent: shiftPhase === 'session2',
+                },
+            ];
+        }
+
+        return [
+            {
+                key: 'in1',
+                label: t('clock_in', 'Clock In'),
+                time: in1 ? formatTimeDisplay(in1) : null,
+                active: !!in1,
+                isCurrent: shiftPhase === 'ready',
+            },
+            {
+                key: 'out2',
+                label: t('clock_out', 'Clock Out'),
+                time: (out2 || out1) ? formatTimeDisplay(out2 || out1) : null,
+                active: !!(out2 || out1),
+                isCurrent: shiftPhase === 'session1',
+            },
+        ];
+    }, [isSplitShift, in1, out1, in2, out2, shiftPhase, t]);
+
+    // Screen Focus Auto-Refresh: Guarantees immediate update after scanning
+    useFocusEffect(
+        useCallback(() => {
+            refetch();
+        }, [refetch])
+    );
 
     const onRefresh = useCallback(() => {
         refetch();
     }, [refetch]);
 
     const getGreeting = () => {
-        const hour = currentTime.getHours();
+        const hour = new Date().getHours();
         if (hour < 12) return t('good_morning', 'Good Morning');
         if (hour < 18) return t('good_afternoon', 'Good Afternoon');
         return t('good_evening', 'Good Evening');
@@ -127,10 +214,6 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         : null;
     const showAvatarImage = !!avatarUrl && !avatarLoadError;
 
-    const shiftName = shiftData?.name || 'Standard Shift';
-    const shiftSchedule = shiftData?.start_time && shiftData?.end_time
-        ? `${shiftData.start_time.substring(0, 5)} - ${shiftData.end_time.substring(0, 5)}`
-        : '08:00 - 17:00';
 
     // ── Dynamic Quick Actions with 100% PWA parity ────────────────────────────
     const quickActions = [
@@ -203,41 +286,47 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         });
     }
 
+    const bannerSubHeader = topBannerAnnouncement ? (
+        <View style={styles.topBanner}>
+            <View style={styles.topBannerLeft}>
+                <AlertTriangle color="#FFFFFF" size={16} />
+                <Text style={styles.topBannerTitle} numberOfLines={1}>
+                    {topBannerAnnouncement.title || topBannerAnnouncement.pwa_title}
+                </Text>
+            </View>
+            <View style={styles.topBannerRightGroup}>
+                <TouchableOpacity
+                    onPress={() => navigation.navigate('AnnouncementDetail', { id: topBannerAnnouncement.id })}
+                    style={styles.topBannerBtn}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="View announcement"
+                >
+                    <Text style={styles.topBannerBtnText}>{t('view', 'View')}</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                    onPress={() => handleDismissTopBanner(topBannerAnnouncement)}
+                    style={styles.topBannerCloseBtn}
+                    activeOpacity={0.7}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityRole="button"
+                    accessibilityLabel="Dismiss announcement banner permanently"
+                >
+                    <X color="#FFFFFF" size={14} />
+                </TouchableOpacity>
+            </View>
+        </View>
+    ) : undefined;
+
     return (
-        <AppShell showHeader={false} refreshing={isFetching && !isLoading} onRefresh={onRefresh}>
-            {topBannerAnnouncement && (
-                <View style={styles.topBanner}>
-                    <View style={styles.topBannerLeft}>
-                        <AlertTriangle color="#FFFFFF" size={16} />
-                        <Text style={styles.topBannerTitle} numberOfLines={1}>
-                            {topBannerAnnouncement.title || topBannerAnnouncement.pwa_title}
-                        </Text>
-                    </View>
-                    <View style={styles.topBannerRightGroup}>
-                        <TouchableOpacity
-                            onPress={() => navigation.navigate('AnnouncementDetail', { id: topBannerAnnouncement.id })}
-                            style={styles.topBannerBtn}
-                            activeOpacity={0.8}
-                            accessibilityRole="button"
-                            accessibilityLabel="View announcement"
-                        >
-                            <Text style={styles.topBannerBtnText}>{t('view', 'View')}</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            onPress={() => handleDismissTopBanner(topBannerAnnouncement)}
-                            style={styles.topBannerCloseBtn}
-                            activeOpacity={0.7}
-                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                            accessibilityRole="button"
-                            accessibilityLabel="Dismiss announcement banner permanently"
-                        >
-                            <X color="#FFFFFF" size={14} />
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            )}
-
+        <AppShell
+            showHeader={false}
+            subHeader={bannerSubHeader}
+            hasTabBar={true}
+            refreshing={isFetching && !isLoading}
+            onRefresh={onRefresh}
+        >
             {isLoading ? (
                 <DashboardSkeleton />
             ) : (
@@ -289,86 +378,128 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
                 {/* Digital Clock & Geofenced Attendance Status Card */}
                 <View style={styles.clockCard}>
+                    <DigitalClock style={styles.digitalClockText} />
+
+                    {/* Date sits as a centered subtitle below the hero clock */}
                     <View style={styles.clockHeader}>
-                        <View style={styles.rowCentered}>
-                            <Clock color={theme.colors.primary} size={16} />
-                            <Text style={styles.dateText}>
-                                {formatDateDisplay(new Date(), 'full')}
-                            </Text>
-                        </View>
+                        <Clock color={theme.colors.primary} size={14} />
+                        <Text style={styles.dateText}>
+                            {formatDateDisplay(todayDisplayDate, 'full')}
+                        </Text>
+                    </View>
+
+                    {/* Timeline Nodes (2 for regular shift, 4 for split shift) */}
+                    <View style={styles.timelineContainer}>
+                        {/* Connecting Track Line */}
                         <View
                             style={[
-                                styles.statusBadge,
-                                isClockedIn
-                                    ? styles.statusBadgeClockedIn
-                                    : clockOutTime
-                                    ? styles.statusBadgeClockedOut
-                                    : styles.statusBadgeNotClockedIn,
+                                styles.timelineTrackBackground,
+                                isSplitShift ? styles.timelineTrackSplit : styles.timelineTrackContinuous,
                             ]}
-                        >
-                            {isClockedIn ? (
-                                <CheckCircle2 color={theme.colors.status.success} size={13} />
-                            ) : (
-                                <XCircle color={clockOutTime ? theme.colors.primary : theme.colors.status.danger} size={13} />
-                            )}
-                            <Text
-                                style={[
-                                    styles.statusBadgeText,
-                                    {
-                                        color: isClockedIn
-                                            ? theme.colors.status.success
-                                            : clockOutTime
-                                            ? theme.colors.primary
-                                            : theme.colors.status.danger,
-                                    },
-                                ]}
-                            >
-                                {isClockedIn ? t('clocked_in_badge', 'CLOCKED IN') : clockOutTime ? t('clocked_out_badge', 'CLOCKED OUT') : t('not_clocked_in_badge', 'NOT CLOCKED IN')}
-                            </Text>
-                        </View>
-                    </View>
+                        />
+                        <View
+                            style={[
+                                styles.timelineTrackActive,
+                                isSplitShift ? styles.timelineTrackSplit : styles.timelineTrackContinuous,
+                                {
+                                    width: isSplitShift
+                                        ? out2
+                                            ? '75%'
+                                            : in2
+                                            ? '50%'
+                                            : out1
+                                            ? '25%'
+                                            : '0%'
+                                        : (out2 || out1)
+                                        ? '50%'
+                                        : '0%',
+                                },
+                            ]}
+                        />
 
-                    <Text style={styles.digitalClockText}>
-                        {format(currentTime, 'hh:mm a')}
-                    </Text>
-
-                    {/* Attendance Info Details */}
-                    <View style={styles.attendanceDetailsRow}>
-                        <View>
-                            <Text style={styles.detailLabel}>{t('clock_in', 'Clock In')}</Text>
-                            <Text style={styles.detailValue}>
-                                {clockInTime || '--:--'}
-                            </Text>
-                        </View>
-
-                        <View style={styles.itemsCenter}>
-                            <Text style={styles.detailLabel}>{t('clock_out', 'Clock Out')}</Text>
-                            <Text style={styles.detailValue}>
-                                {clockOutTime || '--:--'}
-                            </Text>
-                        </View>
-
-                        {daysPresent > 0 && (
-                            <View style={styles.itemsEnd}>
-                                <Text style={styles.detailLabel}>{t('this_week', 'This Week')}</Text>
-                                <View style={styles.rowCentered}>
-                                    <Sparkles color={theme.colors.status.success} size={12} />
-                                    <Text style={styles.daysPresentText}>
-                                        {daysPresent} {t('days', 'Days')}
+                        {/* Nodes Row */}
+                        <View style={styles.timelineNodesRow}>
+                            {timelineNodes.map((node) => (
+                                <View key={node.key} style={styles.timelineNodeCol}>
+                                    <View
+                                        style={[
+                                            styles.nodeCircle,
+                                            node.active && styles.nodeCircleActive,
+                                            node.isCurrent && styles.nodeCircleCurrent,
+                                        ]}
+                                    >
+                                        {node.active ? (
+                                            <Check color="#FFFFFF" size={13} strokeWidth={3} />
+                                        ) : (
+                                            <View
+                                                style={[
+                                                    styles.nodeDot,
+                                                    node.isCurrent && styles.nodeDotCurrent,
+                                                ]}
+                                            />
+                                        )}
+                                    </View>
+                                    <Text
+                                        style={[
+                                            styles.nodeLabel,
+                                            node.active && styles.nodeLabelActive,
+                                            node.isCurrent && styles.nodeLabelCurrent,
+                                        ]}
+                                    >
+                                        {node.label}
+                                    </Text>
+                                    <Text
+                                        style={[
+                                            styles.nodeTime,
+                                            node.active && styles.nodeTimeActive,
+                                        ]}
+                                    >
+                                        {node.time || '--:--'}
                                     </Text>
                                 </View>
-                            </View>
-                        )}
+                            ))}
+                        </View>
                     </View>
 
+                    {/* Proactive Guard Notice if Late Arrival or Early Departure Detected */}
+                    {proactiveStatus?.require_reason && shiftPhase !== 'done' && (
+                        <View style={styles.proactiveWarningBox}>
+                            <AlertTriangle color="#D97706" size={14} />
+                            <Text style={styles.proactiveWarningText}>
+                                {proactiveStatus.type === 'late'
+                                    ? `${t('late_warning', 'Late arrival')} (~${proactiveStatus.minutes}m). ${t('reason_required_prior_scan', 'Reason required before scanning.')}`
+                                    : `${t('early_warning', 'Early departure')} (~${proactiveStatus.minutes}m). ${t('reason_required_prior_scan', 'Reason required before scanning.')}`}
+                            </Text>
+                        </View>
+                    )}
+
+                    {/* Contextual Smart Action Button */}
                     <TouchableOpacity
-                        style={styles.clockButton}
-                        onPress={() => navigation.navigate('ScanTab')}
+                        style={[
+                            styles.clockButton,
+                            shiftPhase === 'done' && styles.clockButtonDone,
+                            shiftPhase === 'break' && styles.clockButtonBreak,
+                        ]}
+                        onPress={handleScanPress}
                         activeOpacity={0.85}
                     >
-                        <QrCode color="#FFFFFF" size={20} />
+                        {shiftPhase === 'ready' && <QrCode color="#FFFFFF" size={20} />}
+                        {shiftPhase === 'session1' && (isSplitShift ? <Coffee color="#FFFFFF" size={20} /> : <Moon color="#FFFFFF" size={20} />)}
+                        {shiftPhase === 'break' && <Sun color="#FFFFFF" size={20} />}
+                        {shiftPhase === 'session2' && <Moon color="#FFFFFF" size={20} />}
+                        {shiftPhase === 'done' && <CheckCircle2 color="#FFFFFF" size={20} />}
                         <Text style={styles.clockButtonText}>
-                            {isClockedIn ? t('scan_clock_out', 'Scan Clock Out') : t('scan_clock_in_now', 'Scan Clock In Now')}
+                            {shiftPhase === 'ready'
+                                ? t('scan_clock_in_now', 'Scan Clock In Now')
+                                : shiftPhase === 'session1'
+                                ? isSplitShift
+                                    ? t('scan_lunch_out', 'Scan Lunch Out')
+                                    : t('scan_clock_out', 'Scan Clock Out')
+                                : shiftPhase === 'break'
+                                ? t('scan_afternoon_in', 'Scan Afternoon In')
+                                : shiftPhase === 'session2'
+                                ? t('scan_clock_out', 'Scan Clock Out')
+                                : t('shift_completed', 'Shift Completed')}
                         </Text>
                     </TouchableOpacity>
                 </View>
@@ -450,6 +581,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 )}
                 </>
             )}
+
         </AppShell>
     );
 };
@@ -607,13 +739,14 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: theme.borderRadius.lg + 4,
         padding: theme.spacing.lg,
         marginBottom: theme.spacing.lg,
-        ...theme.shadows.sm,
+        ...theme.shadows.xs,
     },
     clockHeader: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: theme.spacing.xs,
+        justifyContent: 'center',
+        gap: 5,
+        marginBottom: theme.spacing.md,
     },
     rowCentered: {
         flexDirection: 'row',
@@ -623,34 +756,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontSize: 12,
         fontWeight: '600',
         color: theme.colors.textSecondary,
-        marginLeft: theme.spacing.xs + 2,
-    },
-    statusBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: theme.spacing.sm + 2,
-        paddingVertical: theme.spacing.xs,
-        borderRadius: theme.borderRadius.full,
-    },
-    statusBadgeClockedIn: {
-        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-        borderWidth: 1,
-        borderColor: 'rgba(16, 185, 129, 0.2)',
-    },
-    statusBadgeClockedOut: {
-        backgroundColor: 'rgba(37, 99, 235, 0.1)',
-        borderWidth: 1,
-        borderColor: 'rgba(37, 99, 235, 0.2)',
-    },
-    statusBadgeNotClockedIn: {
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-        borderWidth: 1,
-        borderColor: 'rgba(239, 68, 68, 0.2)',
-    },
-    statusBadgeText: {
-        fontSize: 12,
-        fontWeight: '700',
-        marginLeft: theme.spacing.xs,
     },
     digitalClockText: {
         fontSize: 28,
@@ -658,40 +763,110 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textPrimary,
         letterSpacing: 1,
         marginVertical: theme.spacing.xs,
+        textAlign: 'center',
+        alignSelf: 'center',
     },
-    attendanceDetailsRow: {
+    timelineContainer: {
+        width: '100%',
+        marginVertical: theme.spacing.md,
+        paddingTop: theme.spacing.xs,
+        paddingBottom: theme.spacing.xs,
+        position: 'relative',
+        justifyContent: 'center',
+    },
+    timelineTrackBackground: {
+        position: 'absolute',
+        top: 18,
+        height: 2,
+        backgroundColor: theme.colors.border,
+        zIndex: 1,
+    },
+    timelineTrackActive: {
+        position: 'absolute',
+        top: 18,
+        height: 2,
+        backgroundColor: theme.colors.status.success,
+        zIndex: 2,
+    },
+    timelineTrackSplit: {
+        left: '12.5%',
+        right: '12.5%',
+    },
+    timelineTrackContinuous: {
+        left: '25%',
+        right: '25%',
+    },
+    timelineNodesRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'center',
-        marginVertical: theme.spacing.sm,
-        paddingTop: theme.spacing.sm + 2,
-        borderTopWidth: 1,
-        borderTopColor: theme.colors.border,
+        alignItems: 'flex-start',
+        zIndex: 3,
     },
-    detailLabel: {
-        fontSize: 11,
+    timelineNodeCol: {
+        flex: 1,
+        alignItems: 'center',
+    },
+    nodeCircle: {
+        width: 26,
+        height: 26,
+        borderRadius: 13,
+        backgroundColor: theme.colors.surface,
+        borderWidth: 2,
+        borderColor: theme.colors.border,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 6,
+    },
+    nodeCircleActive: {
+        backgroundColor: theme.colors.status.success,
+        borderColor: theme.colors.status.success,
+        ...theme.shadows.xs,
+    },
+    nodeCircleCurrent: {
+        borderColor: theme.colors.primary,
+        backgroundColor: theme.colors.surfaceSubtle,
+        borderWidth: 2,
+    },
+    nodeDot: {
+        width: 6,
+        height: 6,
+        borderRadius: 3,
+        backgroundColor: theme.colors.textSecondary,
+        opacity: 0.35,
+    },
+    nodeDotCurrent: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: theme.colors.primary,
+        opacity: 1,
+    },
+    nodeLabel: {
+        fontSize: 10,
+        fontWeight: '800',
         color: theme.colors.textSecondary,
-        fontWeight: '700',
         textTransform: 'uppercase',
         letterSpacing: 0.5,
+        marginBottom: 2,
+        textAlign: 'center',
     },
-    detailValue: {
-        fontSize: 14,
-        fontWeight: '700',
+    nodeLabelActive: {
         color: theme.colors.textPrimary,
-        marginTop: 2,
+        fontWeight: '900',
     },
-    itemsCenter: {
-        alignItems: 'center',
+    nodeLabelCurrent: {
+        color: theme.colors.primary,
+        fontWeight: '900',
     },
-    itemsEnd: {
-        alignItems: 'flex-end',
+    nodeTime: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: theme.colors.textSecondary,
+        textAlign: 'center',
     },
-    daysPresentText: {
-        fontSize: 12,
+    nodeTimeActive: {
+        color: theme.colors.primary,
         fontWeight: '700',
-        color: theme.colors.status.success,
-        marginLeft: theme.spacing.xs,
     },
     clockButton: {
         backgroundColor: theme.colors.primary,
@@ -702,6 +877,30 @@ const stylesheet = StyleSheet.create((theme) => ({
         justifyContent: 'center',
         alignItems: 'center',
         marginTop: theme.spacing.xs,
+    },
+    clockButtonBreak: {
+        backgroundColor: '#F59E0B',
+    },
+    clockButtonDone: {
+        backgroundColor: theme.colors.status.success,
+    },
+    proactiveWarningBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(245, 158, 11, 0.12)',
+        borderWidth: 1,
+        borderColor: 'rgba(245, 158, 11, 0.3)',
+        borderRadius: theme.borderRadius.sm,
+        paddingHorizontal: theme.spacing.sm,
+        paddingVertical: 6,
+        marginBottom: theme.spacing.xs + 2,
+    },
+    proactiveWarningText: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: '#D97706',
+        marginLeft: 6,
+        flex: 1,
     },
     clockButtonText: {
         color: '#FFFFFF',
@@ -719,7 +918,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         flexDirection: 'row',
         flexWrap: 'wrap',
         justifyContent: 'space-between',
-        marginBottom: theme.spacing.lg,
+        marginBottom: theme.spacing.sm,
     },
     gridTile: {
         width: '48%',

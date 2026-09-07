@@ -10,43 +10,39 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.sccg.app",
       "infoPlist": {
+        "NSCameraUsageDescription": "Allow SCCG App to use your camera to scan attendance QR codes and capture activity photos.",
         "NSPhotoLibraryUsageDescription": "Allow SCCG App to access your photo library to attach or save activity photos.",
-        "NSPhotoLibraryAddUsageDescription": "Allow SCCG App to save activity photos directly to your photo library."
+        "NSPhotoLibraryAddUsageDescription": "Allow SCCG App to save activity photos directly to your photo library.",
+        "NSLocationWhenInUseUsageDescription": "Allow SCCG App to verify your location for geofenced attendance check-ins and activity logs."
       }
     },
     "android": {
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.sccg.app",
       "versionCode": 1,
+      "allowBackup": false,
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO",
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.READ_MEDIA_AUDIO",
+        "android.permission.READ_MEDIA_VIDEO"
+      ],
       "permissions": [
         "CAMERA",
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE",
-        "READ_MEDIA_IMAGES",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "android.permission.READ_EXTERNAL_STORAGE",
-        "android.permission.WRITE_EXTERNAL_STORAGE",
-        "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
-        "android.permission.ACCESS_MEDIA_LOCATION",
-        "android.permission.READ_MEDIA_IMAGES",
-        "android.permission.READ_MEDIA_VIDEO",
-        "android.permission.READ_MEDIA_AUDIO"
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "VIBRATE"
       ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    },
-    "splash": {
-      "image": "./assets/splash-icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#FFFFFF"
     },
     "plugins": [
       "expo-secure-store",

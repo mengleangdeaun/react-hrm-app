@@ -302,7 +302,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         flexGrow: 1,
         paddingHorizontal: theme.spacing.md + 4,
         paddingTop: theme.spacing.md,
-        paddingBottom: theme.spacing.xl + 40,
+        paddingBottom: theme.spacing.lg,
     },
     emptyCard: {
         backgroundColor: theme.colors.surface,

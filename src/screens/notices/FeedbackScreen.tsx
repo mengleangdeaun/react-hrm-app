@@ -15,6 +15,7 @@ import { AppInput } from '../../components/common/AppInput';
 import { AppButton } from '../../components/common/AppButton';
 
 import { useTranslation } from '../../context/LanguageContext';
+import { profileApi } from '../../api/profile';
 
 export const FeedbackScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark } = useAppTheme();
@@ -26,21 +27,32 @@ export const FeedbackScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     const [isAnonymous, setIsAnonymous] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!subject.trim() || !message.trim()) {
             Alert.alert(t('required', 'Required'), t('enter_subject_and_feedback', 'Please enter a subject and your feedback details.'));
             return;
         }
 
         setIsSubmitting(true);
-        setTimeout(() => {
-            setIsSubmitting(false);
+        try {
+            await profileApi.submitFeedback({
+                message: `[${subject.trim()}] ${message.trim()}`,
+                comment: message.trim(),
+                category: isAnonymous ? 'anonymous_suggestion' : 'suggestion',
+            });
             Alert.alert(
                 t('feedback_submitted', 'Feedback Submitted! 🙏'),
                 t('feedback_submitted_desc', 'Thank you for your valuable feedback. HR management will review it shortly.'),
                 [{ text: t('ok', 'OK'), onPress: () => navigation.goBack() }]
             );
-        }, 600);
+        } catch (err: any) {
+            Alert.alert(
+                t('error', 'Error'),
+                err?.response?.data?.message || err?.message || t('submit_feedback_failed', 'Failed to submit feedback. Please try again.')
+            );
+        } finally {
+            setIsSubmitting(false);
+        }
     };
 
     return (

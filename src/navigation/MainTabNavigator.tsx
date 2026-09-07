@@ -12,10 +12,15 @@ import {
     QrCode,
     Bell,
     User,
+    Coffee,
+    Moon,
+    Sun,
+    CheckCircle2,
 } from 'lucide-react-native';
 
 import { useAppTheme } from '../context/ThemeContext';
 import { lightTheme, darkTheme } from '../styles/theme';
+import { useAttendanceGuard } from '../hooks/useAttendanceGuard';
 
 // Screens
 import { DashboardScreen } from '../screens/dashboard/DashboardScreen';
@@ -138,6 +143,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
     const insets = useSafeAreaInsets();
     const { isDark } = useAppTheme();
     const { t } = useTranslation();
+    const { shiftPhase, isSplitShift } = useAttendanceGuard();
     const theme = isDark ? darkTheme : lightTheme;
 
     const backgroundColor = theme.colors.surface;
@@ -207,8 +213,30 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                     });
                 };
 
-                // Elevated Hero Button for Center Scan Tab
+                // Elevated Hero Button for Center Scan Tab - in sync with Dashboard attendance status
                 if (config.isHero) {
+                    let HeroIcon = IconComponent;
+                    let dynamicHeroLabel = tabLabel;
+                    let heroColor: string = activeColor;
+
+                    if (shiftPhase === 'session1') {
+                        HeroIcon = isSplitShift ? Coffee : Moon;
+                        dynamicHeroLabel = isSplitShift ? t('lunch', 'Lunch') : t('clock_out', 'Out');
+                        heroColor = activeColor;
+                    } else if (shiftPhase === 'break') {
+                        HeroIcon = Sun;
+                        dynamicHeroLabel = t('back_in', 'Back');
+                        heroColor = '#F59E0B';
+                    } else if (shiftPhase === 'session2') {
+                        HeroIcon = Moon;
+                        dynamicHeroLabel = t('clock_out', 'Out');
+                        heroColor = activeColor;
+                    } else if (shiftPhase === 'done') {
+                        HeroIcon = CheckCircle2;
+                        dynamicHeroLabel = t('completed', 'Done');
+                        heroColor = '#10B981';
+                    }
+
                     return (
                         <TouchableOpacity
                             key={route.key}
@@ -223,22 +251,22 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                                 style={[
                                     styles.heroIconCircle,
                                     {
-                                        backgroundColor: activeColor,
-                                        shadowColor: activeColor,
+                                        backgroundColor: heroColor,
+                                        shadowColor: heroColor,
                                     },
                                 ]}
                             >
-                                <IconComponent color="#FFFFFF" size={22} strokeWidth={2.4} />
+                                <HeroIcon color="#FFFFFF" size={22} strokeWidth={2.4} />
                             </View>
                             <Text
                                 variant="nav"
                                 weight="bold"
                                 style={[
                                     styles.heroTabLabel,
-                                    { color: isFocused ? activeColor : inactiveColor },
+                                    { color: isFocused ? heroColor : inactiveColor },
                                 ]}
                             >
-                                {tabLabel}
+                                {dynamicHeroLabel}
                             </Text>
                         </TouchableOpacity>
                     );

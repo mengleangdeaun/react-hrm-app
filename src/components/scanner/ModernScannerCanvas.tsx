@@ -27,6 +27,7 @@ export interface ModernScannerCanvasProps {
     onUploadPhotoPress?: () => void;
     onBackPress: () => void;
     isScanned: boolean;
+    isActive?: boolean;
     isLoading?: boolean;
     loadingText?: string;
     instructionText?: string;
@@ -41,6 +42,7 @@ export const ModernScannerCanvas: React.FC<ModernScannerCanvasProps> = ({
     onUploadPhotoPress,
     onBackPress,
     isScanned,
+    isActive = true,
     isLoading = false,
     loadingText,
     instructionText,
@@ -109,14 +111,18 @@ export const ModernScannerCanvas: React.FC<ModernScannerCanvasProps> = ({
     return (
         <View style={styles.container} {...panResponder.panHandlers}>
             {/* 1. Live Camera Preview with Native Auto Focus */}
-            <CameraView
-                style={StyleSheet.absoluteFill}
-                enableTorch={torch}
-                autofocus="on"
-                zoom={zoom}
-                barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-                onBarcodeScanned={isScanned ? undefined : onBarcodeScanned}
-            />
+            {isActive ? (
+                <CameraView
+                    style={StyleSheet.absoluteFill}
+                    enableTorch={torch}
+                    autofocus="on"
+                    zoom={zoom}
+                    barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
+                    onBarcodeScanned={isScanned ? undefined : onBarcodeScanned}
+                />
+            ) : (
+                <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000000' }]} />
+            )}
 
             {/* 2. Top Bar / Status Utility Slot */}
             <View style={[styles.topBar, { top: insets.top + (Platform.OS === 'ios' ? 8 : 16) }]}>
