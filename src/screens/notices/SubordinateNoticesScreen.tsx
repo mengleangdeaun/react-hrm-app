@@ -455,7 +455,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     scrollContent: {
         flexGrow: 1,
         paddingHorizontal: theme.spacing.md + 4,
-        paddingBottom: theme.spacing.xl + 40,
+        paddingBottom: theme.spacing.lg,
     },
     subordinateSection: {
         marginBottom: theme.spacing.md,

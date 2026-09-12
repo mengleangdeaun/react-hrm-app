@@ -10,6 +10,7 @@ import {
     ScrollView,
     Image,
     StatusBar,
+    StyleSheet,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUnistyles } from 'react-native-unistyles';
@@ -357,23 +358,23 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     );
 };
 
-const styles = {
+const styles = StyleSheet.create({
     topBar: {
-        flexDirection: 'row' as const,
-        justifyContent: 'space-between' as const,
-        alignItems: 'center' as const,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         paddingHorizontal: 24,
         paddingTop: 8,
         paddingBottom: 8,
     },
     topRight: {
-        flexDirection: 'row' as const,
-        alignItems: 'center' as const,
+        flexDirection: 'row',
+        alignItems: 'center',
         gap: 8,
     },
     utilityButton: {
-        flexDirection: 'row' as const,
-        alignItems: 'center' as const,
+        flexDirection: 'row',
+        alignItems: 'center',
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 20,
@@ -382,30 +383,30 @@ const styles = {
     },
     utilityButtonText: {
         fontSize: 13,
-        fontWeight: '600' as const,
+        fontWeight: '600',
     },
     iconButton: {
         width: 38,
         height: 38,
         borderRadius: 19,
         borderWidth: 1,
-        justifyContent: 'center' as const,
-        alignItems: 'center' as const,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     scrollContent: {
         flexGrow: 1,
         paddingHorizontal: 24,
         paddingTop: 12,
-        paddingBottom: 48,
-        justifyContent: 'center' as const,
+        paddingBottom: 32,
+        justifyContent: 'center',
     },
     brandContainer: {
-        alignItems: 'center' as const,
+        alignItems: 'center',
         marginBottom: 16,
     },
     logoContainer: {
-        alignItems: 'center' as const,
-        justifyContent: 'center' as const,
+        alignItems: 'center',
+        justifyContent: 'center',
         marginBottom: 10,
         ...Platform.select({
             ios: {
@@ -426,19 +427,19 @@ const styles = {
     },
     brandTitle: {
         fontSize: 18,
-        fontWeight: '800' as const,
+        fontWeight: '800',
         letterSpacing: -0.3,
         marginBottom: 4,
     },
     welcomeTitle: {
         fontSize: 23,
-        fontWeight: '800' as const,
-        textAlign: 'center' as const,
+        fontWeight: '800',
+        textAlign: 'center',
         marginBottom: 4,
     },
     welcomeSubtitle: {
         fontSize: 13,
-        textAlign: 'center' as const,
+        textAlign: 'center',
     },
     card: {
         borderRadius: 20,
@@ -449,20 +450,20 @@ const styles = {
             ios: {
                 shadowColor: '#000000',
                 shadowOffset: { width: 0, height: 8 },
-                shadowOpacity: 0.08,
+                shadowOpacity: 0.05,
                 shadowRadius: 16,
             },
             android: {
-                elevation: 3,
+                elevation: 2,
             },
         }),
     },
     inputGroup: {
-        width: '100%' as const,
+        width: '100%',
     },
     inputWrapper: {
-        flexDirection: 'row' as const,
-        alignItems: 'center' as const,
+        flexDirection: 'row',
+        alignItems: 'center',
         borderRadius: 14,
         paddingHorizontal: 14,
         minHeight: 50,
@@ -480,9 +481,9 @@ const styles = {
         padding: 4,
     },
     submitButton: {
-        flexDirection: 'row' as const,
-        alignItems: 'center' as const,
-        justifyContent: 'center' as const,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
         minHeight: 50,
         paddingVertical: 12,
         borderRadius: 14,
@@ -500,8 +501,8 @@ const styles = {
         }),
     },
     submitContent: {
-        flexDirection: 'row' as const,
-        alignItems: 'center' as const,
+        flexDirection: 'row',
+        alignItems: 'center',
         gap: 8,
     },
     submitText: {
@@ -509,15 +510,15 @@ const styles = {
         fontSize: 16,
     },
     quickAccessRow: {
-        flexDirection: 'row' as const,
+        flexDirection: 'row',
         gap: 10,
         marginTop: 4,
     },
     quickActionButton: {
         flex: 1,
-        flexDirection: 'row' as const,
-        alignItems: 'center' as const,
-        justifyContent: 'center' as const,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
         minHeight: 46,
         paddingVertical: 10,
         paddingHorizontal: 12,
@@ -527,6 +528,6 @@ const styles = {
     },
     quickActionText: {
         fontSize: 13,
-        fontWeight: '600' as const,
+        fontWeight: '600',
     },
-};
+});

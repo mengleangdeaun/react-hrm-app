@@ -66,15 +66,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
 
 const styles = StyleSheet.create({
     container: {
-        width: '100%',
+        alignSelf: 'stretch',
         borderRadius: 20,
         borderWidth: 1,
-        paddingVertical: 32,
-        paddingHorizontal: 24,
+        paddingVertical: 24,
+        paddingHorizontal: 20,
         alignItems: 'center',
         justifyContent: 'center',
-        marginTop: 8,
-        marginBottom: 16,
+        marginVertical: 4,
     },
     iconWrapper: {
         width: 64,

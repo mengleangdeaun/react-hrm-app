@@ -24,6 +24,7 @@ export interface AppHeaderProps {
     onBack?: () => void;
     onClose?: () => void;
     rightActions?: HeaderAction[];
+    headerRight?: React.ReactNode;
     style?: any;
     titleAlign?: 'left' | 'center';
     showBorder?: boolean;
@@ -89,6 +90,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
     onBack,
     onClose,
     rightActions = [],
+    headerRight,
     style,
     titleAlign = 'left',
     showBorder = false,
@@ -98,6 +100,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
 
     const hasLeftAction = !!onBack || !!onClose;
     const isCentered = titleAlign === 'center';
+    const hasRightContent = Boolean(headerRight || rightActions.length > 0);
 
     return (
         <View
@@ -139,6 +142,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
                     styles.titleContainer,
                     isCentered && styles.titleCentered,
                     !hasLeftAction && !isCentered && styles.titleNoLeft,
+                    hasRightContent && { marginRight: 8 },
                 ]}
             >
                 <AppText
@@ -163,21 +167,23 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
             </View>
 
             {/* Right Actions Slot */}
-            <View style={styles.rightSlot}>
-                {rightActions.map((action, idx) => (
-                    <HeaderIconButton
-                        key={idx}
-                        icon={action.icon}
-                        onPress={action.onPress}
-                        accessibilityLabel={action.accessibilityLabel}
-                        badge={action.badge}
-                        style={idx > 0 && { marginLeft: 8 }}
-                    />
-                ))}
-                {rightActions.length === 0 && isCentered && hasLeftAction && (
-                    <View style={styles.placeholderBox} />
-                )}
-            </View>
+            {hasRightContent ? (
+                <View style={styles.rightSlot}>
+                    {headerRight}
+                    {rightActions.map((action, idx) => (
+                        <HeaderIconButton
+                            key={idx}
+                            icon={action.icon}
+                            onPress={action.onPress}
+                            accessibilityLabel={action.accessibilityLabel}
+                            badge={action.badge}
+                            style={(idx > 0 || headerRight) ? { marginLeft: 8 } : undefined}
+                        />
+                    ))}
+                </View>
+            ) : isCentered && hasLeftAction ? (
+                <View style={styles.placeholderBox} />
+            ) : null}
         </View>
     );
 };

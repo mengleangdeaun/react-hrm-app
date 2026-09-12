@@ -376,6 +376,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         width: 160,
         borderWidth: 1.5,
         borderColor: theme.colors.border,
+      
     },
     balanceCardSelected: {
         borderColor: theme.colors.primary,
@@ -540,7 +541,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         justifyContent: 'center',
         alignItems: 'center',
         marginTop: theme.spacing.sm,
-        marginBottom: theme.spacing.xl,
+        marginBottom: 0,
         ...theme.shadows.sm,
     },
     submitBtnText: {

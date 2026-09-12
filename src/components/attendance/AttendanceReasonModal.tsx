@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     View,
     TouchableOpacity,
@@ -12,38 +12,28 @@ import { useTranslation } from '../../context/LanguageContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
 import { AppText } from '../AppText';
 import { AppBottomSheet } from '../common/AppBottomSheet';
+import { useAttendanceGuard, ReasonPresetItem } from '../../hooks/useAttendanceGuard';
+
+export type { ReasonPresetItem };
 
 interface AttendanceReasonModalProps {
     visible: boolean;
-    reasonType?: 'late' | 'early_departure' | string;
+    reasonType?: 'late' | 'early_departure' | 'early' | string;
     delayMinutes?: number;
     isLoading?: boolean;
+    submitLabel?: string;
+    presets?: ReasonPresetItem[];
     onProceed: (reason: string) => void;
     onCancel: () => void;
 }
-
-const LATE_PRESETS = [
-    { key: 'preset_heavy_traffic', fallback: 'Heavy Traffic' },
-    { key: 'preset_vehicle_breakdown', fallback: 'Vehicle Breakdown' },
-    { key: 'preset_severe_weather', fallback: 'Severe Weather' },
-    { key: 'preset_personal_emergency', fallback: 'Personal Emergency' },
-    { key: 'preset_public_transport', fallback: 'Public Transport Delay' },
-    { key: 'preset_client_meeting', fallback: 'Client Meeting' },
-];
-
-const EARLY_PRESETS = [
-    { key: 'preset_medical_appointment', fallback: 'Medical Appointment' },
-    { key: 'preset_family_emergency', fallback: 'Family Emergency' },
-    { key: 'preset_client_visit', fallback: 'Approved Client Visit' },
-    { key: 'preset_feeling_unwell', fallback: 'Feeling Unwell' },
-    { key: 'preset_personal_matter', fallback: 'Personal Matter' },
-];
 
 export const AttendanceReasonModal: React.FC<AttendanceReasonModalProps> = ({
     visible,
     reasonType = 'late',
     delayMinutes = 0,
     isLoading = false,
+    submitLabel,
+    presets,
     onProceed,
     onCancel,
 }) => {
@@ -51,11 +41,50 @@ export const AttendanceReasonModal: React.FC<AttendanceReasonModalProps> = ({
     const { t } = useTranslation();
     const theme = isDark ? darkTheme : lightTheme;
 
+    // Resilient fallback to bootstrap endpoint presets if not passed as prop
+    const { reasonPresets: hookReasonPresets } = useAttendanceGuard();
+
     const isLate = reasonType === 'late';
-    const presets = isLate ? LATE_PRESETS : EARLY_PRESETS;
+    const isEarly = reasonType === 'early' || reasonType === 'early_departure';
+
+    // Dynamic backend reason_presets directly from DB via /employee-app/bootstrap
+    const activePresetsList = useMemo(() => {
+        const sourceList = (Array.isArray(presets) && presets.length > 0)
+            ? presets
+            : (Array.isArray(hookReasonPresets) && hookReasonPresets.length > 0)
+            ? hookReasonPresets
+            : [];
+
+        if (!Array.isArray(sourceList) || sourceList.length === 0) {
+            return [];
+        }
+
+        return sourceList
+            .filter((p) => {
+                const isActive = p.is_active !== false;
+                if (!isActive) return false;
+                if (!p.type || p.type === 'both') return true;
+                if (isLate && p.type === 'late') return true;
+                if (isEarly && (p.type === 'early' || p.type === 'early_departure')) return true;
+                return false;
+            })
+            .map((p) => ({
+                id: String(p.id ?? p.reason_text),
+                label: p.reason_text?.trim() || '',
+            }))
+            .filter((p) => p.label.length > 0);
+    }, [presets, hookReasonPresets, isLate, isEarly]);
 
     const [selectedPreset, setSelectedPreset] = useState<string>('');
     const [customReason, setCustomReason] = useState<string>('');
+
+    // Reset fields whenever modal opens
+    useEffect(() => {
+        if (visible) {
+            setSelectedPreset('');
+            setCustomReason('');
+        }
+    }, [visible]);
 
     const handleSelectPreset = (presetLabel: string) => {
         if (selectedPreset === presetLabel) {
@@ -106,7 +135,7 @@ export const AttendanceReasonModal: React.FC<AttendanceReasonModalProps> = ({
                         <ActivityIndicator color="#FFFFFF" size="small" />
                     ) : (
                         <AppText style={styles.submitButtonText}>
-                            {t('confirm_and_submit_attendance', 'Confirm & Submit Attendance')}
+                            {submitLabel || (isLate ? t('proceed_to_scan', 'Proceed to Scan') : t('confirm_and_proceed', 'Confirm & Proceed'))}
                         </AppText>
                     )}
                 </TouchableOpacity>
@@ -119,45 +148,50 @@ export const AttendanceReasonModal: React.FC<AttendanceReasonModalProps> = ({
                 </AppText>
             </View>
 
-            {/* Quick Presets */}
-            <AppText style={[styles.sectionLabel, { color: theme.colors.textPrimary }]}>
-                {t('quick_select_reason', 'Quick Select Reason:')}
-            </AppText>
-            <View style={styles.presetsGrid}>
-                {presets.map((item) => {
-                    const localizedLabel = t(item.key, item.fallback);
-                    const active = selectedPreset === localizedLabel;
-                    return (
-                        <TouchableOpacity
-                            key={item.key}
-                            style={[
-                                styles.presetChip,
-                                {
-                                    backgroundColor: active ? theme.colors.brand : theme.colors.surfaceSubtle,
-                                    borderColor: active ? theme.colors.brand : theme.colors.border,
-                                },
-                            ]}
-                            onPress={() => handleSelectPreset(localizedLabel)}
-                            activeOpacity={0.7}
-                        >
-                            {active && <Check size={14} color="#FFFFFF" style={{ marginRight: 4 }} />}
-                            <AppText
-                                style={[
-                                    styles.presetText,
-                                    { color: active ? '#FFFFFF' : theme.colors.textPrimary },
-                                    active && { fontWeight: '700' },
-                                ]}
-                            >
-                                {localizedLabel}
-                            </AppText>
-                        </TouchableOpacity>
-                    );
-                })}
-            </View>
+            {/* Quick Presets from Backend DB */}
+            {activePresetsList.length > 0 && (
+                <View style={styles.presetsSection}>
+                    <AppText style={[styles.sectionLabel, { color: theme.colors.textPrimary }]}>
+                        {t('quick_select_reason', 'Quick Select Reason:')}
+                    </AppText>
+                    <View style={styles.presetsGrid}>
+                        {activePresetsList.map((item) => {
+                            const active = selectedPreset === item.label;
+                            return (
+                                <TouchableOpacity
+                                    key={item.id}
+                                    style={[
+                                        styles.presetChip,
+                                        {
+                                            backgroundColor: active ? theme.colors.brand : theme.colors.surfaceSubtle,
+                                            borderColor: active ? theme.colors.brand : theme.colors.border,
+                                        },
+                                    ]}
+                                    onPress={() => handleSelectPreset(item.label)}
+                                    activeOpacity={0.7}
+                                >
+                                    {active && <Check size={14} color="#FFFFFF" style={{ marginRight: 4 }} />}
+                                    <AppText
+                                        style={[
+                                            styles.presetText,
+                                            { color: active ? '#FFFFFF' : theme.colors.textPrimary },
+                                            active && { fontWeight: '700' },
+                                        ]}
+                                    >
+                                        {item.label}
+                                    </AppText>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+                </View>
+            )}
 
             {/* Custom Reason Input */}
             <AppText style={[styles.sectionLabel, { color: theme.colors.textPrimary }]}>
-                {t('or_custom_explanation', 'Or specify custom explanation:')}
+                {activePresetsList.length > 0
+                    ? t('or_custom_explanation', 'Or specify custom explanation:')
+                    : t('specify_reason_explanation', 'Specify reason explanation:')}
             </AppText>
             <TextInput
                 style={[
@@ -200,6 +234,9 @@ const styles = StyleSheet.create({
         marginBottom: 8,
         textTransform: 'uppercase',
         letterSpacing: 0.4,
+    },
+    presetsSection: {
+        marginBottom: 4,
     },
     presetsGrid: {
         flexDirection: 'row',

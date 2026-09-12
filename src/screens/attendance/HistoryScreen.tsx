@@ -9,7 +9,9 @@ import {
 import { FlashList } from '@shopify/flash-list';
 import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useFocusEffect } from '@react-navigation/native';
 import { AppShell } from '../../components/common/AppShell';
 import { HeaderIconButton } from '../../components/common/AppHeader';
 import { AttendanceHistorySkeleton } from '../../components/common/Skeletons';
@@ -159,6 +161,7 @@ export const AUDIT_CATEGORIES = [
 ];
 
 export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+    const insets = useSafeAreaInsets();
     const { isDark, primaryColor } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
@@ -175,6 +178,7 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         data: historyLogs = [],
         isLoading,
         isFetching,
+        refetch,
     } = useQuery<HistoryRecord[]>({
         queryKey: ['attendanceHistory', selectedMonth, selectedQuickFilter],
         queryFn: async () => {
@@ -204,6 +208,12 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         },
         staleTime: 1000 * 60 * 5, // 5 minutes cache
     });
+
+    useFocusEffect(
+        useCallback(() => {
+            refetch();
+        }, [refetch])
+    );
 
     const onRefresh = useCallback(async () => {
         await queryClient.invalidateQueries({ queryKey: ['attendanceHistory'] });
@@ -299,22 +309,26 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         </View>
     );
 
-    const activeMonthHeader = selectedMonth ? (
-        <View style={styles.activeMonthChip}>
-            <Clock color="#FFFFFF" size={14} />
-            <Text style={styles.activeMonthChipText}>
-                {formatDateDisplay(selectedMonth + '-01', 'monthYear')}
-            </Text>
-            <TouchableOpacity
-                onPress={() => setSelectedMonth('')}
-                style={styles.activeMonthCloseBtn}
-                activeOpacity={0.7}
-                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-            >
-                <X color="#FFFFFF" size={12} />
-            </TouchableOpacity>
+    const listHeader = (
+        <View style={selectedMonth ? styles.listHeaderActive : styles.listHeaderSpacer}>
+            {Boolean(selectedMonth) && (
+                <View style={styles.activeMonthChip}>
+                    <Clock color="#FFFFFF" size={14} />
+                    <Text style={styles.activeMonthChipText}>
+                        {formatDateDisplay(selectedMonth + '-01', 'monthYear')}
+                    </Text>
+                    <TouchableOpacity
+                        onPress={() => setSelectedMonth('')}
+                        style={styles.activeMonthCloseBtn}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    >
+                        <X color="#FFFFFF" size={12} />
+                    </TouchableOpacity>
+                </View>
+            )}
         </View>
-    ) : null;
+    );
 
     const emptyStateComponent = isLoading ? (
         <AttendanceHistorySkeleton />
@@ -344,9 +358,9 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                     keyExtractor={keyExtractor}
                     renderItem={renderItem}
                     estimatedItemSize={140}
-                    contentContainerStyle={styles.listContent}
+                    contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(16, insets.bottom + 8) }]}
                     showsVerticalScrollIndicator={false}
-                    ListHeaderComponent={activeMonthHeader}
+                    ListHeaderComponent={listHeader}
                     ListEmptyComponent={emptyStateComponent}
                     refreshControl={
                         <RefreshControl refreshing={isFetching && !isLoading} onRefresh={onRefresh} tintColor={theme.colors.primary} />
@@ -485,6 +499,12 @@ const stylesheet = StyleSheet.create((theme) => ({
         height: 2.5,
         backgroundColor: theme.colors.primary,
     },
+    listHeaderSpacer: {
+        height: theme.spacing.screenGutter,
+    },
+    listHeaderActive: {
+        paddingTop: theme.spacing.screenGutter,
+    },
     activeMonthChip: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -493,6 +513,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         paddingVertical: theme.spacing.xs + 4,
         borderRadius: theme.borderRadius.full,
         alignSelf: 'flex-start',
+        marginHorizontal: theme.spacing.screenGutter,
         marginBottom: theme.spacing.md,
         gap: 8,
         ...theme.shadows.sm,
@@ -518,8 +539,9 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     emptyContainer: {
         paddingTop: theme.spacing.md,
-        paddingBottom: theme.spacing.xl,
-        width: '100%',
+        paddingBottom: theme.spacing.xxl,
+        paddingHorizontal: theme.spacing.screenGutter,
+        alignSelf: 'stretch',
         alignItems: 'center',
     },
     emptyTitle: {
@@ -535,15 +557,15 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     listContent: {
         flexGrow: 1,
-        paddingHorizontal: theme.spacing.screenGutter,
         paddingTop: theme.spacing.md,
-        paddingBottom: theme.spacing.xl + 40,
+        paddingBottom: theme.spacing.lg,
     },
     card: {
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg + 4,
         padding: theme.spacing.md + 2,
-        marginBottom: theme.spacing.lg,
+        marginHorizontal: theme.spacing.screenGutter,
+        marginBottom: theme.spacing.screenGutter,
         borderWidth: 1,
         borderColor: theme.colors.border,
         position: 'relative',
@@ -674,7 +696,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         justifyContent: 'space-between',
         alignItems: 'center',
         marginTop: theme.spacing.sm + 2,
-        paddingTop: theme.spacing.xs + 2,
+        paddingTop: theme.spacing.sm + 2,
         borderTopWidth: 1,
         borderTopColor: theme.colors.border,
     },
@@ -762,6 +784,8 @@ const stylesheet = StyleSheet.create((theme) => ({
     monthPillsRow: {
         flexDirection: 'row',
         marginBottom: theme.spacing.md,
+        marginHorizontal: -20,
+        paddingHorizontal: 20,
     },
     monthPill: {
         paddingHorizontal: theme.spacing.md,
@@ -811,7 +835,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: theme.borderRadius.md,
         justifyContent: 'center',
         alignItems: 'center',
-        marginTop: theme.spacing.md,
+        marginTop: 0,
         ...theme.shadows.sm,
     },
     applyFilterBtnText: {

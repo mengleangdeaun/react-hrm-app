@@ -166,6 +166,7 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
             title={t('my_calendar', 'My Calendar')}
             refreshing={isRefetching}
             onRefresh={refetch}
+            hasTabBar={true}
             headerRight={
                 <HeaderIconButton
                     icon={<CalendarPlus color={theme.colors.brand} size={20} />}
@@ -679,7 +680,7 @@ const styles = StyleSheet.create({
     },
     tabContentContainer: {
         marginTop: 4,
-        paddingBottom: 24,
+        paddingBottom: 12,
     },
     tabSection: {
         gap: 10,

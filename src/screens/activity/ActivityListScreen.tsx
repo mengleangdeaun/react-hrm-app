@@ -14,11 +14,12 @@ import {
 import { FlashList } from '@shopify/flash-list';
 import { Image } from 'expo-image';
 import * as FileSystem from 'expo-file-system/legacy';
-import * as MediaLibrary from 'expo-media-library';
+import * as MediaLibrary from 'expo-media-library/legacy';
 import * as Sharing from 'expo-sharing';
 import * as Haptics from 'expo-haptics';
 import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, formatDateDisplay, formatTimeDisplay } from '../../utils/dateTime';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { activityApi, ActivityItem, OFFICIAL_ACTIVITY_TYPES } from '../../api/activity';
@@ -210,6 +211,7 @@ const ActivityCard = memo(({
 });
 
 export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+    const insets = useSafeAreaInsets();
     const { isDark, primaryColor } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
@@ -471,23 +473,25 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
         </View>
     );
 
-    const activeMonthHeader = (
-        selectedMonth !== currentMonthStr ? (
-            <View style={styles.activeMonthChip}>
-                <Clock color="#FFFFFF" size={14} />
-                <Text style={styles.activeMonthChipText}>
-                    {formatDateDisplay(selectedMonth + '-01', 'monthYear')}
-                </Text>
-                <TouchableOpacity
-                    onPress={() => setSelectedMonth(currentMonthStr)}
-                    style={styles.activeMonthCloseBtn}
-                    activeOpacity={0.7}
-                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                >
-                    <X color="#FFFFFF" size={12} />
-                </TouchableOpacity>
-            </View>
-        ) : null
+    const listHeader = (
+        <View style={selectedMonth !== currentMonthStr ? styles.listHeaderActive : styles.listHeaderSpacer}>
+            {selectedMonth !== currentMonthStr && (
+                <View style={styles.activeMonthChip}>
+                    <Clock color="#FFFFFF" size={14} />
+                    <Text style={styles.activeMonthChipText}>
+                        {formatDateDisplay(selectedMonth + '-01', 'monthYear')}
+                    </Text>
+                    <TouchableOpacity
+                        onPress={() => setSelectedMonth(currentMonthStr)}
+                        style={styles.activeMonthCloseBtn}
+                        activeOpacity={0.7}
+                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    >
+                        <X color="#FFFFFF" size={12} />
+                    </TouchableOpacity>
+                </View>
+            )}
+        </View>
     );
 
     const emptyStateComponent = (
@@ -519,9 +523,9 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                 keyExtractor={keyExtractor}
                 renderItem={renderItem}
                 estimatedItemSize={380}
-                contentContainerStyle={styles.scrollContent}
+                contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(16, insets.bottom + 8) }]}
                 showsVerticalScrollIndicator={false}
-                ListHeaderComponent={activeMonthHeader}
+                ListHeaderComponent={listHeader}
                 ListEmptyComponent={emptyStateComponent}
                 refreshControl={
                     <RefreshControl
@@ -659,9 +663,8 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
 const stylesheet = StyleSheet.create((theme) => ({
     scrollContent: {
         flexGrow: 1,
-        paddingHorizontal: theme.spacing.screenGutter,
         paddingTop: theme.spacing.md,
-        paddingBottom: 96,
+        paddingBottom: theme.spacing.lg,
     },
     headerRightGroup: {
         flexDirection: 'row',
@@ -711,9 +714,11 @@ const stylesheet = StyleSheet.create((theme) => ({
         textTransform: 'uppercase',
         letterSpacing: 0.4,
     },
-    filterOptionTextSelected: {
-        color: theme.colors.primary,
-        fontWeight: '700',
+    listHeaderSpacer: {
+        height: theme.spacing.screenGutter,
+    },
+    listHeaderActive: {
+        paddingTop: theme.spacing.screenGutter,
     },
     activeMonthChip: {
         flexDirection: 'row',
@@ -723,6 +728,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         paddingVertical: theme.spacing.xs + 4,
         borderRadius: theme.borderRadius.full,
         alignSelf: 'flex-start',
+        marginHorizontal: theme.spacing.screenGutter,
         marginBottom: theme.spacing.md,
         gap: 8,
         ...theme.shadows.sm,
@@ -750,6 +756,8 @@ const stylesheet = StyleSheet.create((theme) => ({
     monthPillsRow: {
         flexDirection: 'row',
         marginBottom: theme.spacing.md,
+        marginHorizontal: -20,
+        paddingHorizontal: 20,
     },
     monthPill: {
         paddingHorizontal: theme.spacing.md,
@@ -779,7 +787,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: theme.borderRadius.md,
         justifyContent: 'center',
         alignItems: 'center',
-        marginTop: theme.spacing.md,
+        marginTop: 0,
         ...theme.shadows.sm,
     },
     applyFilterBtnText: {
@@ -819,8 +827,9 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     emptyContainer: {
         paddingTop: theme.spacing.md,
-        paddingBottom: theme.spacing.xl,
-        width: '100%',
+        paddingBottom: theme.spacing.xxl,
+        paddingHorizontal: theme.spacing.screenGutter,
+        alignSelf: 'stretch',
         alignItems: 'center',
     },
     emptyTitle: {
@@ -855,7 +864,8 @@ const stylesheet = StyleSheet.create((theme) => ({
     card: {
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg + 4,
-        marginBottom: theme.spacing.lg,
+        marginHorizontal: theme.spacing.screenGutter,
+        marginBottom: theme.spacing.screenGutter,
         borderWidth: 1,
         borderColor: theme.colors.border,
         overflow: 'hidden',
@@ -964,7 +974,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontSize: 13,
         color: theme.colors.textPrimary,
         lineHeight: 19,
-        marginBottom: theme.spacing.xs + 2,
+        marginBottom: 0,
         fontWeight: '500',
     },
     locationCardBox: {
