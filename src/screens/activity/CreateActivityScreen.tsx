@@ -458,7 +458,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         alignItems: 'center',
         borderWidth: 1,
         borderColor: theme.colors.border,
-        ...theme.shadows.sm,
     },
     categoryTileSelected: {
         borderColor: theme.colors.primary,
@@ -514,7 +513,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderWidth: 1.5,
         borderColor: theme.colors.border,
         borderStyle: 'dashed',
-        ...theme.shadows.sm,
     },
     pickerTileText: {
         color: theme.colors.textPrimary,
@@ -565,7 +563,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderWidth: 1,
         borderColor: theme.colors.border,
         marginBottom: theme.spacing.md,
-        ...theme.shadows.sm,
     },
     locationTextGroup: {
         flex: 1,
@@ -632,7 +629,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         justifyContent: 'center',
         alignItems: 'center',
         marginTop: theme.spacing.sm,
-        ...theme.shadows.sm,
     },
     nextBtnFlex: {
         flex: 1,
@@ -642,7 +638,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        ...theme.shadows.sm,
     },
     nextBtnDisabled: {
         opacity: 0.5,
@@ -660,7 +655,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: theme.borderRadius.md,
         justifyContent: 'center',
         alignItems: 'center',
-        ...theme.shadows.sm,
     },
     submitBtnText: {
         color: '#FFFFFF',
@@ -685,12 +679,10 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderWidth: 1.5,
         borderColor: theme.colors.border,
         position: 'relative',
-        ...theme.shadows.sm,
     },
     gridCardTileSelected: {
         borderColor: theme.colors.primary,
         backgroundColor: theme.colors.surfaceSubtle,
-        ...theme.shadows.md,
     },
     gridIconBg: {
         width: 48,

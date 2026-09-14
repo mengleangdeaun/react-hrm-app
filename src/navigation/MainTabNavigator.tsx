@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { AppText as Text } from '../components/AppText';
-import { createBottomTabNavigator, type BottomTabBarProps } from '@react-navigation/bottom-tabs';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { getFocusedRouteNameFromRoute } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useQuery } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import {
     Home,
@@ -21,6 +22,8 @@ import {
 import { useAppTheme } from '../context/ThemeContext';
 import { lightTheme, darkTheme } from '../styles/theme';
 import { useAttendanceGuard } from '../hooks/useAttendanceGuard';
+import { useTranslation } from '../context/LanguageContext';
+import { apiClient } from '../api/client';
 
 // Screens
 import { DashboardScreen } from '../screens/dashboard/DashboardScreen';
@@ -108,8 +111,6 @@ function ProfileStack() {
     );
 }
 
-import { useTranslation } from '../context/LanguageContext';
-
 const TAB_CONFIGS: Record<string, { key: string; fallback: string; icon: any; isHero?: boolean }> = {
     HomeTab: {
         key: 'nav_home',
@@ -146,13 +147,28 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
     const { shiftPhase, isSplitShift } = useAttendanceGuard();
     const theme = isDark ? darkTheme : lightTheme;
 
+    // Fetch unread count for badge parity
+    const { data: bootstrapData } = useQuery({
+        queryKey: ['dashboardBootstrap'],
+        queryFn: async () => {
+            const res = await apiClient.get('/employee-app/bootstrap');
+            return res.data;
+        },
+        staleTime: 1000 * 60 * 3,
+    });
+
+    const unreadCount = typeof (bootstrapData?.notifications?.unread_count ?? bootstrapData?.unread_notifications_count) === 'number'
+        ? (bootstrapData?.notifications?.unread_count ?? bootstrapData?.unread_notifications_count)
+        : 0;
+
     const backgroundColor = theme.colors.surface;
     const borderTopColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
-    const activeColor = theme.colors.brand;
+    const activeColor = theme.colors.brand || theme.colors.primary;
     const inactiveColor = theme.colors.textSecondary;
 
-    const bottomPadding = insets.bottom > 0 ? insets.bottom : 8;
-    const containerHeight = 56 + bottomPadding;
+    // Generous bottom clearance above navigation bars across iOS & Android
+    const bottomPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 10) + (Platform.OS === 'ios' ? 6 : 8);
+    const containerHeight = 52 + bottomPadding;
 
     const activeRoute = state.routes[state.index];
     const activeSubRouteName = getFocusedRouteNameFromRoute(activeRoute);
@@ -213,7 +229,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                     });
                 };
 
-                // Elevated Hero Button for Center Scan Tab - in sync with Dashboard attendance status
+                // Elevated Hero Center Button
                 if (config.isHero) {
                     let HeroIcon = IconComponent;
                     let dynamicHeroLabel = tabLabel;
@@ -256,7 +272,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                                     },
                                 ]}
                             >
-                                <HeroIcon color="#FFFFFF" size={22} strokeWidth={2.4} />
+                                <HeroIcon color="#FFFFFF" size={24} strokeWidth={2.4} />
                             </View>
                             <Text
                                 variant="nav"
@@ -271,6 +287,8 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                         </TouchableOpacity>
                     );
                 }
+
+                const showBadge = route.name === 'NotiTab' && unreadCount > 0;
 
                 return (
                     <TouchableOpacity
@@ -288,6 +306,13 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                                 color={isFocused ? activeColor : inactiveColor}
                                 strokeWidth={isFocused ? 2.3 : 1.8}
                             />
+                            {showBadge && (
+                                <View style={[styles.badge, { borderColor: backgroundColor }]}>
+                                    <Text style={styles.badgeText}>
+                                        {unreadCount > 9 ? '9+' : unreadCount}
+                                    </Text>
+                                </View>
+                            )}
                         </View>
                         <Text
                             variant="nav"
@@ -330,48 +355,82 @@ const styles = StyleSheet.create({
     tabBarContainer: {
         flexDirection: 'row',
         borderTopWidth: StyleSheet.hairlineWidth,
-        elevation: 2,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -1 },
-        shadowOpacity: 0.03,
-        shadowRadius: 4,
         alignItems: 'center',
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000',
+                shadowOffset: { width: 0, height: -2 },
+                shadowOpacity: 0.05,
+                shadowRadius: 5,
+            },
+            android: {
+                elevation: 8,
+            },
+        }),
     },
     tabButton: {
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
         height: '100%',
-        paddingTop: 4,
+        paddingTop: 6,
     },
     tabIconWrapper: {
         height: 26,
         justifyContent: 'center',
         alignItems: 'center',
+        position: 'relative',
+    },
+    badge: {
+        position: 'absolute',
+        top: -3,
+        right: -8,
+        minWidth: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor: '#EF4444',
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: 3,
+        borderWidth: 1.5,
+    },
+    badgeText: {
+        color: '#FFFFFF',
+        fontSize: 9,
+        fontWeight: '800',
+        lineHeight: 11,
     },
     tabLabel: {
-        fontSize: 10,
-        marginTop: 2,
+        fontSize: 10.5,
+        marginTop: 3,
+        includeFontPadding: false,
     },
     heroTabButton: {
         flex: 1,
         alignItems: 'center',
         justifyContent: 'center',
-        marginTop: -16,
+        marginTop: -18,
     },
     heroIconCircle: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
+        width: 52,
+        height: 52,
+        borderRadius: 26,
         justifyContent: 'center',
         alignItems: 'center',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.16,
-        shadowRadius: 4,
-        elevation: 2,
+        ...Platform.select({
+            ios: {
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.28,
+                shadowRadius: 6,
+            },
+            android: {
+                elevation: 4,
+            },
+        }),
     },
     heroTabLabel: {
-        fontSize: 10,
+        fontSize: 10.5,
         marginTop: 4,
+        includeFontPadding: false,
     },
 });

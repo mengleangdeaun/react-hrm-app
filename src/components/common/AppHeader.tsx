@@ -195,7 +195,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'space-between',
         paddingHorizontal: 16,
-        paddingVertical: 6,
+        paddingVertical: 12,
         zIndex: 10,
     },
     leftSlot: {

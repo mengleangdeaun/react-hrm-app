@@ -148,7 +148,7 @@ export const QrLoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 const styles = StyleSheet.create({
     centerContainer: {
         flex: 1,
-        backgroundColor: '#0F172A',
+        backgroundColor: '#272727ff',
         justifyContent: 'center',
         alignItems: 'center',
         padding: 24,

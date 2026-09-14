@@ -1,11 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
     View,
-    ScrollView,
     TouchableOpacity,
-    SafeAreaView,
-    StatusBar,
-    RefreshControl,
 } from 'react-native';
 import { Image } from 'expo-image';
 import { useQuery } from '@tanstack/react-query';
@@ -35,16 +31,14 @@ import {
     Sun,
     Moon,
     History,
-    Settings,
     AlertTriangle,
     X,
     Check,
     Coffee,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import { format, formatDateDisplay, formatTimeDisplay, parseDateOnly } from '../../utils/dateTime';
+import { formatDateDisplay, formatTimeDisplay, parseDateOnly } from '../../utils/dateTime';
 import { getDismissedBannerIds, dismissBannerId } from '../../utils/storage';
-
 import { useTranslation } from '../../context/LanguageContext';
 
 export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -94,7 +88,6 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     const employeeInfo = dashboard?.employee || bootstrapData?.employee || null;
     const todayShiftMerged = dashboard?.today_shift || bootstrapData?.today_shift || bootstrapData?.todayShiftMerged || null;
     const attendanceToday = todayShiftMerged?.attendance_today || dashboard?.today_attendance || bootstrapData?.today_attendance || null;
-    const shiftData = todayShiftMerged?.shift || dashboard?.shift || bootstrapData?.today_shift || null;
     const announcements = Array.isArray(dashboard?.announcements)
         ? dashboard.announcements
         : Array.isArray(bootstrapData?.announcements)
@@ -206,14 +199,12 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     };
 
     const displayName = employeeInfo?.full_name || user?.name || t('employee', 'Employee');
-    const displayRole = employeeInfo?.designation || user?.position || t('staff', 'Staff');
 
     const rawAvatarUrl = employeeInfo?.profile_image_url || user?.avatar;
     const avatarUrl = typeof rawAvatarUrl === 'string' && rawAvatarUrl.trim().length > 0 && rawAvatarUrl !== 'null' && rawAvatarUrl !== 'undefined'
         ? rawAvatarUrl.trim()
         : null;
     const showAvatarImage = !!avatarUrl && !avatarLoadError;
-
 
     // ── Dynamic Quick Actions with 100% PWA parity ────────────────────────────
     const quickActions = [
@@ -273,7 +264,6 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         },
     ];
 
-    // Conditionally render Staff Notices for Managers / Top Management
     if (employeeInfo?.is_top_management || (employeeInfo?.subordinates_count ?? 0) > 0) {
         quickActions.push({
             id: 'subordinate_notices',
@@ -317,12 +307,62 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 </TouchableOpacity>
             </View>
         </View>
-    ) : undefined;
+    ) : null;
+
+    // Fixed & Sticky Header Block (Placed outside the scroll container)
+    const fixedHeaderBlock = (
+        <View style={styles.fixedHeaderWrapper}>
+            {bannerSubHeader}
+            <View style={styles.headerRow}>
+                <View style={styles.userProfileGroup}>
+                    {showAvatarImage ? (
+                        <Image
+                            source={{ uri: avatarUrl! }}
+                            style={styles.avatarImage}
+                            contentFit="cover"
+                            cachePolicy="memory-disk"
+                            onError={() => setAvatarLoadError(true)}
+                        />
+                    ) : (
+                        <View style={styles.avatarFallback}>
+                            <Text style={styles.avatarText}>
+                                {displayName ? displayName.charAt(0).toUpperCase() : 'U'}
+                            </Text>
+                        </View>
+                    )}
+                    <View style={styles.greetingTextContainer}>
+                        <Text style={styles.greetingSubtitle} numberOfLines={1}>
+                            {getGreeting()}
+                        </Text>
+                        <Text variant="h2" style={styles.greetingTitle} numberOfLines={1}>
+                            {displayName}
+                        </Text>
+                    </View>
+                </View>
+
+                <View style={styles.headerActionsGroup}>
+                    <HeaderIconButton
+                        icon={isDark ? <Sun color="#F59E0B" size={18} /> : <Moon color="#2563EB" size={18} />}
+                        onPress={toggleTheme}
+                        accessibilityLabel="Toggle theme"
+                    />
+
+                    <HeaderIconButton
+                        icon={<Bell color={theme.colors.textPrimary} size={18} />}
+                        onPress={() => navigation.navigate('Notifications')}
+                        accessibilityLabel="Notifications"
+                        badge={unreadNotifications > 0 ? (unreadNotifications > 9 ? '9+' : unreadNotifications) : undefined}
+                        style={{ marginLeft: 8 }}
+                    />
+                </View>
+            </View>
+        </View>
+    );
 
     return (
         <AppShell
             showHeader={false}
-            subHeader={bannerSubHeader}
+            subHeader={fixedHeaderBlock}
             hasTabBar={true}
             refreshing={isFetching && !isLoading}
             onRefresh={onRefresh}
@@ -331,257 +371,209 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 <DashboardSkeleton />
             ) : (
                 <>
-                {/* User Greeting & Header Actions */}
-                <View style={styles.headerRow}>
-                    <View style={styles.userProfileGroup}>
-                        {showAvatarImage ? (
-                            <Image
-                                source={{ uri: avatarUrl! }}
-                                style={styles.avatarImage}
-                                contentFit="cover"
-                                cachePolicy="memory-disk"
-                                onError={() => setAvatarLoadError(true)}
+                    {/* Digital Clock & Geofenced Attendance Status Card */}
+                    <View style={styles.clockCard}>
+                        <DigitalClock style={styles.digitalClockText} />
+
+                        {/* Date sits as a centered subtitle below the hero clock */}
+                        <View style={styles.clockHeader}>
+                            <Clock color={theme.colors.primary} size={14} />
+                            <Text style={styles.dateText}>
+                                {formatDateDisplay(todayDisplayDate, 'full')}
+                            </Text>
+                        </View>
+
+                        {/* Timeline Nodes (2 for regular shift, 4 for split shift) */}
+                        <View style={styles.timelineContainer}>
+                            <View
+                                style={[
+                                    styles.timelineTrackBackground,
+                                    isSplitShift ? styles.timelineTrackSplit : styles.timelineTrackContinuous,
+                                ]}
                             />
-                        ) : (
-                            <View style={styles.avatarFallback}>
-                                <Text style={styles.avatarText}>
-                                    {displayName ? displayName.charAt(0).toUpperCase() : 'U'}
+                            <View
+                                style={[
+                                    styles.timelineTrackActive,
+                                    isSplitShift ? styles.timelineTrackSplit : styles.timelineTrackContinuous,
+                                    {
+                                        width: isSplitShift
+                                            ? out2
+                                                ? '75%'
+                                                : in2
+                                                ? '50%'
+                                                : out1
+                                                ? '25%'
+                                                : '0%'
+                                            : (out2 || out1)
+                                            ? '50%'
+                                            : '0%',
+                                    },
+                                ]}
+                            />
+
+                            <View style={styles.timelineNodesRow}>
+                                {timelineNodes.map((node) => (
+                                    <View key={node.key} style={styles.timelineNodeCol}>
+                                        <View
+                                            style={[
+                                                styles.nodeCircle,
+                                                node.active && styles.nodeCircleActive,
+                                                node.isCurrent && styles.nodeCircleCurrent,
+                                            ]}
+                                        >
+                                            {node.active ? (
+                                                <Check color="#FFFFFF" size={13} strokeWidth={3} />
+                                            ) : (
+                                                <View
+                                                    style={[
+                                                        styles.nodeDot,
+                                                        node.isCurrent && styles.nodeDotCurrent,
+                                                    ]}
+                                                />
+                                            )}
+                                        </View>
+                                        <Text
+                                            style={[
+                                                styles.nodeLabel,
+                                                node.active && styles.nodeLabelActive,
+                                                node.isCurrent && styles.nodeLabelCurrent,
+                                            ]}
+                                        >
+                                            {node.label}
+                                        </Text>
+                                        <Text
+                                            style={[
+                                                styles.nodeTime,
+                                                node.active && styles.nodeTimeActive,
+                                            ]}
+                                        >
+                                            {node.time || '--:--'}
+                                        </Text>
+                                    </View>
+                                ))}
+                            </View>
+                        </View>
+
+                        {/* Proactive Guard Notice if Late Arrival or Early Departure Detected */}
+                        {proactiveStatus?.require_reason && shiftPhase !== 'done' && (
+                            <View style={styles.proactiveWarningBox}>
+                                <AlertTriangle color="#D97706" size={14} />
+                                <Text style={styles.proactiveWarningText}>
+                                    {proactiveStatus.type === 'late'
+                                        ? `${t('late_warning', 'Late arrival')} (~${proactiveStatus.minutes}m). ${t('reason_required_prior_scan', 'Reason required before scanning.')}`
+                                        : `${t('early_warning', 'Early departure')} (~${proactiveStatus.minutes}m). ${t('reason_required_prior_scan', 'Reason required before scanning.')}`}
                                 </Text>
                             </View>
                         )}
-                        <View style={styles.greetingTextContainer}>
-                            <Text style={styles.greetingSubtitle} numberOfLines={1}>
-                                {getGreeting()}
-                            </Text>
-                            <Text variant="h2" style={styles.greetingTitle} numberOfLines={1}>
-                                {displayName}
-                            </Text>
-                        </View>
-                    </View>
 
-                    <View style={styles.headerActionsGroup}>
-                        <HeaderIconButton
-                            icon={isDark ? <Sun color="#F59E0B" size={18} /> : <Moon color="#2563EB" size={18} />}
-                            onPress={toggleTheme}
-                            accessibilityLabel="Toggle theme"
-                        />
-
-                        <HeaderIconButton
-                            icon={<Bell color={theme.colors.textPrimary} size={18} />}
-                            onPress={() => navigation.navigate('Notifications')}
-                            accessibilityLabel="Notifications"
-                            badge={unreadNotifications > 0 ? (unreadNotifications > 9 ? '9+' : unreadNotifications) : undefined}
-                            style={{ marginLeft: 8 }}
-                        />
-                    </View>
-                </View>
-
-                {/* Digital Clock & Geofenced Attendance Status Card */}
-                <View style={styles.clockCard}>
-                    <DigitalClock style={styles.digitalClockText} />
-
-                    {/* Date sits as a centered subtitle below the hero clock */}
-                    <View style={styles.clockHeader}>
-                        <Clock color={theme.colors.primary} size={14} />
-                        <Text style={styles.dateText}>
-                            {formatDateDisplay(todayDisplayDate, 'full')}
-                        </Text>
-                    </View>
-
-                    {/* Timeline Nodes (2 for regular shift, 4 for split shift) */}
-                    <View style={styles.timelineContainer}>
-                        {/* Connecting Track Line */}
-                        <View
+                        {/* Contextual Smart Action Button */}
+                        <TouchableOpacity
                             style={[
-                                styles.timelineTrackBackground,
-                                isSplitShift ? styles.timelineTrackSplit : styles.timelineTrackContinuous,
+                                styles.clockButton,
+                                shiftPhase === 'done' && styles.clockButtonDone,
+                                shiftPhase === 'break' && styles.clockButtonBreak,
                             ]}
-                        />
-                        <View
-                            style={[
-                                styles.timelineTrackActive,
-                                isSplitShift ? styles.timelineTrackSplit : styles.timelineTrackContinuous,
-                                {
-                                    width: isSplitShift
-                                        ? out2
-                                            ? '75%'
-                                            : in2
-                                            ? '50%'
-                                            : out1
-                                            ? '25%'
-                                            : '0%'
-                                        : (out2 || out1)
-                                        ? '50%'
-                                        : '0%',
-                                },
-                            ]}
-                        />
+                            onPress={handleScanPress}
+                            activeOpacity={0.85}
+                        >
+                            {shiftPhase === 'ready' && <QrCode color="#FFFFFF" size={20} />}
+                            {shiftPhase === 'session1' && (isSplitShift ? <Coffee color="#FFFFFF" size={20} /> : <Moon color="#FFFFFF" size={20} />)}
+                            {shiftPhase === 'break' && <Sun color="#FFFFFF" size={20} />}
+                            {shiftPhase === 'session2' && <Moon color="#FFFFFF" size={20} />}
+                            {shiftPhase === 'done' && <CheckCircle2 color="#FFFFFF" size={20} />}
+                            <Text style={styles.clockButtonText}>
+                                {shiftPhase === 'ready'
+                                    ? t('scan_clock_in_now', 'Scan Clock In Now')
+                                    : shiftPhase === 'session1'
+                                    ? isSplitShift
+                                        ? t('scan_lunch_out', 'Scan Lunch Out')
+                                        : t('scan_clock_out', 'Scan Clock Out')
+                                    : shiftPhase === 'break'
+                                    ? t('scan_afternoon_in', 'Scan Afternoon In')
+                                    : shiftPhase === 'session2'
+                                    ? t('scan_clock_out', 'Scan Clock Out')
+                                    : t('shift_completed', 'Shift Completed')}
+                            </Text>
+                        </TouchableOpacity>
+                    </View>
 
-                        {/* Nodes Row */}
-                        <View style={styles.timelineNodesRow}>
-                            {timelineNodes.map((node) => (
-                                <View key={node.key} style={styles.timelineNodeCol}>
-                                    <View
-                                        style={[
-                                            styles.nodeCircle,
-                                            node.active && styles.nodeCircleActive,
-                                            node.isCurrent && styles.nodeCircleCurrent,
-                                        ]}
-                                    >
-                                        {node.active ? (
-                                            <Check color="#FFFFFF" size={13} strokeWidth={3} />
-                                        ) : (
-                                            <View
-                                                style={[
-                                                    styles.nodeDot,
-                                                    node.isCurrent && styles.nodeDotCurrent,
-                                                ]}
-                                            />
-                                        )}
+                    {/* Dynamic Quick Access Menu */}
+                    <Text style={styles.sectionTitle}>{t('quick_actions', 'Quick Actions')}</Text>
+                    <View style={styles.quickGrid}>
+                        {quickActions.map((action) => {
+                            const IconComponent = action.icon;
+                            return (
+                                <TouchableOpacity
+                                    key={action.id}
+                                    style={styles.gridTile}
+                                    onPress={() => navigation.navigate(action.route)}
+                                    activeOpacity={0.8}
+                                >
+                                    <View style={[styles.tileIconContainer, { backgroundColor: action.bgColor }]}>
+                                        <IconComponent color={action.iconColor} size={22} />
                                     </View>
-                                    <Text
-                                        style={[
-                                            styles.nodeLabel,
-                                            node.active && styles.nodeLabelActive,
-                                            node.isCurrent && styles.nodeLabelCurrent,
-                                        ]}
-                                    >
-                                        {node.label}
-                                    </Text>
-                                    <Text
-                                        style={[
-                                            styles.nodeTime,
-                                            node.active && styles.nodeTimeActive,
-                                        ]}
-                                    >
-                                        {node.time || '--:--'}
+                                    <Text style={styles.tileTitle}>{action.title}</Text>
+                                    <Text style={styles.tileSubtitle}>{action.subtitle}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </View>
+
+                    {/* Company Announcements Feed */}
+                    {announcements.length > 0 && (
+                        <View style={styles.sectionContainer}>
+                            <View style={styles.sectionHeaderRow}>
+                                <View style={styles.rowCentered}>
+                                    <Bell color={theme.colors.primary} size={18} />
+                                    <Text style={styles.sectionHeaderTitle}>
+                                        {t('company_announcements', 'Company Announcements')}
                                     </Text>
                                 </View>
-                            ))}
-                        </View>
-                    </View>
+                            </View>
 
-                    {/* Proactive Guard Notice if Late Arrival or Early Departure Detected */}
-                    {proactiveStatus?.require_reason && shiftPhase !== 'done' && (
-                        <View style={styles.proactiveWarningBox}>
-                            <AlertTriangle color="#D97706" size={14} />
-                            <Text style={styles.proactiveWarningText}>
-                                {proactiveStatus.type === 'late'
-                                    ? `${t('late_warning', 'Late arrival')} (~${proactiveStatus.minutes}m). ${t('reason_required_prior_scan', 'Reason required before scanning.')}`
-                                    : `${t('early_warning', 'Early departure')} (~${proactiveStatus.minutes}m). ${t('reason_required_prior_scan', 'Reason required before scanning.')}`}
-                            </Text>
+                            {announcements.slice(0, 3).map((item: any) => (
+                                <TouchableOpacity
+                                    key={item.id || item.title}
+                                    style={styles.announcementCard}
+                                    onPress={() => navigation.navigate('AnnouncementDetail', { id: item.id })}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={styles.announcementTitle}>
+                                        {item.title || item.pwa_title}
+                                    </Text>
+                                    <Text style={styles.announcementSummary} numberOfLines={2}>
+                                        {item.summary || item.content || item.description || t('tap_to_view_announcement', 'Tap to view announcement details.')}
+                                    </Text>
+                                    <View style={styles.announcementFooter}>
+                                        <Text style={styles.announcementDate}>{item.created_at || t('company_news', 'Company News')}</Text>
+                                        <ChevronRight color={theme.colors.textSecondary} size={16} />
+                                    </View>
+                                </TouchableOpacity>
+                            ))}
                         </View>
                     )}
 
-                    {/* Contextual Smart Action Button */}
-                    <TouchableOpacity
-                        style={[
-                            styles.clockButton,
-                            shiftPhase === 'done' && styles.clockButtonDone,
-                            shiftPhase === 'break' && styles.clockButtonBreak,
-                        ]}
-                        onPress={handleScanPress}
-                        activeOpacity={0.85}
-                    >
-                        {shiftPhase === 'ready' && <QrCode color="#FFFFFF" size={20} />}
-                        {shiftPhase === 'session1' && (isSplitShift ? <Coffee color="#FFFFFF" size={20} /> : <Moon color="#FFFFFF" size={20} />)}
-                        {shiftPhase === 'break' && <Sun color="#FFFFFF" size={20} />}
-                        {shiftPhase === 'session2' && <Moon color="#FFFFFF" size={20} />}
-                        {shiftPhase === 'done' && <CheckCircle2 color="#FFFFFF" size={20} />}
-                        <Text style={styles.clockButtonText}>
-                            {shiftPhase === 'ready'
-                                ? t('scan_clock_in_now', 'Scan Clock In Now')
-                                : shiftPhase === 'session1'
-                                ? isSplitShift
-                                    ? t('scan_lunch_out', 'Scan Lunch Out')
-                                    : t('scan_clock_out', 'Scan Clock Out')
-                                : shiftPhase === 'break'
-                                ? t('scan_afternoon_in', 'Scan Afternoon In')
-                                : shiftPhase === 'session2'
-                                ? t('scan_clock_out', 'Scan Clock Out')
-                                : t('shift_completed', 'Shift Completed')}
-                        </Text>
-                    </TouchableOpacity>
-                </View>
-
-                {/* Dynamic Quick Access Menu matching PWA parity */}
-                <Text style={styles.sectionTitle}>{t('quick_actions', 'Quick Actions')}</Text>
-                <View style={styles.quickGrid}>
-                    {quickActions.map((action) => {
-                        const IconComponent = action.icon;
-                        return (
-                            <TouchableOpacity
-                                key={action.id}
-                                style={styles.gridTile}
-                                onPress={() => navigation.navigate(action.route)}
-                                activeOpacity={0.8}
-                            >
-                                <View style={[styles.tileIconContainer, { backgroundColor: action.bgColor }]}>
-                                    <IconComponent color={action.iconColor} size={22} />
-                                </View>
-                                <Text style={styles.tileTitle}>{action.title}</Text>
-                                <Text style={styles.tileSubtitle}>{action.subtitle}</Text>
-                            </TouchableOpacity>
-                        );
-                    })}
-                </View>
-
-                {/* Company Announcements Feed */}
-                {announcements.length > 0 && (
-                    <View style={styles.sectionContainer}>
-                        <View style={styles.sectionHeaderRow}>
-                            <View style={styles.rowCentered}>
-                                <Bell color={theme.colors.primary} size={18} />
-                                <Text style={styles.sectionHeaderTitle}>
-                                    {t('company_announcements', 'Company Announcements')}
+                    {/* Celebrations Banner */}
+                    {celebration && (
+                        <TouchableOpacity
+                            style={styles.celebrationCard}
+                            onPress={() => navigation.navigate('WishesInbox')}
+                            activeOpacity={0.8}
+                        >
+                            <Gift color="#EC4899" size={26} />
+                            <View style={styles.celebrationTextGroup}>
+                                <Text style={styles.celebrationTitle}>
+                                    {celebration.message || celebration.title || celebration.milestone || t('work_celebration', 'Work Celebration!')}
+                                </Text>
+                                <Text style={styles.celebrationSubtitle}>
+                                    {t('tap_send_view_wishes', 'Tap to send or view celebratory wishes 🎉')}
                                 </Text>
                             </View>
-                        </View>
-
-                        {announcements.slice(0, 3).map((item: any) => (
-                            <TouchableOpacity
-                                key={item.id || item.title}
-                                style={styles.announcementCard}
-                                onPress={() => navigation.navigate('AnnouncementDetail', { id: item.id })}
-                                activeOpacity={0.8}
-                            >
-                                <Text style={styles.announcementTitle}>
-                                    {item.title || item.pwa_title}
-                                </Text>
-                                <Text style={styles.announcementSummary} numberOfLines={2}>
-                                    {item.summary || item.content || item.description || t('tap_to_view_announcement', 'Tap to view announcement details.')}
-                                </Text>
-                                <View style={styles.announcementFooter}>
-                                    <Text style={styles.announcementDate}>{item.created_at || t('company_news', 'Company News')}</Text>
-                                    <ChevronRight color={theme.colors.textSecondary} size={16} />
-                                </View>
-                            </TouchableOpacity>
-                        ))}
-                    </View>
-                )}
-
-                {/* Celebrations Banner */}
-                {celebration && (
-                    <TouchableOpacity
-                        style={styles.celebrationCard}
-                        onPress={() => navigation.navigate('WishesInbox')}
-                        activeOpacity={0.8}
-                    >
-                        <Gift color="#EC4899" size={26} />
-                        <View style={styles.celebrationTextGroup}>
-                            <Text style={styles.celebrationTitle}>
-                                {celebration.message || celebration.title || celebration.milestone || t('work_celebration', 'Work Celebration!')}
-                            </Text>
-                            <Text style={styles.celebrationSubtitle}>
-                                {t('tap_send_view_wishes', 'Tap to send or view celebratory wishes 🎉')}
-                            </Text>
-                        </View>
-                        <ChevronRight color="#EC4899" size={18} />
-                    </TouchableOpacity>
-                )}
+                            <ChevronRight color="#EC4899" size={18} />
+                        </TouchableOpacity>
+                    )}
                 </>
             )}
-
         </AppShell>
     );
 };
@@ -637,20 +629,18 @@ const stylesheet = StyleSheet.create((theme) => ({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    scrollContainer: {
-        flex: 1,
-    },
-    scrollContent: {
-        paddingHorizontal: theme.spacing.md + 4,
-        paddingVertical: theme.spacing.md,
-        paddingBottom: theme.spacing.xl,
+    fixedHeaderWrapper: {
+        backgroundColor: theme.colors.background,
+        zIndex: 10,
     },
     headerRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingTop: theme.spacing.xs,
-        marginBottom: theme.spacing.lg,
+        paddingHorizontal: theme.spacing.md + 4,
+        paddingTop: theme.spacing.sm,
+        paddingBottom: theme.spacing.sm,
+        backgroundColor: theme.colors.background,
     },
     userProfileGroup: {
         flexDirection: 'row',
@@ -672,7 +662,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         backgroundColor: theme.colors.primary,
         justifyContent: 'center',
         alignItems: 'center',
-        ...theme.shadows.sm,
     },
     avatarText: {
         fontSize: 20,
@@ -688,7 +677,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontSize: 12,
         color: theme.colors.textSecondary,
         fontWeight: '500',
-        marginBottom: 2,
+        marginBottom: 0,
     },
     greetingTitle: {
         fontSize: 18,
@@ -697,49 +686,15 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textPrimary,
         paddingBottom: 2,
     },
-    greetingRoleText: {
-        fontSize: 12,
-        color: theme.colors.textSecondary,
-    },
     headerActionsGroup: {
         flexDirection: 'row',
         alignItems: 'center',
-    },
-    iconButton: {
-        width: 44,
-        height: 44,
-        borderRadius: theme.borderRadius.md,
-        backgroundColor: theme.colors.surfaceSubtle,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        marginLeft: theme.spacing.xs + 2,
-        position: 'relative',
-    },
-    notificationBadge: {
-        position: 'absolute',
-        top: 6,
-        right: 6,
-        minWidth: 16,
-        height: 16,
-        borderRadius: theme.borderRadius.full,
-        backgroundColor: theme.colors.status.danger,
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 2,
-    },
-    notificationBadgeText: {
-        fontSize: 10,
-        fontWeight: '700',
-        color: '#FFFFFF',
     },
     clockCard: {
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg + 4,
         padding: theme.spacing.lg,
         marginBottom: theme.spacing.lg,
-        ...theme.shadows.xs,
     },
     clockHeader: {
         flexDirection: 'row',
@@ -929,7 +884,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginBottom: theme.spacing.md,
         borderWidth: 1,
         borderColor: theme.colors.border,
-        ...theme.shadows.sm,
     },
     tileIconContainer: {
         width: 44,
@@ -971,7 +925,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginBottom: theme.spacing.sm + 2,
         borderWidth: 1,
         borderColor: theme.colors.border,
-        ...theme.shadows.sm,
     },
     announcementTitle: {
         fontSize: 14,

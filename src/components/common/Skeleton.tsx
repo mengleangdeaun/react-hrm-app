@@ -38,7 +38,7 @@ export const Skeleton: React.FC<SkeletonProps> & {
         return () => animation.stop();
     }, [pulseAnim]);
 
-    const backgroundColor = isDark ? '#1E293B' : '#E2E8F0';
+    const backgroundColor = isDark ? '#2e2e2eff' : '#E2E8F0';
     const computedRadius = borderRadius ?? theme.borderRadius.md;
 
     return (

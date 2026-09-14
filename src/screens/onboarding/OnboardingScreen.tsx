@@ -9,7 +9,7 @@ import {
     Platform,
     ScrollView,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useUnistyles } from 'react-native-unistyles';
 import * as Haptics from 'expo-haptics';
 import {
@@ -19,7 +19,6 @@ import {
     Globe,
     Sun,
     Moon,
-    ChevronRight,
 } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
@@ -49,6 +48,7 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
     route,
 }) => {
     const { width } = useWindowDimensions();
+    const insets = useSafeAreaInsets();
     const { isDark, toggleTheme } = useAppTheme();
     const { theme } = useUnistyles();
     const { t, locale, setLocale } = useTranslation();
@@ -59,7 +59,6 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
     const flatListRef = useRef<any>(null);
     const scrollX = useRef(new Animated.Value(0)).current;
 
-    // ── 7 Core Application Features Slides ──────────────────────────────────
     const slides: SlideItem[] = [
         {
             id: '1',
@@ -114,7 +113,6 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
 
     const isLastSlide = activeIndex === slides.length - 1;
 
-    // ── Reliable Slide Visibility & Sync Tracking ───────────────────────────
     const viewabilityConfig = useRef({
         itemVisiblePercentThreshold: 50,
         waitForInteraction: false,
@@ -206,7 +204,6 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                     showsVerticalScrollIndicator={false}
                     bounces={false}
                 >
-                    {/* SVG Vector Illustration (Centered) */}
                     <View style={styles.illustrationWrapper}>
                         <IllustrationComponent
                             size={illustrationSize}
@@ -214,7 +211,6 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                         />
                     </View>
 
-                    {/* Text Details: Title & Description (Centered) */}
                     <View style={styles.textContent}>
                         <AppText
                             variant="h1"
@@ -236,16 +232,18 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
         );
     };
 
+    // Calculate dynamic safe clearance above the phone navigator/home bar
+    const bottomSafePadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 12) + (Platform.OS === 'ios' ? 12 : 16);
+
     return (
-        <SafeAreaView {...({ style: [styles.container, { backgroundColor: theme.colors.background }] } as any)}>
+        <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: theme.colors.background }]}>
             <StatusBar
                 barStyle={isDark ? 'light-content' : 'dark-content'}
                 backgroundColor={theme.colors.background}
             />
 
-            {/* ── Top Utility Bar: Clean Header with only Language & Theme ── */}
+            {/* ── Top Utility Bar: Language, Theme & Top Skip ── */}
             <View style={styles.topBar}>
-                {/* Left Side: Language Switcher (plus Close button if in review mode) */}
                 <View style={styles.topLeft}>
                     {isReviewMode && (
                         <HeaderIconButton
@@ -273,28 +271,49 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                     </TouchableOpacity>
                 </View>
 
-                {/* Right Side: Theme Mode Switcher */}
-                <TouchableOpacity
-                    style={[
-                        styles.iconButton,
-                        {
-                            backgroundColor: theme.colors.surface,
-                            borderColor: theme.colors.border,
-                        },
-                    ]}
-                    onPress={() => {
-                        Haptics.selectionAsync();
-                        toggleTheme();
-                    }}
-                    activeOpacity={0.7}
-                    accessibilityLabel="Toggle Theme"
-                >
-                    {isDark ? (
-                        <Sun size={18} color="#FBBF24" />
-                    ) : (
-                        <Moon size={18} color="#6366F1" />
+                <View style={styles.topRight}>
+                    <TouchableOpacity
+                        style={[
+                            styles.iconButton,
+                            {
+                                backgroundColor: theme.colors.surface,
+                                borderColor: theme.colors.border,
+                            },
+                        ]}
+                        onPress={() => {
+                            Haptics.selectionAsync();
+                            toggleTheme();
+                        }}
+                        activeOpacity={0.7}
+                        accessibilityLabel="Toggle Theme"
+                    >
+                        {isDark ? (
+                            <Sun size={18} color="#FBBF24" />
+                        ) : (
+                            <Moon size={18} color="#6366F1" />
+                        )}
+                    </TouchableOpacity>
+
+                    {/* Integrated Top Skip Button to avoid layout collisions */}
+                    {!isReviewMode && !isLastSlide && (
+                        <TouchableOpacity
+                            style={[
+                                styles.topSkipButton,
+                                {
+                                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
+                                },
+                            ]}
+                            onPress={handleSkip}
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            accessibilityLabel="Skip Onboarding"
+                        >
+                            <AppText variant="caption" weight="bold" style={{ color: theme.colors.textSecondary }}>
+                                {t('skip')}
+                            </AppText>
+                        </TouchableOpacity>
                     )}
-                </TouchableOpacity>
+                </View>
             </View>
 
             {/* ── Main Feature Carousel ───────────────────────────────────────── */}
@@ -341,39 +360,17 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                 style={styles.carousel}
             />
 
-            {/* ── Floating Skip Button at Bottom Right (before last slide) ──── */}
-            {!isReviewMode && !isLastSlide && (
-                <View style={styles.floatingSkipContainer} pointerEvents="box-none">
-                    <TouchableOpacity
-                        style={[
-                            styles.floatingSkipButton,
-                            {
-                                backgroundColor: isDark ? 'rgba(35, 41, 54, 0.92)' : 'rgba(255, 255, 255, 0.95)',
-                                borderColor: isDark ? '#333C4F' : '#E2E8F0',
-                            },
-                        ]}
-                        onPress={handleSkip}
-                        activeOpacity={0.75}
-                        accessibilityLabel="Skip Onboarding"
-                    >
-                        <AppText variant="caption" weight="bold" style={{ color: theme.colors.textSecondary }}>
-                            {t('skip')}
-                        </AppText>
-                        <ChevronRight size={13} color={theme.colors.textSecondary} />
-                    </TouchableOpacity>
-                </View>
-            )}
-
-            {/* ── Bottom Controls ────────────────────────────────────────────── */}
+            {/* ── Bottom Controls with Proper Safe Inset Padding ──────────────── */}
             <View
                 style={[
                     styles.bottomBar,
                     {
                         backgroundColor: theme.colors.background,
+                        paddingBottom: bottomSafePadding,
                     },
                 ]}
             >
-                {/* Pagination Dots Row: Smooth Real-Time Interpolation */}
+                {/* Pagination Dots Row */}
                 <View style={styles.paginationRow}>
                     {slides.map((_, idx) => {
                         const inputRange = [
@@ -418,7 +415,6 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
 
                 {/* Navigation Buttons Row */}
                 <View style={styles.navButtonsRow}>
-                    {/* Primary Action Button (Next / Get Started) - Unified Brand Color */}
                     <TouchableOpacity
                         style={[
                             styles.primaryButton,
@@ -466,6 +462,11 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 8,
     },
+    topRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+    },
     utilityButton: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -487,6 +488,13 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
+    topSkipButton: {
+        paddingHorizontal: 14,
+        paddingVertical: 11,
+        borderRadius: 20,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
     carousel: {
         flex: 1,
     },
@@ -501,8 +509,8 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 28,
         paddingTop: 10,
-        paddingBottom: 30,
-        gap: 24,
+        paddingBottom: 20,
+        gap: 20,
     },
     illustrationWrapper: {
         alignItems: 'center',
@@ -529,37 +537,10 @@ const styles = StyleSheet.create({
         fontSize: 15,
         lineHeight: 23,
     },
-    floatingSkipContainer: {
-        position: 'absolute',
-        right: 20,
-        bottom: 86,
-        zIndex: 10,
-    },
-    floatingSkipButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 16,
-        borderWidth: 1,
-        gap: 3,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000000',
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.1,
-                shadowRadius: 4,
-            },
-            android: {
-                elevation: 3,
-            },
-        }),
-    },
     bottomBar: {
-        paddingHorizontal: 16,
-        paddingBottom: Platform.OS === 'ios' ? 12 : 18,
-        paddingTop: 10,
-        gap: 12,
+        paddingHorizontal: 20,
+        paddingTop: 12,
+        gap: 18,
     },
     paginationRow: {
         flexDirection: 'row',
@@ -580,19 +561,19 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        height: 48,
+        height: 52,
         paddingHorizontal: 20,
-        borderRadius: 14,
+        borderRadius: 16,
         gap: 8,
         ...Platform.select({
             ios: {
                 shadowColor: '#000000',
                 shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.2,
+                shadowOpacity: 0.15,
                 shadowRadius: 6,
             },
             android: {
-                elevation: 3,
+                elevation: 2,
             },
         }),
     },

@@ -350,7 +350,7 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
                 icon={<Trash2 color={theme.colors.status.danger} size={18} />}
                 onPress={handleClearAll}
                 accessibilityLabel="Clear all notifications"
-                style={{ marginLeft: 6 }}
+                style={{ marginLeft: 8 }}
             />
         </View>
     );
@@ -518,7 +518,7 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
 
     return (
         <AppShell
-            title={t('noti', 'Notifications')}
+            title={t('notification', 'Notifications')}
             onBack={navigation.canGoBack() ? () => navigation.goBack() : undefined}
             headerRight={headerRight}
             subHeader={subHeader}
@@ -619,7 +619,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderWidth: 1,
         borderColor: theme.colors.border,
         overflow: 'hidden',
-        ...theme.shadows.sm,
     },
     unreadCard: {
         borderWidth: 1.5,

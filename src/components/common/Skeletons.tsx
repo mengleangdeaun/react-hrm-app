@@ -122,15 +122,17 @@ export function ActivityListSkeleton() {
     return (
         <View style={styles.container}>
             {[1, 2, 3].map((i) => (
-                <View key={i} style={styles.cardPlaceholder}>
+                <View key={i} style={styles.attendanceCardPlaceholder}>
                     <View style={styles.cardHeaderRow}>
-                        <Skeleton.Box width={130} height={24} borderRadius={12} />
-                        <Skeleton.Box width={80} height={20} borderRadius={10} />
+                        <Skeleton.Box width={160} height={16} borderRadius={6} />
+                        <Skeleton.Box width={70} height={18} borderRadius={9} />
                     </View>
-                    <Skeleton.Text lines={2} height={14} gap={8} style={{ marginTop: 12, marginBottom: 14 }} />
-                    <View style={styles.cardHeaderRow}>
-                        <Skeleton.Box width={120} height={14} borderRadius={4} />
-                        <Skeleton.Box width={90} height={14} borderRadius={4} />
+                    <Skeleton.Box width="100%" height={54} borderRadius={10} style={{ marginTop: 12 }} />
+                    <Skeleton.Box width="100%" height={22} borderRadius={11} style={{ marginTop: 8 }} />
+                    <Skeleton.Box width="100%" height={54} borderRadius={10} style={{ marginTop: 8 }} />
+                    <View style={[styles.cardHeaderRow, { marginTop: 12 }]}>
+                        <Skeleton.Box width={80} height={18} borderRadius={6} />
+                        <Skeleton.Box width={95} height={14} borderRadius={4} />
                     </View>
                 </View>
             ))}
@@ -141,16 +143,19 @@ export function ActivityListSkeleton() {
 export function NotificationListSkeleton() {
     return (
         <View style={styles.container}>
-            {[1, 2, 3, 4].map((i) => (
-                <View key={i} style={styles.cardPlaceholder}>
+            {[1, 2, 3].map((i) => (
+                <View key={i} style={styles.attendanceCardPlaceholder}>
                     <View style={styles.cardHeaderRow}>
-                        <Skeleton.Box width={36} height={36} borderRadius={12} />
-                        <View style={{ flex: 1, marginLeft: 12 }}>
-                            <Skeleton.Box width="65%" height={16} borderRadius={4} />
-                            <Skeleton.Box width="35%" height={10} borderRadius={4} style={{ marginTop: 6 }} />
-                        </View>
+                        <Skeleton.Box width={160} height={16} borderRadius={6} />
+                        <Skeleton.Box width={70} height={18} borderRadius={9} />
                     </View>
-                    <Skeleton.Text lines={2} height={12} gap={6} style={{ marginTop: 12 }} />
+                    <Skeleton.Box width="100%" height={54} borderRadius={10} style={{ marginTop: 12 }} />
+                    <Skeleton.Box width="100%" height={22} borderRadius={11} style={{ marginTop: 8 }} />
+                    <Skeleton.Box width="100%" height={54} borderRadius={10} style={{ marginTop: 8 }} />
+                    <View style={[styles.cardHeaderRow, { marginTop: 12 }]}>
+                        <Skeleton.Box width={80} height={18} borderRadius={6} />
+                        <Skeleton.Box width={95} height={14} borderRadius={4} />
+                    </View>
                 </View>
             ))}
         </View>
@@ -183,16 +188,18 @@ export function QuizListSkeleton() {
     return (
         <View style={styles.container}>
             {[1, 2, 3].map((i) => (
-                <View key={i} style={styles.cardPlaceholder}>
+                <View key={i} style={styles.attendanceCardPlaceholder}>
                     <View style={styles.cardHeaderRow}>
-                        <Skeleton.Box width={40} height={40} borderRadius={16} />
-                        <View style={{ flex: 1, marginLeft: 12 }}>
-                            <Skeleton.Box width="70%" height={16} borderRadius={4} />
-                            <Skeleton.Box width="30%" height={10} borderRadius={4} style={{ marginTop: 6 }} />
-                        </View>
+                        <Skeleton.Box width={160} height={16} borderRadius={6} />
+                        <Skeleton.Box width={70} height={18} borderRadius={9} />
                     </View>
-                    <Skeleton.Box width="100%" height={46} borderRadius={12} style={{ marginTop: 14 }} />
-                    <Skeleton.Box width="100%" height={44} borderRadius={12} style={{ marginTop: 12 }} />
+                    <Skeleton.Box width="100%" height={54} borderRadius={10} style={{ marginTop: 12 }} />
+                    <Skeleton.Box width="100%" height={22} borderRadius={11} style={{ marginTop: 8 }} />
+                    <Skeleton.Box width="100%" height={54} borderRadius={10} style={{ marginTop: 8 }} />
+                    <View style={[styles.cardHeaderRow, { marginTop: 12 }]}>
+                        <Skeleton.Box width={80} height={18} borderRadius={6} />
+                        <Skeleton.Box width={95} height={14} borderRadius={4} />
+                    </View>
                 </View>
             ))}
         </View>
@@ -282,6 +289,7 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         paddingTop: 8,
+        marginHorizontal: 16,
     },
     rowGrid: {
         flexDirection: 'row',

@@ -5,7 +5,7 @@ import {
     TouchableOpacity,
     Animated,
     PanResponder,
-    Dimensions,
+    useWindowDimensions,
     KeyboardAvoidingView,
     Platform,
     StyleSheet,
@@ -26,7 +26,7 @@ export interface AppBottomSheetProps {
     subtitle?: string;
     headerRight?: React.ReactNode;
     children: React.ReactNode;
-    maxHeightPercent?: number; // e.g. 0.85 for 85% of screen
+    maxHeightPercent?: number;
     scrollable?: boolean;
     showCloseButton?: boolean;
     avoidKeyboard?: boolean;
@@ -34,8 +34,6 @@ export interface AppBottomSheetProps {
     contentContainerStyle?: any;
     footer?: React.ReactNode;
 }
-
-const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
 export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
     visible,
@@ -52,16 +50,16 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
     contentContainerStyle,
     footer,
 }) => {
+    const { height: screenHeight } = useWindowDimensions();
     const { isDark } = useAppTheme();
     const theme = isDark ? darkTheme : lightTheme;
     const insets = useSafeAreaInsets();
 
     const [modalVisible, setModalVisible] = useState(visible);
     const backdropAnim = useRef(new Animated.Value(0)).current;
-    const sheetAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+    const sheetAnim = useRef(new Animated.Value(screenHeight)).current;
     const panY = useRef(new Animated.Value(0)).current;
 
-    // Track active dismissal to prevent multiple triggers
     const isDismissing = useRef(false);
 
     const handleDismiss = () => {
@@ -75,7 +73,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                 useNativeDriver: true,
             }),
             Animated.timing(sheetAnim, {
-                toValue: SCREEN_HEIGHT,
+                toValue: screenHeight,
                 duration: 260,
                 useNativeDriver: true,
             }),
@@ -97,7 +95,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
             Animated.parallel([
                 Animated.timing(backdropAnim, {
                     toValue: 1,
-                    duration: 250,
+                    duration: 240,
                     useNativeDriver: true,
                 }),
                 Animated.spring(sheetAnim, {
@@ -113,7 +111,6 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
         }
     }, [visible]);
 
-    // Handle Android Hardware Back Button
     useEffect(() => {
         if (!modalVisible) return;
         const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -123,18 +120,14 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
         return () => backHandler.remove();
     }, [modalVisible]);
 
-    // PanResponder for smooth swipe-down gesture
     const panResponder = useRef(
         PanResponder.create({
             onStartShouldSetPanResponder: () => true,
-            onMoveShouldSetPanResponder: (_: any, gestureState: any) => {
-                return gestureState.dy > 5;
-            },
+            onMoveShouldSetPanResponder: (_: any, gestureState: any) => gestureState.dy > 6,
             onPanResponderMove: (_: any, gestureState: any) => {
                 if (gestureState.dy > 0) {
                     panY.setValue(gestureState.dy);
                 } else {
-                    // Slight rubber-band resistance when dragging up
                     panY.setValue(gestureState.dy * 0.15);
                 }
             },
@@ -157,7 +150,10 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
     if (!modalVisible) return null;
 
     const translateY = Animated.add(sheetAnim, panY);
-    const maxSheetHeight = SCREEN_HEIGHT * maxHeightPercent;
+    const maxSheetHeight = screenHeight * maxHeightPercent;
+
+    // Generous bottom clearance above navigation bars across iOS & Android
+    const bottomSafeMargin = Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 12) + (Platform.OS === 'ios' ? 14 : 18);
 
     const renderSheetBody = () => (
         <Animated.View
@@ -167,13 +163,12 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                     backgroundColor: theme.colors.surface,
                     borderColor: theme.colors.border,
                     maxHeight: maxSheetHeight,
-                    paddingBottom: footer ? 0 : Math.max(insets.bottom, 16),
                     transform: [{ translateY }],
                 },
                 containerStyle,
             ]}
         >
-            {/* 1. Drag Handle Bar Area */}
+            {/* Drag Handle Bar */}
             <View {...panResponder.panHandlers} style={styles.dragHandleArea}>
                 <View
                     style={[
@@ -187,7 +182,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                 />
             </View>
 
-            {/* 2. Header Bar with Title, Subtitle, and Actions */}
+            {/* Header Bar */}
             {(title || headerRight || showCloseButton) && (
                 <View style={[styles.headerRow, { borderBottomColor: theme.colors.border }]}>
                     <View style={styles.titleWrapper}>
@@ -221,35 +216,42 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                 </View>
             )}
 
-            {/* 3. Sheet Content */}
+            {/* Sheet Content */}
             {scrollable ? (
                 <ScrollView
                     style={styles.scrollContent}
                     contentContainerStyle={[
                         styles.scrollContentContainer,
-                        { paddingBottom: footer ? 8 : Math.max(insets.bottom + 8, 20) },
+                        { paddingBottom: footer ? 16 : bottomSafeMargin },
                         contentContainerStyle,
                     ]}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="on-drag"
                     bounces={false}
                 >
                     {children}
                 </ScrollView>
             ) : (
-                <View style={[styles.fixedContent, { paddingBottom: footer ? 8 : Math.max(insets.bottom + 8, 20) }, contentContainerStyle]}>
+                <View
+                    style={[
+                        styles.fixedContent,
+                        { paddingBottom: footer ? 16 : bottomSafeMargin },
+                        contentContainerStyle,
+                    ]}
+                >
                     {children}
                 </View>
             )}
 
-            {/* 4. Optional Sticky Footer (e.g. CTA buttons) */}
+            {/* Sticky Bottom Footer with Extra Navigator Clearance */}
             {footer && (
                 <View
                     style={[
                         styles.footerContainer,
                         {
-                            borderTopColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)',
-                            paddingBottom: Math.max(insets.bottom, 16),
+                            borderTopColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)',
+                            paddingBottom: bottomSafeMargin,
                         },
                     ]}
                 >
@@ -269,14 +271,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
         >
             <View style={styles.modalOverlay}>
                 {/* Backdrop Fade */}
-                <Animated.View
-                    style={[
-                        styles.backdrop,
-                        {
-                            opacity: backdropAnim,
-                        },
-                    ]}
-                >
+                <Animated.View style={[styles.backdrop, { opacity: backdropAnim }]}>
                     <TouchableOpacity
                         style={StyleSheet.absoluteFill}
                         activeOpacity={1}
@@ -289,7 +284,8 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                 {avoidKeyboard ? (
                     <KeyboardAvoidingView
                         style={styles.keyboardContainer}
-                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : -insets.bottom}
                     >
                         {renderSheetBody()}
                     </KeyboardAvoidingView>
@@ -311,6 +307,7 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(0, 0, 0, 0.55)',
     },
     keyboardContainer: {
+        width: '100%',
         justifyContent: 'flex-end',
     },
     sheetContainer: {
@@ -344,7 +341,7 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: 20,
         paddingBottom: 14,
-        borderBottomWidth: 1,
+        borderBottomWidth: StyleSheet.hairlineWidth,
     },
     titleWrapper: {
         flex: 1,
@@ -373,21 +370,20 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     scrollContent: {
-        flexGrow: 0,
+        flexShrink: 1,
     },
     scrollContentContainer: {
         paddingHorizontal: 20,
         paddingTop: 16,
-        paddingBottom: 8,
+        flexGrow: 1,
     },
     fixedContent: {
         paddingHorizontal: 20,
         paddingTop: 16,
-        paddingBottom: 8,
     },
     footerContainer: {
         paddingHorizontal: 20,
-        paddingTop: 10,
+        paddingTop: 14,
         borderTopWidth: StyleSheet.hairlineWidth,
     },
 });

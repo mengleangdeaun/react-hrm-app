@@ -169,7 +169,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 icon={<Settings color={theme.colors.textSecondary} size={18} />}
                 onPress={() => navigation.navigate('Settings')}
                 accessibilityLabel="App Settings"
-                style={{ marginLeft: 6 }}
+                style={{ marginLeft: 8 }}
             />
         </View>
     );
@@ -408,7 +408,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginBottom: theme.spacing.lg,
         borderWidth: 1,
         borderColor: theme.colors.border,
-        ...theme.shadows.sm,
     },
     avatarWrapper: {
         position: 'relative',
@@ -500,7 +499,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginBottom: theme.spacing.lg,
         borderWidth: 1,
         borderColor: theme.colors.border,
-        ...theme.shadows.sm,
     },
     infoRow: {
         flexDirection: 'row',

@@ -12,7 +12,7 @@ import {
     StatusBar,
     StyleSheet,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useUnistyles } from 'react-native-unistyles';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import {
@@ -39,7 +39,8 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark, toggleTheme } = useAppTheme();
     const { t, locale, setLocale } = useTranslation();
     const { theme } = useUnistyles();
-    const scrollViewRef = useRef<any>(null);
+    const insets = useSafeAreaInsets();
+    const scrollViewRef = useRef<ScrollView>(null);
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -47,6 +48,12 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
     const toggleLanguage = () => {
         setLocale(locale === 'en' ? 'kh' : 'en');
+    };
+
+    const handleInputFocus = (offsetY: number = 120) => {
+        setTimeout(() => {
+            scrollViewRef.current?.scrollTo({ y: offsetY, animated: true });
+        }, 100);
     };
 
     const handleLogin = async (forceOption: any = false) => {
@@ -110,19 +117,52 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     };
 
     return (
-        <SafeAreaView {...({ style: [{ flex: 1, backgroundColor: theme.colors.background }] } as any)}>
+        <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
             <StatusBar
                 barStyle={isDark ? 'light-content' : 'dark-content'}
                 backgroundColor={theme.colors.background}
             />
 
-            <KeyboardAvoidingView
-                style={{ flex: 1 }}
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            >
-                {/* ── Top Utility Header (Parity with Welcome & Onboarding) ── */}
-                <View style={styles.topBar}>
-                    {/* Back Button */}
+            {/* ── Top Utility Header (Fixed at top) ── */}
+            <View style={styles.topBar}>
+                <TouchableOpacity
+                    style={[
+                        styles.iconButton,
+                        {
+                            backgroundColor: theme.colors.surface,
+                            borderColor: theme.colors.border,
+                        },
+                    ]}
+                    onPress={() => {
+                        if (navigation.canGoBack()) {
+                            navigation.goBack();
+                        } else {
+                            navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
+                        }
+                    }}
+                    activeOpacity={0.7}
+                >
+                    <ArrowLeft size={18} color={theme.colors.textPrimary} />
+                </TouchableOpacity>
+
+                <View style={styles.topRight}>
+                    <TouchableOpacity
+                        style={[
+                            styles.utilityButton,
+                            {
+                                backgroundColor: theme.colors.surface,
+                                borderColor: theme.colors.border,
+                            },
+                        ]}
+                        onPress={toggleLanguage}
+                        activeOpacity={0.7}
+                    >
+                        <Globe size={16} color={theme.colors.textPrimary} />
+                        <AppText style={[styles.utilityButtonText, { color: theme.colors.textPrimary }]}>
+                            {locale === 'en' ? 'ភាសាខ្មែរ' : 'English'}
+                        </AppText>
+                    </TouchableOpacity>
+
                     <TouchableOpacity
                         style={[
                             styles.iconButton,
@@ -131,65 +171,28 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                                 borderColor: theme.colors.border,
                             },
                         ]}
-                        onPress={() => {
-                            if (navigation.canGoBack()) {
-                                navigation.goBack();
-                            } else {
-                                navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
-                            }
-                        }}
+                        onPress={toggleTheme}
                         activeOpacity={0.7}
                     >
-                        <ArrowLeft size={18} color={theme.colors.textPrimary} />
+                        {isDark ? (
+                            <Sun size={18} color="#FBBF24" />
+                        ) : (
+                            <Moon size={18} color="#6366F1" />
+                        )}
                     </TouchableOpacity>
-
-                    {/* Right Utilities (Language + Theme) */}
-                    <View style={styles.topRight}>
-                        {/* Language Switcher */}
-                        <TouchableOpacity
-                            style={[
-                                styles.utilityButton,
-                                {
-                                    backgroundColor: theme.colors.surface,
-                                    borderColor: theme.colors.border,
-                                },
-                            ]}
-                            onPress={toggleLanguage}
-                            activeOpacity={0.7}
-                        >
-                            <Globe size={16} color={theme.colors.textPrimary} />
-                            <AppText style={[styles.utilityButtonText, { color: theme.colors.textPrimary }]}>
-                                {locale === 'en' ? 'ភាសាខ្មែរ' : 'English'}
-                            </AppText>
-                        </TouchableOpacity>
-
-                        {/* Theme Mode Switcher */}
-                        <TouchableOpacity
-                            style={[
-                                styles.iconButton,
-                                {
-                                    backgroundColor: theme.colors.surface,
-                                    borderColor: theme.colors.border,
-                                },
-                            ]}
-                            onPress={toggleTheme}
-                            activeOpacity={0.7}
-                        >
-                            {isDark ? (
-                                <Sun size={18} color="#FBBF24" />
-                            ) : (
-                                <Moon size={18} color="#6366F1" />
-                            )}
-                        </TouchableOpacity>
-                    </View>
                 </View>
+            </View>
 
+            <KeyboardAvoidingView
+                style={styles.keyboardContainer}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 10 : 0}
+            >
                 <ScrollView
                     ref={scrollViewRef}
                     contentContainerStyle={styles.scrollContent}
                     keyboardShouldPersistTaps="handled"
                     keyboardDismissMode="on-drag"
-                    automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
                     showsVerticalScrollIndicator={false}
                     bounces={false}
                 >
@@ -245,6 +248,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                                     placeholderTextColor={theme.colors.textSecondary}
                                     value={email}
                                     onChangeText={setEmail}
+                                    onFocus={() => handleInputFocus(100)}
                                     keyboardType="email-address"
                                     autoCapitalize="none"
                                     autoCorrect={false}
@@ -273,6 +277,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                                     placeholderTextColor={theme.colors.textSecondary}
                                     value={password}
                                     onChangeText={setPassword}
+                                    onFocus={() => handleInputFocus(180)}
                                     secureTextEntry={!showPassword}
                                     autoCapitalize="none"
                                 />
@@ -291,7 +296,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                             </View>
                         </View>
 
-                        {/* Submit Button (Unified Brand Color) */}
+                        {/* Submit Button */}
                         <TouchableOpacity
                             style={[
                                 styles.submitButton,
@@ -319,7 +324,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                                 style={[
                                     styles.quickActionButton,
                                     {
-                                        backgroundColor: isDark ? '#1E2433' : '#F8FAFC',
+                                        backgroundColor: isDark ? '#252525ff' : '#F8FAFC',
                                         borderColor: theme.colors.border,
                                     },
                                 ]}
@@ -337,7 +342,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                                     style={[
                                         styles.quickActionButton,
                                         {
-                                            backgroundColor: isDark ? '#1E2433' : '#F8FAFC',
+                                            backgroundColor: isDark ? '#252525ff' : '#F8FAFC',
                                             borderColor: theme.colors.border,
                                         },
                                     ]}
@@ -359,13 +364,20 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 };
 
 const styles = StyleSheet.create({
+    safeArea: {
+        flex: 1,
+    },
+    keyboardContainer: {
+        flex: 1,
+    },
     topBar: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 24,
+        paddingHorizontal: 16,
         paddingTop: 8,
         paddingBottom: 8,
+        zIndex: 10,
     },
     topRight: {
         flexDirection: 'row',
@@ -396,13 +408,12 @@ const styles = StyleSheet.create({
     scrollContent: {
         flexGrow: 1,
         paddingHorizontal: 24,
-        paddingTop: 12,
-        paddingBottom: 32,
-        justifyContent: 'center',
+        paddingTop: 8,
+        paddingBottom: 48,
     },
     brandContainer: {
         alignItems: 'center',
-        marginBottom: 16,
+        marginVertical: 14,
     },
     logoContainer: {
         alignItems: 'center',
@@ -416,23 +427,23 @@ const styles = StyleSheet.create({
                 shadowRadius: 10,
             },
             android: {
-                elevation: 4,
+                elevation: 1,
             },
         }),
     },
     logoImage: {
-        width: 80,
-        height: 80,
+        width: 76,
+        height: 76,
         borderRadius: 20,
     },
     brandTitle: {
-        fontSize: 18,
+        fontSize: 17,
         fontWeight: '800',
         letterSpacing: -0.3,
         marginBottom: 4,
     },
     welcomeTitle: {
-        fontSize: 23,
+        fontSize: 22,
         fontWeight: '800',
         textAlign: 'center',
         marginBottom: 4,
@@ -454,7 +465,7 @@ const styles = StyleSheet.create({
                 shadowRadius: 16,
             },
             android: {
-                elevation: 2,
+                elevation: 1,
             },
         }),
     },
@@ -496,7 +507,7 @@ const styles = StyleSheet.create({
                 shadowRadius: 8,
             },
             android: {
-                elevation: 3,
+                elevation: 1,
             },
         }),
     },

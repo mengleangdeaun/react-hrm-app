@@ -108,6 +108,9 @@ export const ModernScannerCanvas: React.FC<ModernScannerCanvasProps> = ({
         setTorch((prev) => !prev);
     };
 
+    // Calculate safe thumb-zone clearance from bottom system bar across iOS & Android
+    const bottomClearance = Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 12) + (Platform.OS === 'ios' ? 24 : 28);
+
     return (
         <View style={styles.container} {...panResponder.panHandlers}>
             {/* 1. Live Camera Preview with Native Auto Focus */}
@@ -129,66 +132,72 @@ export const ModernScannerCanvas: React.FC<ModernScannerCanvasProps> = ({
                 {topContent ? topContent : <View style={{ height: 38 }} />}
             </View>
 
-            {/* 3. High-Contrast Viewfinder with Clean 4 Corner Brackets Only */}
+            {/* 3. High-Contrast Viewfinder Centered Exactly */}
             <View style={styles.overlay} pointerEvents="box-none">
-                <View
-                    style={[
-                        styles.scannerFrame,
-                        {
-                            width: frameSize,
-                            height: frameSize,
-                        },
-                    ]}
-                >
-                    {/* 4 Brand-Color Corner L-Brackets */}
-                    <View style={[styles.corner, styles.topLeft, { borderColor: accentColor }]} />
-                    <View style={[styles.corner, styles.topRight, { borderColor: accentColor }]} />
-                    <View style={[styles.corner, styles.bottomLeft, { borderColor: accentColor }]} />
-                    <View style={[styles.corner, styles.bottomRight, { borderColor: accentColor }]} />
+                <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+                    <View style={styles.centerAnchor} pointerEvents="box-none">
+                        <View
+                            style={[
+                                styles.scannerFrame,
+                                {
+                                    width: frameSize,
+                                    height: frameSize,
+                                },
+                            ]}
+                        >
+                            {/* 4 Brand-Color Corner L-Brackets */}
+                            <View style={[styles.corner, styles.topLeft, { borderColor: accentColor }]} />
+                            <View style={[styles.corner, styles.topRight, { borderColor: accentColor }]} />
+                            <View style={[styles.corner, styles.bottomLeft, { borderColor: accentColor }]} />
+                            <View style={[styles.corner, styles.bottomRight, { borderColor: accentColor }]} />
 
-                    {/* Authenticating / Submitting Loading Overlay */}
-                    {(isLoading || isDecodingImage) && (
-                        <View style={styles.loadingOverlay}>
-                            <ActivityIndicator size="large" color={accentColor} />
-                            <AppText style={styles.loadingOverlayText}>
-                                {isDecodingImage
-                                    ? t('scanning_image', 'Scanning QR from photo...')
-                                    : loadingText || t('verifying_qr', 'Verifying QR Code...')}
-                            </AppText>
+                            {/* Authenticating / Submitting Loading Overlay */}
+                            {(isLoading || isDecodingImage) && (
+                                <View style={styles.loadingOverlay}>
+                                    <ActivityIndicator size="large" color={accentColor} />
+                                    <AppText style={styles.loadingOverlayText}>
+                                        {isDecodingImage
+                                            ? t('scanning_image', 'Scanning QR from photo...')
+                                            : loadingText || t('verifying_qr', 'Verifying QR Code...')}
+                                    </AppText>
+                                </View>
+                            )}
                         </View>
-                    )}
+
+                        {/* Anchored Below Center Frame */}
+                        <View style={styles.underFrameContainer} pointerEvents="box-none">
+                            <AppText style={styles.instructionText}>
+                                {instructionText || t('align_qr_within_frame', 'Align the QR code within the frame to scan')}
+                            </AppText>
+
+                            {/* Tap to Rescan Button */}
+                            {isScanned && !isLoading && !isDecodingImage && onRescanPress && (
+                                <TouchableOpacity
+                                    style={[styles.rescanBtn, { backgroundColor: accentColor }]}
+                                    onPress={() => {
+                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                                        onRescanPress();
+                                    }}
+                                    activeOpacity={0.85}
+                                    accessibilityLabel="Tap to rescan"
+                                >
+                                    <RefreshCw size={16} color="#FFFFFF" />
+                                    <AppText style={styles.rescanBtnText}>
+                                        {t('tap_to_rescan', 'Tap to Rescan')}
+                                    </AppText>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    </View>
                 </View>
-
-                {/* Concise Guidance Copy */}
-                <AppText style={styles.instructionText}>
-                    {instructionText || t('align_qr_within_frame', 'Align the QR code within the frame to scan')}
-                </AppText>
-
-                {/* Tap to Rescan Button */}
-                {isScanned && !isLoading && !isDecodingImage && onRescanPress && (
-                    <TouchableOpacity
-                        style={[styles.rescanBtn, { backgroundColor: accentColor }]}
-                        onPress={() => {
-                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                            onRescanPress();
-                        }}
-                        activeOpacity={0.85}
-                        accessibilityLabel="Tap to rescan"
-                    >
-                        <RefreshCw size={16} color="#FFFFFF" />
-                        <AppText style={styles.rescanBtnText}>
-                            {t('tap_to_rescan', 'Tap to Rescan')}
-                        </AppText>
-                    </TouchableOpacity>
-                )}
             </View>
 
-            {/* 4. Thumb-Zone Bottom Action Bar */}
+            {/* 4. Thumb-Zone Bottom Action Bar with Enhanced Clear Spacing */}
             <View
                 style={[
                     styles.bottomControlsContainer,
                     {
-                        bottom: insets.bottom + (Platform.OS === 'ios' ? 12 : 20),
+                        bottom: bottomClearance,
                     },
                 ]}
                 pointerEvents="box-none"
@@ -263,15 +272,26 @@ const styles = StyleSheet.create({
     },
     overlay: {
         ...StyleSheet.absoluteFillObject,
-        justifyContent: 'center',
-        alignItems: 'center',
         backgroundColor: 'rgba(0, 0, 0, 0.52)',
         zIndex: 10,
+    },
+    centerAnchor: {
+        ...StyleSheet.absoluteFillObject,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     scannerFrame: {
         borderRadius: 24,
         position: 'relative',
         overflow: 'hidden',
+    },
+    underFrameContainer: {
+        position: 'absolute',
+        top: '50%',
+        left: 0,
+        right: 0,
+        alignItems: 'center',
+        transform: [{ translateY: 130 }],
     },
     corner: {
         position: 'absolute',
@@ -324,7 +344,7 @@ const styles = StyleSheet.create({
         color: '#F1F5F9',
         fontSize: 13.5,
         textAlign: 'center',
-        marginTop: 36,
+        marginTop: 20,
         paddingHorizontal: 36,
         fontWeight: '500',
         lineHeight: 19,
@@ -336,7 +356,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        marginTop: 20,
+        marginTop: 16,
         paddingHorizontal: 22,
         paddingVertical: 12,
         borderRadius: 14,
@@ -362,19 +382,19 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
     },
     circleActionButton: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        backgroundColor: 'rgba(15, 23, 42, 0.80)',
+        width: 50,
+        height: 50,
+        borderRadius: 25,
+        backgroundColor: 'rgba(15, 23, 42, 0.82)',
         borderWidth: 1,
         borderColor: 'rgba(255, 255, 255, 0.22)',
         justifyContent: 'center',
         alignItems: 'center',
         shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 4,
-        elevation: 3,
+        shadowOffset: { width: 0, height: 3 },
+        shadowOpacity: 0.3,
+        shadowRadius: 5,
+        elevation: 4,
     },
     circleActionButtonActiveTorch: {
         backgroundColor: 'rgba(251, 191, 36, 0.30)',
@@ -384,9 +404,9 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         gap: 9,
-        height: 48,
+        height: 50,
         paddingHorizontal: 24,
-        borderRadius: 24,
+        borderRadius: 25,
         shadowColor: '#000',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.35,

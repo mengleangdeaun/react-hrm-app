@@ -323,7 +323,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderWidth: 1,
         borderColor: theme.colors.border,
         marginBottom: theme.spacing.lg,
-        ...theme.shadows.sm,
     },
     quizTitle: {
         fontSize: 17,
@@ -427,7 +426,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginBottom: theme.spacing.md,
         borderWidth: 1,
         borderColor: theme.colors.border,
-        ...theme.shadows.sm,
     },
     questionHeaderRow: {
         flexDirection: 'row',
