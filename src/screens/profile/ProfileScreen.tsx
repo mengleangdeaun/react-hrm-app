@@ -546,6 +546,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         paddingVertical: 12,
         borderRadius: theme.borderRadius.lg,
         marginTop: theme.spacing.xs,
+        marginBottom: theme.spacing.xxl,
     },
     logoutBtnText: {
         color: theme.colors.status.danger,

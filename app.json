@@ -36,6 +36,8 @@
         "CAMERA",
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
+        "READ_MEDIA_IMAGES",
+        "READ_EXTERNAL_STORAGE",
         "USE_BIOMETRIC",
         "USE_FINGERPRINT",
         "VIBRATE"
@@ -47,6 +49,12 @@
     "plugins": [
       "expo-secure-store",
       "expo-font",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow SCCG App to select and scan QR codes from your photo library."
+        }
+      ],
       [
         "expo-media-library",
         {

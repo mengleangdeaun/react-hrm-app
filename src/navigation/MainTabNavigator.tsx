@@ -163,7 +163,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 
     const backgroundColor = theme.colors.surface;
     const borderTopColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
-    const activeColor = theme.colors.brand || theme.colors.primary;
+    const activeColor = theme.colors.brand;
     const inactiveColor = theme.colors.textSecondary;
 
     // Generous bottom clearance above navigation bars across iOS & Android
@@ -173,11 +173,15 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
     const activeRoute = state.routes[state.index];
     const activeSubRouteName = getFocusedRouteNameFromRoute(activeRoute);
 
+    // Immersive full-screen camera canvas on ScanTab (no colliding bottom tab bar)
+    if (activeRoute?.name === 'ScanTab') {
+        return null;
+    }
+
     const mainTabScreens = [
         'DashboardMain',
         'ScheduleCalendarMain',
         'ScheduleCalendarScreen',
-        'ScanAttendanceScreen',
         'NotificationList',
         'ProfileMain',
     ];

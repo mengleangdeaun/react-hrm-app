@@ -944,7 +944,7 @@
     "step_finalize": "រួចរាល់",
     "step_photos": "រូបថត",
     "step_type": "ប្រភេទ",
-    "step_x_of_y": "Step X Of Y",
+    "step_x_of_y": "ជំហាន {{step}} នៃ {{total}}",
     "subject_placeholder": "e.g., Office cafeteria menu suggestion",
     "submission_error": "Submission Error",
     "submission_failed": "ការបញ្ជូនបានបរាជ័យ",

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
     TextInput,
@@ -6,15 +6,29 @@ import {
     Alert,
     ScrollView,
     ActivityIndicator,
+    Modal,
+    Platform,
+    useWindowDimensions,
+    Image,
+    Animated,
+    PanResponder,
+    Easing,
 } from 'react-native';
-import { Image } from 'expo-image';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText as Text } from '../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useQueryClient } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
+import { Image as ExpoImage } from 'expo-image';
 import * as Location from 'expo-location';
 import { activityApi, OFFICIAL_ACTIVITY_TYPES } from '../../api/activity';
-import { optimizeImagesBatch, cleanupTempImages } from '../../utils/imageOptimizer';
+import {
+    optimizeImageForUpload,
+    optimizeImagesBatch,
+    cleanupTempImages,
+    formatFileSize,
+} from '../../utils/imageOptimizer';
+import { reverseGeocodeLocation } from '../../utils/reverseGeocode';
 import { useAppTheme } from '../../context/ThemeContext';
 import { AppShell } from '../../components/common/AppShell';
 import { HeaderIconButton } from '../../components/common/AppHeader';
@@ -33,9 +47,9 @@ import {
     MoreHorizontal,
     ChevronRight,
     History,
+    RotateCw,
 } from 'lucide-react-native';
-
-import { Platform } from 'react-native';
+import { useTranslation } from '../../context/LanguageContext';
 
 const CATEGORY_ICONS: Record<string, any> = {
     'Sale Outdoor': MapPin,
@@ -48,9 +62,9 @@ const CATEGORY_ICONS: Record<string, any> = {
     'Other': MoreHorizontal,
 };
 
-import { useTranslation } from '../../context/LanguageContext';
-
 export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+    const insets = useSafeAreaInsets();
+    const { width: screenWidth, height: screenHeight } = useWindowDimensions();
     const { isDark } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
@@ -62,14 +76,72 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
 
     // Form Data
     const [selectedCategory, setSelectedCategory] = useState<string>('');
-    const [attachments, setAttachments] = useState<{ uri: string; name?: string; type?: string }[]>([]);
+    const [attachments, setAttachments] = useState<{
+        id?: string;
+        uri: string;
+        name?: string;
+        type?: string;
+        size?: number;
+        width?: number;
+        height?: number;
+    }[]>([]);
     const [comment, setComment] = useState<string>('');
 
     // GPS Location
     const [location, setLocation] = useState<{ lat?: number; lng?: number; address?: string } | null>(null);
     const [isLocating, setIsLocating] = useState<boolean>(false);
+    const [isOptimizing, setIsOptimizing] = useState<boolean>(false);
     const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
     const [submittingStatus, setSubmittingStatus] = useState<string>('');
+    const [previewModalImage, setPreviewModalImage] = useState<string | null>(null);
+
+    const modalTranslateY = useRef(new Animated.Value(0)).current;
+
+    const closePreviewModal = useCallback(() => {
+        Animated.timing(modalTranslateY, {
+            toValue: screenHeight,
+            duration: 220,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+        }).start(() => {
+            setPreviewModalImage(null);
+            modalTranslateY.setValue(0);
+        });
+    }, [screenHeight, modalTranslateY]);
+
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => false,
+            onMoveShouldSetPanResponder: (_: any, gestureState: any) => {
+                return gestureState.dy > 6 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.3;
+            },
+            onPanResponderMove: (_: any, gestureState: any) => {
+                if (gestureState.dy > 0) {
+                    modalTranslateY.setValue(gestureState.dy);
+                }
+            },
+            onPanResponderRelease: (_: any, gestureState: any) => {
+                if (gestureState.dy > 90 || gestureState.vy > 0.5) {
+                    closePreviewModal();
+                } else {
+                    Animated.spring(modalTranslateY, {
+                        toValue: 0,
+                        friction: 8,
+                        tension: 45,
+                        useNativeDriver: true,
+                    }).start();
+                }
+            },
+            onPanResponderTerminate: () => {
+                Animated.spring(modalTranslateY, {
+                    toValue: 0,
+                    friction: 8,
+                    tension: 45,
+                    useNativeDriver: true,
+                }).start();
+            },
+        })
+    ).current;
 
     useEffect(() => {
         captureGpsLocation();
@@ -87,21 +159,14 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
             const currentLoc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
             const { latitude, longitude } = currentLoc.coords;
 
-            let addressName = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-            try {
-                const [reversed] = await Location.reverseGeocodeAsync({ latitude, longitude });
-                if (reversed) {
-                    const parts = [reversed.name, reversed.street, reversed.subregion || reversed.city].filter(Boolean);
-                    if (parts.length > 0) addressName = parts.join(', ');
-                }
-            } catch (e) {
-                // Fallback coordinates
-            }
+            // Resolve human-readable address via OpenStreetMap Nominatim / Native Geocoder
+            // GUARANTEE: Never stores raw lat/lng numbers as the location name string!
+            const resolvedName = await reverseGeocodeLocation(latitude, longitude);
 
             setLocation({
                 lat: latitude,
                 lng: longitude,
-                address: addressName,
+                address: resolvedName,
             });
         } catch (err) {
             console.warn('Location capture error:', err);
@@ -112,49 +177,155 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
     };
 
     const takePhoto = async () => {
-        const permission = await ImagePicker.requestCameraPermissionsAsync();
-        if (!permission.granted) {
-            Alert.alert(t('permission_required', 'Permission Required'), t('camera_access_photo_proof', 'Camera access is required to take photo proof.'));
-            return;
-        }
+        try {
+            const permission = await ImagePicker.requestCameraPermissionsAsync();
+            if (!permission.granted) {
+                Alert.alert(
+                    t('permission_required', 'Permission Required'),
+                    t('camera_access_photo_proof', 'Camera access is required to take photo proof.')
+                );
+                return;
+            }
 
-        const result = await ImagePicker.launchCameraAsync({
-            quality: 0.8,
-            allowsEditing: false,
-        });
+            const result = await ImagePicker.launchCameraAsync({
+                quality: 0.85,
+                allowsEditing: false,
+            });
 
-        if (!result.canceled && result.assets && result.assets.length > 0) {
-            const asset = result.assets[0];
-            const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpg';
-            const cleanExt = ext === 'png' ? 'png' : 'jpg';
-            const name = asset.fileName || `photo_${Date.now()}.${cleanExt}`;
-            const type = asset.mimeType || `image/${cleanExt}`;
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                const asset = result.assets[0];
+                const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpg';
+                const cleanExt = ext === 'png' ? 'png' : 'jpg';
+                const tempId = `photo_${Date.now()}`;
+                const initialItem = {
+                    id: tempId,
+                    uri: asset.uri,
+                    name: asset.fileName || `${tempId}.${cleanExt}`,
+                    type: asset.mimeType || `image/${cleanExt}`,
+                    size: asset.fileSize,
+                    width: asset.width,
+                    height: asset.height,
+                };
 
-            setAttachments((prev) => [...prev, { uri: asset.uri, name, type }]);
+                // 1. Immediately show thumbnail to user!
+                setAttachments((prev) => [...prev, initialItem]);
+
+                // 2. Compress image in background and update item
+                setIsOptimizing(true);
+                try {
+                    const opt = await optimizeImageForUpload(
+                        asset.uri,
+                        1280,
+                        0.70,
+                        asset.width && asset.height ? { width: asset.width, height: asset.height } : undefined
+                    );
+                    setAttachments((prev) =>
+                        prev.map((item: any) =>
+                            item.id === tempId || item.uri === asset.uri
+                                ? {
+                                      ...item,
+                                      uri: opt.uri,
+                                      name: opt.name,
+                                      type: opt.type,
+                                      size: opt.size,
+                                      width: opt.width,
+                                      height: opt.height,
+                                  }
+                                : item
+                        )
+                    );
+                } catch (e) {
+                    console.warn('Image optimization error (retaining original):', e);
+                } finally {
+                    setIsOptimizing(false);
+                }
+            }
+        } catch (err) {
+            console.warn('Camera capture error:', err);
+            setIsOptimizing(false);
         }
     };
 
     const pickImage = async () => {
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ['images'],
-            allowsMultipleSelection: true,
-            quality: 0.8,
-        });
+        try {
+            const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+            if (status !== 'granted') {
+                Alert.alert(
+                    t('permission_required', 'Permission Required'),
+                    t('gallery_permission_desc', 'Photo library permission is required to attach photos.')
+                );
+                return;
+            }
 
-        if (!result.canceled && result.assets) {
-            const newAssets = result.assets.map((asset: any, idx: number) => {
-                const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpg';
-                const cleanExt = ext === 'png' ? 'png' : 'jpg';
-                const name = asset.fileName || `photo_${Date.now()}_${idx}.${cleanExt}`;
-                const type = asset.mimeType || `image/${cleanExt}`;
-                return { uri: asset.uri, name, type };
+            const result = await ImagePicker.launchImageLibraryAsync({
+                mediaTypes: ['images'],
+                allowsMultipleSelection: true,
+                quality: 0.85,
             });
-            setAttachments((prev) => [...prev, ...newAssets]);
+
+            if (!result.canceled && result.assets && result.assets.length > 0) {
+                const newItems = result.assets.map((asset: any, idx: number) => {
+                    const ext = asset.uri.split('.').pop()?.toLowerCase() || 'jpg';
+                    const cleanExt = ext === 'png' ? 'png' : 'jpg';
+                    const tempId = `gallery_${Date.now()}_${idx}`;
+                    return {
+                        id: tempId,
+                        uri: asset.uri,
+                        name: asset.fileName || `${tempId}.${cleanExt}`,
+                        type: asset.mimeType || `image/${cleanExt}`,
+                        size: asset.fileSize,
+                        width: asset.width,
+                        height: asset.height,
+                    };
+                });
+
+                // 1. Immediately show thumbnails to user!
+                setAttachments((prev) => [...prev, ...newItems]);
+
+                // 2. Compress images in background and update items
+                setIsOptimizing(true);
+                try {
+                    const toOptimize = newItems.map((item: any) => ({
+                        uri: item.uri,
+                        name: item.name,
+                        type: item.type,
+                        width: item.width,
+                        height: item.height,
+                    }));
+
+                    const optimizedList = await optimizeImagesBatch(toOptimize);
+                    setAttachments((prev) =>
+                        prev.map((item: any) => {
+                            const matchIndex = newItems.findIndex((n: any) => n.id === item.id || n.uri === item.uri);
+                            if (matchIndex !== -1 && optimizedList[matchIndex]) {
+                                const opt = optimizedList[matchIndex];
+                                return {
+                                    ...item,
+                                    uri: opt.uri,
+                                    name: opt.name,
+                                    type: opt.type,
+                                    size: opt.size,
+                                    width: opt.width,
+                                    height: opt.height,
+                                };
+                            }
+                            return item;
+                        })
+                    );
+                } catch (e) {
+                    console.warn('Batch optimize error, retaining raw assets:', e);
+                } finally {
+                    setIsOptimizing(false);
+                }
+            }
+        } catch (err) {
+            console.warn('Gallery pick error:', err);
+            setIsOptimizing(false);
         }
     };
 
     const removeAttachment = (index: number) => {
-        setAttachments((prev) => prev.filter((_, i) => i !== index));
+        setAttachments((prev) => prev.filter((_: any, i: number) => i !== index));
     };
 
     const handleSubmit = async () => {
@@ -168,11 +339,11 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
         }
 
         setIsSubmitting(true);
-        setSubmittingStatus(t('optimizing_photos', 'Optimizing photos...'));
+        setSubmittingStatus(t('optimizing_photos', 'Verifying photo compression...'));
         let optimizedToCleanup: string[] = [];
 
         try {
-            // 1. Client-side native GPU downscaling & compression
+            // 1. Ensure all images are compressed before upload
             const optimized = await optimizeImagesBatch(
                 attachments,
                 (curr, total) => {
@@ -183,14 +354,21 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
             );
             optimizedToCleanup = optimized.map((o) => o.uri);
 
-            // 2. Submit optimized payload
+            // 2. Submit optimized payload with human-readable location name
             setSubmittingStatus(t('uploading_activity', 'Uploading activity report...'));
+
+            const safeLocationName = location?.address &&
+                !location.address.includes('unavailable') &&
+                !location.address.includes('denied')
+                    ? location.address
+                    : undefined;
+
             await activityApi.submitActivity({
                 activity_type: selectedCategory,
                 comment,
                 latitude: location?.lat,
                 longitude: location?.lng,
-                location_name: location?.address,
+                location_name: safeLocationName,
                 attachments: optimized,
             });
 
@@ -227,7 +405,16 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
         <AppShell title={t('log_activity', 'Log Activity')} onBack={() => navigation.goBack()} headerRight={headerRight}>
             {/* Step Progress Bar */}
             <View style={styles.stepHeaderRow}>
-                <Text style={styles.stepProgressText}>{t('step_x_of_y', `Step ${currentStep} of 3`)}</Text>
+                <Text style={styles.stepProgressText}>
+                    {t('step_x_of_y', `Step ${currentStep} of 3`, { step: currentStep, total: 3, current: currentStep })}
+                </Text>
+                <Text style={styles.stepPhaseText}>
+                    {currentStep === 1
+                        ? t('step_type', 'Type')
+                        : currentStep === 2
+                        ? t('step_photos', 'Photos')
+                        : t('step_finalize', 'Finalize')}
+                </Text>
             </View>
             <View style={styles.progressBarBg}>
                 <View style={[styles.progressBarFill, { width: `${(currentStep / 3) * 100}%` }]} />
@@ -243,6 +430,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                         {OFFICIAL_ACTIVITY_TYPES.map((cat) => {
                             const CatIcon = CATEGORY_ICONS[cat.id] || MoreHorizontal;
                             const isSelected = selectedCategory === cat.id;
+
                             return (
                                 <TouchableOpacity
                                     key={cat.id}
@@ -251,7 +439,11 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                                     activeOpacity={0.8}
                                 >
                                     <View style={[styles.gridIconBg, isSelected && styles.gridIconBgSelected]}>
-                                        <CatIcon color={isSelected ? '#FFFFFF' : theme.colors.primary} size={22} />
+                                        <CatIcon
+                                            color={isSelected ? '#FFFFFF' : theme.colors.textSecondary}
+                                            size={22}
+                                            strokeWidth={2}
+                                        />
                                     </View>
                                     <Text
                                         style={[styles.gridCardLabel, isSelected && styles.gridCardLabelSelected]}
@@ -261,7 +453,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                                     </Text>
                                     {isSelected && (
                                         <View style={styles.gridCheckBadge}>
-                                            <Check color="#FFFFFF" size={12} />
+                                            <Check color="#FFFFFF" size={12} strokeWidth={2.5} />
                                         </View>
                                     )}
                                 </TouchableOpacity>
@@ -302,16 +494,49 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                     {/* Thumbnail Grid */}
                     {attachments.length > 0 && (
                         <View style={styles.previewSection}>
-                            <Text style={styles.previewTitle}>{t('attached_photos_count', `Attached Photos (${attachments.length})`)}</Text>
+                            <View style={styles.previewHeaderRow}>
+                                <Text style={styles.previewTitle}>
+                                    {t('attached_photos_count', `Attached Photos (${attachments.length})`)}
+                                </Text>
+                                {isOptimizing && (
+                                    <View style={styles.optimizingBadge}>
+                                        <ActivityIndicator size="small" color={theme.colors.primary} />
+                                        <Text style={styles.optimizingBadgeText}>{t('compressing', 'Compressing...')}</Text>
+                                    </View>
+                                )}
+                            </View>
                             <View style={styles.thumbnailGrid}>
-                                {attachments.map((item, index) => (
-                                    <View key={index} style={styles.thumbnailWrapper}>
-                                        <Image source={{ uri: item.uri }} style={styles.thumbnailImg} />
+                                {attachments.map((item: any, index: number) => (
+                                    <View key={item.id || `${item.uri}-${index}`} style={styles.thumbnailWrapper}>
+                                        <TouchableOpacity
+                                            style={styles.thumbnailTouch}
+                                            activeOpacity={0.85}
+                                            onPress={() => {
+                                                modalTranslateY.setValue(0);
+                                                setPreviewModalImage(item.uri);
+                                            }}
+                                        >
+                                            <Image
+                                                source={{ uri: item.uri }}
+                                                style={styles.thumbnailImg}
+                                                resizeMode="cover"
+                                            />
+                                        </TouchableOpacity>
+
+                                        {item.size ? (
+                                            <View style={styles.thumbnailSizeBadge} pointerEvents="none">
+                                                <Text style={styles.thumbnailSizeText}>{formatFileSize(item.size)}</Text>
+                                            </View>
+                                        ) : null}
+
                                         <TouchableOpacity
                                             style={styles.removeBtn}
                                             onPress={() => removeAttachment(index)}
+                                            activeOpacity={0.8}
+                                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                            accessibilityLabel="Remove photo"
                                         >
-                                            <X color="#FFFFFF" size={12} />
+                                            <X color="#FFFFFF" size={12} strokeWidth={2.5} />
                                         </TouchableOpacity>
                                     </View>
                                 ))}
@@ -329,8 +554,8 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                            style={[styles.nextBtnFlex, attachments.length === 0 && styles.nextBtnDisabled]}
-                            disabled={attachments.length === 0}
+                            style={[styles.nextBtnFlex, (attachments.length === 0 || isOptimizing) && styles.nextBtnDisabled]}
+                            disabled={attachments.length === 0 || isOptimizing}
                             onPress={() => setCurrentStep(3)}
                             activeOpacity={0.85}
                         >
@@ -349,14 +574,31 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
 
                     {/* GPS Tagged Location Banner */}
                     <View style={styles.locationCard}>
-                        <MapPin color={theme.colors.primary} size={20} />
+                        <View style={styles.locationIconBox}>
+                            <MapPin color={theme.colors.primary} size={18} />
+                        </View>
                         <View style={styles.locationTextGroup}>
                             <Text style={styles.locationCardTitle}>{t('verified_location_tag', 'Verified Location Tag')}</Text>
                             <Text style={styles.locationCardSub} numberOfLines={2}>
-                                {isLocating ? t('resolving_gps_coords', 'Resolving GPS coordinates...') : location?.address || t('location_tagged', 'Location Tagged')}
+                                {isLocating
+                                    ? t('resolving_gps_coords', 'Resolving GPS location...')
+                                    : location?.address || t('location_tagged', 'Location Tagged')}
                             </Text>
                         </View>
-                        {isLocating && <ActivityIndicator size="small" color={theme.colors.primary} />}
+                        <TouchableOpacity
+                            style={styles.locationRefreshBtn}
+                            onPress={captureGpsLocation}
+                            disabled={isLocating}
+                            activeOpacity={0.7}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            accessibilityLabel="Refresh GPS location"
+                        >
+                            {isLocating ? (
+                                <ActivityIndicator size="small" color={theme.colors.primary} />
+                            ) : (
+                                <RotateCw color={theme.colors.textSecondary} size={15} />
+                            )}
+                        </TouchableOpacity>
                     </View>
 
                     {/* Notes / Comment Text Input */}
@@ -400,6 +642,86 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                     </View>
                 </View>
             )}
+
+            {/* Thumbnail Preview Modal */}
+            <Modal
+                visible={Boolean(previewModalImage)}
+                transparent
+                animationType="fade"
+                onRequestClose={closePreviewModal}
+            >
+                <View style={styles.previewModalOverlay}>
+                    {/* Native-accelerated Backdrop Fade */}
+                    <Animated.View
+                        style={[
+                            StyleSheet.absoluteFillObject,
+                            {
+                                backgroundColor: '#000000',
+                                opacity: modalTranslateY.interpolate({
+                                    inputRange: [0, 220],
+                                    outputRange: [0.96, 0.25],
+                                    extrapolate: 'clamp',
+                                }),
+                            },
+                        ]}
+                        pointerEvents="none"
+                    />
+
+                    <Animated.View
+                        {...panResponder.panHandlers}
+                        style={{
+                            flex: 1,
+                            width: '100%',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            transform: [
+                                { translateY: modalTranslateY },
+                                {
+                                    scale: modalTranslateY.interpolate({
+                                        inputRange: [0, 240],
+                                        outputRange: [1, 0.90],
+                                        extrapolate: 'clamp',
+                                    }),
+                                },
+                            ],
+                        }}
+                    >
+                        {/* Top Bar: Close Button (Top-Right) */}
+                        <View style={[styles.previewModalTopBar, { top: Math.max(48, insets.top + 10) }]}>
+                            <View />
+                            <TouchableOpacity
+                                style={styles.previewModalCloseBtn}
+                                onPress={closePreviewModal}
+                                activeOpacity={0.8}
+                                accessibilityLabel="Close photo preview"
+                            >
+                                <X color="#FFFFFF" size={20} strokeWidth={2.5} />
+                            </TouchableOpacity>
+                        </View>
+
+                        {previewModalImage && (
+                            <Image
+                                source={{ uri: previewModalImage }}
+                                style={{ width: screenWidth, height: Math.round(screenHeight * 0.72) }}
+                                resizeMode="contain"
+                            />
+                        )}
+
+                        {/* Bottom Close Button - Near Thumb (Aligned to Right) */}
+                        <View style={[styles.previewModalBottomBar, { bottom: Math.max(28, insets.bottom + 12) }]}>
+                            <TouchableOpacity
+                                style={styles.previewModalBottomCloseBtn}
+                                onPress={closePreviewModal}
+                                activeOpacity={0.8}
+                                accessibilityLabel="Close photo preview"
+                            >
+                                <X color="#FFFFFF" size={17} strokeWidth={2.5} />
+                                <Text style={styles.previewModalBottomCloseText}>{t('close', 'Close')}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </Animated.View>
+                </View>
+            </Modal>
         </AppShell>
     );
 };
@@ -425,6 +747,11 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontSize: 12,
         fontWeight: '700',
         color: theme.colors.primary,
+    },
+    stepPhaseText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: theme.colors.textSecondary,
     },
     progressBarBg: {
         height: 4,
@@ -524,35 +851,88 @@ const stylesheet = StyleSheet.create((theme) => ({
     previewSection: {
         marginBottom: theme.spacing.lg,
     },
+    previewHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: theme.spacing.sm,
+    },
     previewTitle: {
         fontSize: 12,
         fontWeight: '700',
         color: theme.colors.textSecondary,
-        marginBottom: theme.spacing.sm,
+    },
+    optimizingBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: theme.colors.surfaceSubtle,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: theme.borderRadius.full,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        gap: 6,
+    },
+    optimizingBadgeText: {
+        fontSize: 11,
+        fontWeight: '700',
+        color: theme.colors.primary,
     },
     thumbnailGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: theme.spacing.sm + 2,
+        gap: theme.spacing.md,
     },
     thumbnailWrapper: {
         position: 'relative',
+        width: 80,
+        height: 80,
+        borderRadius: theme.borderRadius.md,
+        backgroundColor: theme.colors.surfaceSubtle,
+    },
+    thumbnailTouch: {
+        width: 80,
+        height: 80,
+        borderRadius: theme.borderRadius.md,
+        overflow: 'hidden',
     },
     thumbnailImg: {
-        width: 76,
-        height: 76,
+        width: 80,
+        height: 80,
         borderRadius: theme.borderRadius.md,
+        backgroundColor: theme.colors.surfaceSubtle,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+    },
+    thumbnailSizeBadge: {
+        position: 'absolute',
+        bottom: 4,
+        left: 4,
+        right: 4,
+        backgroundColor: 'rgba(0, 0, 0, 0.65)',
+        borderRadius: 4,
+        paddingVertical: 2,
+        paddingHorizontal: 4,
+        alignItems: 'center',
+    },
+    thumbnailSizeText: {
+        fontSize: 9,
+        fontWeight: '700',
+        color: '#FFFFFF',
     },
     removeBtn: {
         position: 'absolute',
         top: -6,
         right: -6,
-        width: 20,
-        height: 20,
+        width: 22,
+        height: 22,
         borderRadius: theme.borderRadius.full,
         backgroundColor: theme.colors.status.danger,
         justifyContent: 'center',
         alignItems: 'center',
+        borderWidth: 1.5,
+        borderColor: theme.colors.surface,
+        zIndex: 10,
     },
     locationCard: {
         backgroundColor: theme.colors.surface,
@@ -563,6 +943,16 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderWidth: 1,
         borderColor: theme.colors.border,
         marginBottom: theme.spacing.md,
+    },
+    locationIconBox: {
+        width: 36,
+        height: 36,
+        borderRadius: 18,
+        backgroundColor: theme.colors.surfaceSubtle,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     locationTextGroup: {
         flex: 1,
@@ -579,6 +969,62 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontWeight: '600',
         color: theme.colors.textPrimary,
         marginTop: 2,
+    },
+    locationRefreshBtn: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: theme.colors.surfaceSubtle,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    previewModalOverlay: {
+        flex: 1,
+        backgroundColor: '#000000',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    previewModalTopBar: {
+        position: 'absolute',
+        left: 20,
+        right: 20,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        zIndex: 50,
+    },
+    previewModalCloseBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    previewModalBottomBar: {
+        position: 'absolute',
+        right: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        zIndex: 50,
+    },
+    previewModalBottomCloseBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.22)',
+        paddingHorizontal: theme.spacing.lg,
+        paddingVertical: theme.spacing.sm + 4,
+        borderRadius: theme.borderRadius.full,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.25)',
+    },
+    previewModalBottomCloseText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700',
+        marginLeft: 6,
     },
     inputLabel: {
         fontSize: 12,
@@ -682,30 +1128,33 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     gridCardTileSelected: {
         borderColor: theme.colors.primary,
-        backgroundColor: theme.colors.surfaceSubtle,
+        backgroundColor: theme.colors.primarySubtle,
     },
     gridIconBg: {
         width: 48,
         height: 48,
         borderRadius: theme.borderRadius.md,
         backgroundColor: theme.colors.surfaceSubtle,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: theme.spacing.sm,
     },
     gridIconBgSelected: {
         backgroundColor: theme.colors.primary,
+        borderColor: theme.colors.primary,
     },
     gridCardLabel: {
         fontSize: 12,
-        fontWeight: '700',
+        fontWeight: '600',
         color: theme.colors.textPrimary,
         textAlign: 'center',
-        paddingHorizontal: 2,
+        paddingHorizontal: 4,
     },
     gridCardLabelSelected: {
         color: theme.colors.primary,
-        fontWeight: '800',
+        fontWeight: '700',
     },
     gridCheckBadge: {
         position: 'absolute',

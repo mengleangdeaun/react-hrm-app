@@ -917,7 +917,7 @@
     "step_finalize": "Finalize",
     "step_photos": "Photos",
     "step_type": "Type",
-    "step_x_of_y": "Step X Of Y",
+    "step_x_of_y": "Step {{step}} of {{total}}",
     "subject_placeholder": "e.g., Office cafeteria menu suggestion",
     "submission_error": "Submission Error",
     "submission_failed": "Submission failed",

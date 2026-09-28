@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import {
     View,
     ScrollView,
@@ -10,6 +10,9 @@ import {
     Alert,
     ActivityIndicator,
     useWindowDimensions,
+    Animated,
+    PanResponder,
+    Easing,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { Image } from 'expo-image';
@@ -67,29 +70,80 @@ const CATEGORY_ICONS: Record<string, any> = {
 
 import { useTranslation } from '../../context/LanguageContext';
 
-export const getDisplayImageUrls = (item: ActivityItem): string[] => {
-    let urls: string[] = [];
+export const HERO_IMAGE_HEIGHT = 200;
 
-    if (Array.isArray(item.attachment_urls) && item.attachment_urls.length > 0) {
-        urls = item.attachment_urls;
-    } else if (item.photo_url) {
-        urls = [item.photo_url];
-    } else if (Array.isArray(item.attachments) && item.attachments.length > 0) {
-        urls = item.attachments;
-    } else if (item.photo_path) {
-        urls = [item.photo_path];
+export const normalizeActivityImageUrl = (rawUrl?: string): string => {
+    if (!rawUrl || typeof rawUrl !== 'string') return '';
+    const trimmed = rawUrl.trim();
+    if (!trimmed) return '';
+
+    // If it's already an absolute URL (e.g. Cloudflare R2: https://pub-xxx.r2.dev/... or http://...)
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        // Rewrite loopback addresses from local dev Laravel (127.0.0.1 or localhost)
+        // so that Android emulators and devices reach the backend host correctly
+        if (trimmed.includes('127.0.0.1') || trimmed.includes('localhost')) {
+            const apiBase = ENV.API_URL.replace(/\/api\/?$/, '');
+            const pathAndQuery = trimmed.replace(/^https?:\/\/[^/]+/, '');
+            return `${apiBase}${pathAndQuery}`;
+        }
+        return trimmed;
     }
 
-    return urls
-        .map((u) => {
-            if (!u) return '';
-            if (u.startsWith('http://') || u.startsWith('https://')) return u;
-            const cleanPath = u.startsWith('/') ? u.substring(1) : u;
-            const storagePath = cleanPath.startsWith('storage/') ? cleanPath : `storage/${cleanPath}`;
-            const baseUrl = ENV.API_URL.replace(/\/api\/?$/, '');
-            return `${baseUrl}/${storagePath}`;
-        })
-        .filter(Boolean);
+    // Relative path (from storage/ or activities/)
+    const cleanPath = trimmed.startsWith('/') ? trimmed.substring(1) : trimmed;
+    const storagePath = cleanPath.startsWith('storage/') ? cleanPath : `storage/${cleanPath}`;
+    const baseUrl = ENV.API_URL.replace(/\/api\/?$/, '');
+    return `${baseUrl}/${storagePath}`;
+};
+
+export const getDisplayImageUrls = (item: ActivityItem): string[] => {
+    // 1. Prefer resolved Cloudflare R2 / public URLs provided by the backend
+    const resolvedUrls: string[] = [];
+
+    if (Array.isArray(item.attachment_urls) && item.attachment_urls.length > 0) {
+        resolvedUrls.push(...item.attachment_urls);
+    }
+    if (item.photo_url && !resolvedUrls.includes(item.photo_url)) {
+        resolvedUrls.push(item.photo_url);
+    }
+
+    if (resolvedUrls.length > 0) {
+        return resolvedUrls.map((u) => normalizeActivityImageUrl(u)).filter(Boolean);
+    }
+
+    // 2. Fallback only if backend didn't provide pre-resolved URLs
+    const fallbackList: any[] = [];
+    if (Array.isArray(item.attachments) && item.attachments.length > 0) {
+        item.attachments.forEach((a) => {
+            if (typeof a === 'string') fallbackList.push(a);
+            else if (a && typeof a === 'object' && (a as any).uri) fallbackList.push((a as any).uri);
+        });
+    } else if (typeof item.attachments === 'string') {
+        try {
+            const parsed = JSON.parse(item.attachments);
+            if (Array.isArray(parsed)) fallbackList.push(...parsed);
+            else if (typeof parsed === 'string') fallbackList.push(parsed);
+        } catch {
+            fallbackList.push(item.attachments);
+        }
+    }
+
+    if (item.photo_path && !fallbackList.includes(item.photo_path)) {
+        fallbackList.push(item.photo_path);
+    }
+
+    const seen = new Set<string>();
+    const result: string[] = [];
+
+    for (const raw of fallbackList) {
+        const normalized = normalizeActivityImageUrl(raw);
+        if (normalized && !seen.has(normalized)) {
+            seen.add(normalized);
+            result.push(normalized);
+        }
+    }
+
+    return result;
 };
 
 interface ActivityCardProps {
@@ -97,6 +151,8 @@ interface ActivityCardProps {
     cardImageWidth: number;
     savingUrl: string | null;
     onSaveImage: (url: string) => void;
+    onPreviewImage?: (url: string) => void;
+    onPreviewImages?: (images: string[], initialIndex: number) => void;
     theme: any;
     styles: any;
     t: (key: string, fallback?: string) => string;
@@ -107,35 +163,121 @@ const ActivityCard = memo(({
     cardImageWidth,
     savingUrl,
     onSaveImage,
+    onPreviewImage,
+    onPreviewImages,
     theme,
     styles,
     t,
 }: ActivityCardProps) => {
     const displayImages = getDisplayImageUrls(item);
+    const [activeImgIndex, setActiveImgIndex] = useState(0);
+    const [containerWidth, setContainerWidth] = useState(cardImageWidth);
+    const [imgLoadErrors, setImgLoadErrors] = useState<Record<number, boolean>>({});
+
+    const handleScroll = useCallback((e: any) => {
+        const offset = e.nativeEvent?.contentOffset?.x ?? 0;
+        const viewWidth = e.nativeEvent?.layoutMeasurement?.width || containerWidth || cardImageWidth;
+        if (viewWidth > 0 && displayImages.length > 0) {
+            const idx = Math.min(
+                Math.max(Math.round(offset / viewWidth), 0),
+                displayImages.length - 1
+            );
+            if (idx !== activeImgIndex) {
+                setActiveImgIndex(idx);
+            }
+        }
+    }, [containerWidth, cardImageWidth, displayImages.length, activeImgIndex]);
+
     const dateFormatted = item.submitted_at || item.activity_date
         ? `${formatDateDisplay(item.submitted_at || item.activity_date, 'dayMonth')} • ${formatTimeDisplay(item.submitted_at || item.activity_date)}`
         : 'Recent';
 
+    const CatIcon = CATEGORY_ICONS[item.activity_type] || ActivityIcon;
+
+    const statusConfig = useMemo(() => {
+        const status = item.status || 'submitted';
+        switch (status) {
+            case 'approved':
+                return {
+                    bg: 'rgba(16, 185, 129, 0.12)',
+                    border: 'rgba(16, 185, 129, 0.28)',
+                    text: theme.colors.status.success,
+                    label: t('approved', 'APPROVED'),
+                    Icon: CheckCircle2,
+                };
+            case 'rejected':
+                return {
+                    bg: 'rgba(220, 38, 38, 0.12)',
+                    border: 'rgba(220, 38, 38, 0.28)',
+                    text: theme.colors.status.danger,
+                    label: t('rejected', 'REJECTED'),
+                    Icon: AlertCircle,
+                };
+            default:
+                return {
+                    bg: 'rgba(245, 158, 11, 0.12)',
+                    border: 'rgba(245, 158, 11, 0.28)',
+                    text: '#F59E0B',
+                    label: t('submitted', 'SUBMITTED'),
+                    Icon: Clock,
+                };
+        }
+    }, [item.status, theme, t]);
+
+    const StatusIcon = statusConfig.Icon;
+
     return (
         <View style={styles.card}>
             {/* 1. Hero Image Banner (Full Card Width) */}
-            <View style={styles.heroImageContainer}>
+            <View
+                style={styles.heroImageContainer}
+                onLayout={(e: any) => {
+                    const w = Math.round(e.nativeEvent.layout.width);
+                    if (w > 0 && Math.abs(w - containerWidth) > 1) {
+                        setContainerWidth(w);
+                    }
+                }}
+            >
                 {displayImages.length > 0 ? (
                     <ScrollView
                         horizontal
                         pagingEnabled
                         showsHorizontalScrollIndicator={false}
-                        style={styles.heroScrollView}
+                        scrollEventThrottle={16}
+                        onScroll={handleScroll}
+                        onMomentumScrollEnd={handleScroll}
+                        onScrollEndDrag={handleScroll}
+                        style={[styles.heroScrollView, { height: HERO_IMAGE_HEIGHT }]}
                     >
                         {displayImages.map((imgUri, idx) => (
-                            <Image
-                                key={idx}
-                                source={{ uri: imgUri }}
-                                style={[styles.heroImage, { width: cardImageWidth }]}
-                                contentFit="cover"
-                                cachePolicy="memory-disk"
-                                transition={200}
-                            />
+                            <TouchableOpacity
+                                key={`${imgUri}-${idx}`}
+                                activeOpacity={0.9}
+                                onPress={() => {
+                                    if (onPreviewImages) {
+                                        onPreviewImages(displayImages, idx);
+                                    } else {
+                                        onPreviewImage?.(imgUri);
+                                    }
+                                }}
+                                style={{ width: containerWidth, height: HERO_IMAGE_HEIGHT }}
+                            >
+                                {imgLoadErrors[idx] ? (
+                                    <View style={[styles.heroPlaceholder, { width: containerWidth, height: HERO_IMAGE_HEIGHT }]}>
+                                        <ActivityIcon color={theme.colors.textSecondary} size={32} />
+                                        <Text style={styles.heroPlaceholderText}>{t('image_load_failed', 'Image Preview Unavailable')}</Text>
+                                    </View>
+                                ) : (
+                                    <Image
+                                        source={{ uri: imgUri }}
+                                        style={[styles.heroImage, { width: containerWidth, height: HERO_IMAGE_HEIGHT }]}
+                                        contentFit="cover"
+                                        cachePolicy="memory-disk"
+                                        transition={200}
+                                        onError={() => setImgLoadErrors((prev) => ({ ...prev, [idx]: true }))}
+                                    />
+                                )}
+                            </TouchableOpacity>
                         ))}
                     </ScrollView>
                 ) : (
@@ -145,10 +287,28 @@ const ActivityCard = memo(({
                     </View>
                 )}
 
+                {/* Status Badge Overlay (Top Right) */}
+                <View
+                    style={[
+                        styles.statusBadgeOverlay,
+                        {
+                            backgroundColor: statusConfig.bg,
+                            borderColor: statusConfig.border,
+                        },
+                    ]}
+                >
+                    <StatusIcon color={statusConfig.text} size={11} strokeWidth={2.5} />
+                    <Text style={[styles.statusBadgeText, { color: statusConfig.text }]}>
+                        {statusConfig.label}
+                    </Text>
+                </View>
+
                 {/* Photos Count Badge Overlay (Top Left) */}
                 {displayImages.length > 1 && (
                     <View style={styles.photoCountBadgeOverlay}>
-                        <Text style={styles.photoCountBadgeText}>{displayImages.length} {t('photos', 'Photos')}</Text>
+                        <Text style={styles.photoCountBadgeText}>
+                            {activeImgIndex + 1}/{displayImages.length} {t('photos', 'Photos')}
+                        </Text>
                     </View>
                 )}
 
@@ -157,20 +317,20 @@ const ActivityCard = memo(({
                     <TouchableOpacity
                         style={[
                             styles.saveBtnOverlay,
-                            savingUrl === displayImages[0] && { opacity: 0.8 },
+                            savingUrl === (displayImages[activeImgIndex] || displayImages[0]) && { opacity: 0.8 },
                         ]}
-                        onPress={() => onSaveImage(displayImages[0])}
-                        disabled={savingUrl === displayImages[0]}
+                        onPress={() => onSaveImage(displayImages[activeImgIndex] || displayImages[0])}
+                        disabled={savingUrl === (displayImages[activeImgIndex] || displayImages[0])}
                         activeOpacity={0.8}
                         accessibilityLabel={t('save_to_gallery', 'Save to Gallery')}
                     >
-                        {savingUrl === displayImages[0] ? (
+                        {savingUrl === (displayImages[activeImgIndex] || displayImages[0]) ? (
                             <ActivityIndicator color="#FFFFFF" size="small" style={{ transform: [{ scale: 0.75 }] }} />
                         ) : (
                             <Download color="#FFFFFF" size={13} />
                         )}
                         <Text style={styles.saveBtnOverlayText}>
-                            {savingUrl === displayImages[0] ? t('saving', 'Saving...') : t('save', 'Save')}
+                            {savingUrl === (displayImages[activeImgIndex] || displayImages[0]) ? t('saving', 'Saving...') : t('save', 'Save')}
                         </Text>
                     </TouchableOpacity>
                 )}
@@ -181,7 +341,7 @@ const ActivityCard = memo(({
                 {/* Header Row: Category Badge & Formatted Date/Time */}
                 <View style={styles.cardHeaderRow}>
                     <View style={styles.categoryBadge}>
-                        <ActivityIcon color={theme.colors.primary} size={13} />
+                        <CatIcon color={theme.colors.primary} size={13} strokeWidth={2.2} />
                         <Text style={styles.categoryBadgeText}>
                             {item.activity_type || t('activity', 'Activity')}
                         </Text>
@@ -193,15 +353,32 @@ const ActivityCard = memo(({
                     </View>
                 </View>
 
+                {/* Verified Location Tag Row */}
+                {item.location_name ? (
+                    <View style={styles.locationCardBox}>
+                        <View style={styles.locationPinWrapper}>
+                            <MapPin color={theme.colors.primary} size={13} strokeWidth={2.2} />
+                        </View>
+                        <Text style={styles.locationText} numberOfLines={2}>
+                            {item.location_name}
+                        </Text>
+                    </View>
+                ) : null}
+
                 {/* Activity Comment / Notes */}
                 {item.comment ? (
-                    <Text style={styles.cardComment}>{item.comment}</Text>
+                    <View style={styles.commentContainer}>
+                        <Text style={styles.cardComment}>{item.comment}</Text>
+                    </View>
                 ) : null}
 
                 {/* Manager Supervisor Remark */}
                 {item.status === 'rejected' && item.admin_note ? (
                     <View style={styles.adminNoteBox}>
-                        <Text style={styles.adminNoteTitle}>Supervisor Remark:</Text>
+                        <View style={styles.adminNoteHeader}>
+                            <AlertCircle color={theme.colors.status.danger} size={13} strokeWidth={2.2} />
+                            <Text style={styles.adminNoteTitle}>{t('supervisor_remark', 'Supervisor Remark')}:</Text>
+                        </View>
                         <Text style={styles.adminNoteText}>{item.admin_note}</Text>
                     </View>
                 ) : null}
@@ -215,8 +392,10 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
     const { isDark, primaryColor } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
-    const { width: screenWidth } = useWindowDimensions();
+    const { width: screenWidth, height: screenHeight } = useWindowDimensions();
     const cardImageWidth = Math.max(screenWidth - 32, 280);
+    const modalImageWidth = screenWidth;
+    const modalImageHeight = Math.round(screenHeight * 0.72);
     const styles = stylesheet;
     const queryClient = useQueryClient();
 
@@ -431,6 +610,68 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
 
     const keyExtractor = useCallback((item: ActivityItem) => String(item.id), []);
 
+    const [previewModalData, setPreviewModalData] = useState<{ images: string[]; initialIndex: number } | null>(null);
+    const [previewActiveIndex, setPreviewActiveIndex] = useState<number>(0);
+    const [modalLoading, setModalLoading] = useState<Record<number, boolean>>({});
+    const [modalError, setModalError] = useState<Record<number, boolean>>({});
+
+    const modalTranslateY = useRef(new Animated.Value(0)).current;
+
+    const closePreviewModal = useCallback(() => {
+        Animated.timing(modalTranslateY, {
+            toValue: screenHeight,
+            duration: 220,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+        }).start(() => {
+            setPreviewModalData(null);
+            modalTranslateY.setValue(0);
+        });
+    }, [screenHeight, modalTranslateY]);
+
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => false,
+            onMoveShouldSetPanResponder: (_: any, gestureState: any) => {
+                // Respond to downward drag when vertical drag dominates over horizontal
+                return gestureState.dy > 6 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx) * 1.3;
+            },
+            onPanResponderMove: (_: any, gestureState: any) => {
+                if (gestureState.dy > 0) {
+                    modalTranslateY.setValue(gestureState.dy);
+                }
+            },
+            onPanResponderRelease: (_: any, gestureState: any) => {
+                if (gestureState.dy > 90 || gestureState.vy > 0.5) {
+                    closePreviewModal();
+                } else {
+                    Animated.spring(modalTranslateY, {
+                        toValue: 0,
+                        friction: 8,
+                        tension: 45,
+                        useNativeDriver: true,
+                    }).start();
+                }
+            },
+            onPanResponderTerminate: () => {
+                Animated.spring(modalTranslateY, {
+                    toValue: 0,
+                    friction: 8,
+                    tension: 45,
+                    useNativeDriver: true,
+                }).start();
+            },
+        })
+    ).current;
+
+    const handleOpenPreview = useCallback((images: string[], initialIndex: number) => {
+        modalTranslateY.setValue(0);
+        setPreviewModalData({ images, initialIndex });
+        setPreviewActiveIndex(initialIndex);
+        setModalLoading({});
+        setModalError({});
+    }, [modalTranslateY]);
+
     const renderItem = useCallback(
         ({ item }: { item: ActivityItem }) => (
             <ActivityCard
@@ -438,12 +679,14 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                 cardImageWidth={cardImageWidth}
                 savingUrl={savingUrl}
                 onSaveImage={handleSaveImage}
+                onPreviewImage={(url) => handleOpenPreview([url], 0)}
+                onPreviewImages={handleOpenPreview}
                 theme={theme}
                 styles={styles}
                 t={t}
             />
         ),
-        [cardImageWidth, savingUrl, handleSaveImage, theme, styles, t]
+        [cardImageWidth, savingUrl, handleSaveImage, handleOpenPreview, theme, styles, t]
     );
 
     const subHeader = (
@@ -559,7 +802,6 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                 }
             >
                 {/* 1. Review Month Picker */}
-                <Text style={styles.filterSectionLabel}>{t('review_month', 'Review Month')}</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.monthPillsRow}>
                     {getMonthOptions().map((m) => {
                         const isSel = draftMonth === m.value;
@@ -588,74 +830,236 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                     )}
                 </View>
 
-                <View style={styles.categoryGroupContainer}>
-                    {FILTER_CATEGORIES.map((cat, index) => {
+                <View style={styles.categoryChipGrid}>
+                    {FILTER_CATEGORIES.map((cat) => {
                         const isSel = draftCategory === cat.id;
                         const CatIcon = CATEGORY_ICONS[cat.id] || MoreHorizontal;
-                        const isLast = index === FILTER_CATEGORIES.length - 1;
 
                         return (
                             <TouchableOpacity
                                 key={cat.id}
                                 style={[
-                                    styles.categoryRow,
-                                    isSel && { backgroundColor: `${primaryColor}14` },
-                                    !isLast && !isSel && styles.categoryRowBorder,
+                                    styles.categoryChip,
+                                    isSel
+                                        ? { backgroundColor: primaryColor, borderColor: primaryColor }
+                                        : { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border },
                                 ]}
                                 onPress={() => {
                                     setDraftCategory(cat.id);
                                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                                 }}
-                                activeOpacity={0.7}
+                                activeOpacity={0.75}
                             >
-                                <View
-                                    style={[
-                                        styles.categoryIconCircle,
-                                        {
-                                            backgroundColor: isSel
-                                                ? primaryColor
-                                                : theme.colors.surface,
-                                            borderColor: isSel ? primaryColor : theme.colors.border,
-                                        },
-                                    ]}
-                                >
-                                    <CatIcon
-                                        color={isSel ? '#FFFFFF' : theme.colors.textSecondary}
-                                        size={17}
-                                    />
-                                </View>
-
+                                <CatIcon
+                                    color={isSel ? '#FFFFFF' : theme.colors.textSecondary}
+                                    size={14}
+                                />
                                 <Text
                                     style={[
-                                        styles.categoryLabel,
-                                        isSel && [styles.categoryLabelSelected, { color: primaryColor }],
+                                        styles.categoryChipLabel,
+                                        { color: isSel ? '#FFFFFF' : theme.colors.textPrimary },
                                     ]}
+                                    numberOfLines={1}
                                 >
                                     {cat.label}
                                 </Text>
-
-                                <View style={styles.trailingContainer}>
-                                    {isSel ? (
-                                        <View
-                                            style={[
-                                                styles.selectedCheckBadge,
-                                                {
-                                                    backgroundColor: primaryColor,
-                                                    borderColor: primaryColor,
-                                                },
-                                            ]}
-                                        >
-                                            <Check color="#FFFFFF" size={13} strokeWidth={3} />
-                                        </View>
-                                    ) : (
-                                        <View style={styles.unselectedIndicator} />
-                                    )}
-                                </View>
+                                {isSel && (
+                                    <View style={styles.categoryChipCheck}>
+                                        <Check color="#FFFFFF" size={11} strokeWidth={3} />
+                                    </View>
+                                )}
                             </TouchableOpacity>
                         );
                     })}
                 </View>
             </AppBottomSheet>
+
+            {/* Fullscreen Photo Preview Modal */}
+            <Modal
+                visible={Boolean(previewModalData && previewModalData.images.length > 0)}
+                transparent
+                animationType="fade"
+                onRequestClose={closePreviewModal}
+            >
+                <View style={styles.previewModalOverlay}>
+                    {/* Native-accelerated Backdrop Fade */}
+                    <Animated.View
+                        style={[
+                            StyleSheet.absoluteFillObject,
+                            {
+                                backgroundColor: '#000000',
+                                opacity: modalTranslateY.interpolate({
+                                    inputRange: [0, 220],
+                                    outputRange: [0.96, 0.25],
+                                    extrapolate: 'clamp',
+                                }),
+                            },
+                        ]}
+                        pointerEvents="none"
+                    />
+
+                    <Animated.View
+                        {...panResponder.panHandlers}
+                        style={{
+                            flex: 1,
+                            width: '100%',
+                            justifyContent: 'center',
+                            alignItems: 'center',
+                            transform: [
+                                { translateY: modalTranslateY },
+                                {
+                                    scale: modalTranslateY.interpolate({
+                                        inputRange: [0, 240],
+                                        outputRange: [1, 0.90],
+                                        extrapolate: 'clamp',
+                                    }),
+                                },
+                            ],
+                        }}
+                    >
+                        {/* Top Bar: Counter Pill & Close Button */}
+                        <View style={[styles.previewModalTopBar, { top: Math.max(48, insets.top + 10) }]}>
+                            {previewModalData && previewModalData.images.length > 1 ? (
+                                <View style={styles.previewModalCounterPill}>
+                                    <Text style={styles.previewModalCounterText}>
+                                        {previewActiveIndex + 1} / {previewModalData.images.length}
+                                    </Text>
+                                </View>
+                            ) : (
+                                <View />
+                            )}
+
+                            <TouchableOpacity
+                                style={styles.previewModalCloseBtn}
+                                onPress={closePreviewModal}
+                                activeOpacity={0.8}
+                                accessibilityLabel="Close photo preview"
+                            >
+                                <X color="#FFFFFF" size={20} strokeWidth={2.5} />
+                            </TouchableOpacity>
+                        </View>
+
+                        {/* Image Viewer Carousel */}
+                        {previewModalData && (
+                            <ScrollView
+                                horizontal
+                                pagingEnabled
+                                showsHorizontalScrollIndicator={false}
+                                scrollEventThrottle={16}
+                                contentOffset={{ x: previewModalData.initialIndex * screenWidth, y: 0 }}
+                                style={{ width: screenWidth, height: modalImageHeight }}
+                                onScroll={(e: any) => {
+                                    const offset = e.nativeEvent?.contentOffset?.x ?? 0;
+                                    const viewWidth = e.nativeEvent?.layoutMeasurement?.width || screenWidth;
+                                    if (viewWidth > 0 && previewModalData) {
+                                        const idx = Math.min(
+                                            Math.max(Math.round(offset / viewWidth), 0),
+                                            previewModalData.images.length - 1
+                                        );
+                                        if (idx !== previewActiveIndex) {
+                                            setPreviewActiveIndex(idx);
+                                        }
+                                    }
+                                }}
+                                onMomentumScrollEnd={(e: any) => {
+                                    const offset = e.nativeEvent?.contentOffset?.x ?? 0;
+                                    const viewWidth = e.nativeEvent?.layoutMeasurement?.width || screenWidth;
+                                    if (viewWidth > 0 && previewModalData) {
+                                        const idx = Math.min(
+                                            Math.max(Math.round(offset / viewWidth), 0),
+                                            previewModalData.images.length - 1
+                                        );
+                                        setPreviewActiveIndex(idx);
+                                    }
+                                }}
+                                onScrollEndDrag={(e: any) => {
+                                    const offset = e.nativeEvent?.contentOffset?.x ?? 0;
+                                    const viewWidth = e.nativeEvent?.layoutMeasurement?.width || screenWidth;
+                                    if (viewWidth > 0 && previewModalData) {
+                                        const idx = Math.min(
+                                            Math.max(Math.round(offset / viewWidth), 0),
+                                            previewModalData.images.length - 1
+                                        );
+                                        setPreviewActiveIndex(idx);
+                                    }
+                                }}
+                            >
+                                {previewModalData.images.map((imgUri, idx) => (
+                                    <View
+                                        key={`modal-${imgUri}-${idx}`}
+                                        style={[styles.previewModalImageWrapper, { width: screenWidth, height: modalImageHeight }]}
+                                    >
+                                        {modalLoading[idx] !== false && (
+                                            <View style={styles.previewModalCenter}>
+                                                <ActivityIndicator size="large" color="#FFFFFF" />
+                                            </View>
+                                        )}
+
+                                        {modalError[idx] ? (
+                                            <View style={styles.previewModalCenter}>
+                                                <AlertCircle color={theme.colors.status.danger} size={40} />
+                                                <Text style={styles.previewModalErrorText}>
+                                                    {t('image_load_failed', 'Unable to load photo preview')}
+                                                </Text>
+                                            </View>
+                                        ) : (
+                                            <Image
+                                                source={{ uri: imgUri }}
+                                                style={{ width: screenWidth, height: modalImageHeight }}
+                                                contentFit="contain"
+                                                cachePolicy="memory-disk"
+                                                transition={200}
+                                                onLoadStart={() => setModalLoading((p) => ({ ...p, [idx]: true }))}
+                                                onLoad={() => setModalLoading((p) => ({ ...p, [idx]: false }))}
+                                                onError={() => {
+                                                    setModalLoading((p) => ({ ...p, [idx]: false }));
+                                                    setModalError((p) => ({ ...p, [idx]: true }));
+                                                }}
+                                            />
+                                        )}
+                                    </View>
+                                ))}
+                            </ScrollView>
+                        )}
+
+                        {/* Bottom Action Bar (Save on Left, Close on Right - Near Thumb) */}
+                        <View style={[styles.previewModalBottomBar, { bottom: Math.max(28, insets.bottom + 12) }]}>
+                            {previewModalData && previewModalData.images[previewActiveIndex] && (
+                                <TouchableOpacity
+                                    style={[
+                                        styles.previewModalSaveBtn,
+                                        savingUrl === previewModalData.images[previewActiveIndex] && { opacity: 0.8 },
+                                    ]}
+                                    onPress={() => handleSaveImage(previewModalData.images[previewActiveIndex])}
+                                    disabled={savingUrl === previewModalData.images[previewActiveIndex]}
+                                    activeOpacity={0.85}
+                                >
+                                    {savingUrl === previewModalData.images[previewActiveIndex] ? (
+                                        <ActivityIndicator color="#FFFFFF" size="small" />
+                                    ) : (
+                                        <Download color="#FFFFFF" size={15} />
+                                    )}
+                                    <Text style={styles.previewModalSaveText}>
+                                        {savingUrl === previewModalData.images[previewActiveIndex]
+                                            ? t('saving', 'Saving...')
+                                            : t('save_to_gallery', 'Save')}
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+
+                            <TouchableOpacity
+                                style={styles.previewModalBottomCloseBtn}
+                                onPress={closePreviewModal}
+                                activeOpacity={0.8}
+                                accessibilityLabel="Close photo preview"
+                            >
+                                <X color="#FFFFFF" size={17} strokeWidth={2.5} />
+                                <Text style={styles.previewModalBottomCloseText}>{t('close', 'Close')}</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </Animated.View>
+                </View>
+            </Modal>
         </AppShell>
     );
 };
@@ -688,7 +1092,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         backgroundColor: theme.colors.primary,
         justifyContent: 'center',
         alignItems: 'center',
-        ...theme.shadows.sm,
     },
     tabBarContainer: {
         backgroundColor: theme.colors.surface,
@@ -731,7 +1134,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginHorizontal: theme.spacing.screenGutter,
         marginBottom: theme.spacing.md,
         gap: 8,
-        ...theme.shadows.sm,
     },
     activeMonthChipText: {
         color: '#FFFFFF',
@@ -788,7 +1190,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         justifyContent: 'center',
         alignItems: 'center',
         marginTop: 0,
-        ...theme.shadows.sm,
     },
     applyFilterBtnText: {
         color: '#FFFFFF',
@@ -853,7 +1254,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         paddingHorizontal: theme.spacing.lg,
         paddingVertical: theme.spacing.sm + 4,
         borderRadius: theme.borderRadius.md,
-        ...theme.shadows.sm,
     },
     createFirstBtnText: {
         color: '#FFFFFF',
@@ -863,26 +1263,27 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     card: {
         backgroundColor: theme.colors.surface,
-        borderRadius: theme.borderRadius.lg + 4,
+        borderRadius: theme.borderRadius.lg,
         marginHorizontal: theme.spacing.screenGutter,
-        marginBottom: theme.spacing.screenGutter,
+        marginBottom: theme.spacing.md + 4,
         borderWidth: 1,
         borderColor: theme.colors.border,
         overflow: 'hidden',
-        ...theme.shadows.sm,
     },
     heroImageContainer: {
         width: '100%',
-        height: 200,
+        height: HERO_IMAGE_HEIGHT,
         backgroundColor: theme.colors.surfaceSubtle,
         position: 'relative',
+        overflow: 'hidden',
     },
     heroScrollView: {
         width: '100%',
-        height: '100%',
+        height: HERO_IMAGE_HEIGHT,
     },
     heroImage: {
-        height: '100%',
+        width: '100%',
+        height: HERO_IMAGE_HEIGHT,
     },
     heroPlaceholder: {
         width: '100%',
@@ -908,6 +1309,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: theme.borderRadius.full,
         borderWidth: 1,
         zIndex: 10,
+        gap: 5,
     },
     photoCountBadgeOverlay: {
         position: 'absolute',
@@ -935,12 +1337,13 @@ const stylesheet = StyleSheet.create((theme) => ({
         paddingVertical: 5,
         borderRadius: theme.borderRadius.full,
         zIndex: 10,
+        gap: 5,
     },
     saveBtnOverlayText: {
         color: '#FFFFFF',
         fontSize: 11,
         fontWeight: '700',
-        marginLeft: 4,
+        marginLeft: 2,
     },
     cardBody: {
         padding: theme.spacing.md,
@@ -949,7 +1352,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: theme.spacing.sm,
+        marginBottom: theme.spacing.sm + 2,
     },
     categoryBadge: {
         flexDirection: 'row',
@@ -958,59 +1361,80 @@ const stylesheet = StyleSheet.create((theme) => ({
         paddingHorizontal: theme.spacing.sm + 2,
         paddingVertical: theme.spacing.xs,
         borderRadius: theme.borderRadius.full,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
+        gap: 6,
     },
     categoryBadgeText: {
         fontSize: 12,
         fontWeight: '700',
         color: theme.colors.primary,
-        marginLeft: theme.spacing.xs,
+        marginLeft: 2,
     },
     statusBadgeText: {
         fontSize: 11,
         fontWeight: '800',
         marginLeft: 4,
     },
-    cardComment: {
-        fontSize: 13,
-        color: theme.colors.textPrimary,
-        lineHeight: 19,
-        marginBottom: 0,
-        fontWeight: '500',
-    },
     locationCardBox: {
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'flex-start',
         backgroundColor: theme.colors.surfaceSubtle,
         paddingHorizontal: theme.spacing.sm + 2,
-        paddingVertical: theme.spacing.xs + 2,
+        paddingVertical: 7,
         borderRadius: theme.borderRadius.md,
-        marginTop: theme.spacing.xs,
         borderWidth: 1,
         borderColor: theme.colors.border,
+        marginBottom: theme.spacing.sm + 2,
+        gap: 8,
+    },
+    locationPinWrapper: {
+        marginTop: 2,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     locationText: {
+        flex: 1,
         fontSize: 12,
         color: theme.colors.textSecondary,
-        marginLeft: 6,
-        fontWeight: '600',
+        fontWeight: '500',
+        lineHeight: 17,
+        marginLeft: 2,
+    },
+    commentContainer: {
+        paddingVertical: 2,
+        marginBottom: theme.spacing.xs,
+    },
+    cardComment: {
+        fontSize: 13.5,
+        color: theme.colors.textPrimary,
+        lineHeight: 20,
+        fontWeight: '400',
     },
     dateGroup: {
         flexDirection: 'row',
         alignItems: 'center',
+        gap: 5,
     },
     dateText: {
         fontSize: 11,
         color: theme.colors.textSecondary,
-        marginLeft: 4,
+        marginLeft: 3,
         fontWeight: '600',
     },
     adminNoteBox: {
-        marginTop: theme.spacing.sm,
+        marginTop: theme.spacing.sm + 2,
         padding: theme.spacing.sm + 2,
         backgroundColor: theme.colors.surfaceSubtle,
         borderRadius: theme.borderRadius.md,
         borderLeftWidth: 3,
         borderLeftColor: theme.colors.status.danger,
+    },
+    adminNoteHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        marginBottom: 4,
     },
     adminNoteTitle: {
         fontSize: 11,
@@ -1063,61 +1487,128 @@ const stylesheet = StyleSheet.create((theme) => ({
         textTransform: 'uppercase',
         letterSpacing: 0.5,
     },
-    categoryGroupContainer: {
-        backgroundColor: theme.colors.surfaceSubtle,
-        borderRadius: theme.borderRadius.lg,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
-        overflow: 'hidden',
+    categoryChipGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
         marginBottom: theme.spacing.md,
     },
-    categoryRow: {
+    categoryChip: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 12,
-        paddingHorizontal: 14,
-        backgroundColor: 'transparent',
-    },
-    categoryRowBorder: {
-        borderBottomWidth: 1,
-        borderBottomColor: theme.colors.border,
-    },
-    categoryIconCircle: {
-        width: 34,
-        height: 34,
-        borderRadius: 17,
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 9,
+        borderRadius: theme.borderRadius.full,
         borderWidth: 1,
+    },
+    categoryChipLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+        flexShrink: 1,
+    },
+    categoryChipCheck: {
+        width: 16,
+        height: 16,
+        borderRadius: 8,
+        backgroundColor: 'rgba(255,255,255,0.3)',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    previewModalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0, 0, 0, 0.94)',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
     },
-    categoryLabel: {
-        flex: 1,
+    previewModalTopBar: {
+        position: 'absolute',
+        left: 20,
+        right: 20,
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        zIndex: 50,
+    },
+    previewModalCounterPill: {
+        backgroundColor: 'rgba(0, 0, 0, 0.65)',
+        paddingHorizontal: theme.spacing.sm + 4,
+        paddingVertical: 5,
+        borderRadius: theme.borderRadius.full,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.2)',
+    },
+    previewModalCounterText: {
+        color: '#FFFFFF',
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    previewModalCloseBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    previewModalImageWrapper: {
+        justifyContent: 'center',
+        alignItems: 'center',
+        overflow: 'hidden',
+    },
+    previewModalCenter: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        justifyContent: 'center',
+        alignItems: 'center',
+        paddingHorizontal: theme.spacing.xl,
+    },
+    previewModalErrorText: {
+        color: '#FFFFFF',
         fontSize: 14,
         fontWeight: '600',
-        color: theme.colors.textPrimary,
+        textAlign: 'center',
+        marginTop: theme.spacing.sm,
     },
-    categoryLabelSelected: {
-        fontWeight: '800',
-    },
-    trailingContainer: {
-        marginLeft: 8,
+    previewModalBottomBar: {
+        position: 'absolute',
+        alignSelf: 'center',
+        flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
+        gap: 12,
+        zIndex: 50,
     },
-    selectedCheckBadge: {
-        width: 22,
-        height: 22,
-        borderRadius: 11,
-        borderWidth: 1.5,
+    previewModalBottomCloseBtn: {
+        flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.22)',
+        paddingHorizontal: theme.spacing.md + 2,
+        paddingVertical: theme.spacing.sm + 4,
+        borderRadius: theme.borderRadius.full,
+        borderWidth: 1,
+        borderColor: 'rgba(255, 255, 255, 0.25)',
     },
-    unselectedIndicator: {
-        width: 20,
-        height: 20,
-        borderRadius: 10,
-        borderWidth: 1.5,
-        borderColor: theme.colors.border,
+    previewModalBottomCloseText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700',
+        marginLeft: 6,
+    },
+    previewModalSaveBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: theme.colors.primary,
+        paddingHorizontal: theme.spacing.lg,
+        paddingVertical: theme.spacing.sm + 4,
+        borderRadius: theme.borderRadius.full,
+    },
+    previewModalSaveText: {
+        color: '#FFFFFF',
+        fontSize: 13,
+        fontWeight: '700',
+        marginLeft: 6,
     },
 }));

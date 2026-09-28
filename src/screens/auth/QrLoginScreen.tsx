@@ -135,6 +135,7 @@ export const QrLoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
             onUploadPhotoPress={pickAndDecodeImage}
             onBackPress={() => navigation.goBack()}
             isScanned={scanned}
+            isActive={!isDecoding}
             isLoading={isLoading}
             isDecodingImage={isDecoding}
             loadingText={t('authenticating_device', 'Authenticating Device...')}

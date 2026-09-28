@@ -6,7 +6,7 @@ import {
     ActivityIndicator,
     StyleSheet,
 } from 'react-native';
-import { AlertCircle, Clock, Check } from 'lucide-react-native';
+import { Check } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
@@ -141,13 +141,6 @@ export const AttendanceReasonModal: React.FC<AttendanceReasonModalProps> = ({
                 </TouchableOpacity>
             }
         >
-            {/* Policy note */}
-            <View style={[styles.infoBox, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}>
-                <AppText style={[styles.infoText, { color: theme.colors.textSecondary }]}>
-                    {t('policy_reason_note', 'Company policy requires an authorized explanation for attendance adjustments.')}
-                </AppText>
-            </View>
-
             {/* Quick Presets from Backend DB */}
             {activePresetsList.length > 0 && (
                 <View style={styles.presetsSection}>
@@ -218,16 +211,6 @@ export const AttendanceReasonModal: React.FC<AttendanceReasonModalProps> = ({
 };
 
 const styles = StyleSheet.create({
-    infoBox: {
-        borderRadius: 12,
-        borderWidth: 1,
-        padding: 12,
-        marginBottom: 14,
-    },
-    infoText: {
-        fontSize: 12,
-        lineHeight: 17,
-    },
     sectionLabel: {
         fontSize: 12,
         fontWeight: '700',

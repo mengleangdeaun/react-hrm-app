@@ -698,7 +698,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
                 onUploadPhotoPress={pickAndDecodeImage}
                 onBackPress={handleBackNavigation}
                 isScanned={scanned}
-                isActive={isCameraActive}
+                isActive={isCameraActive && !isDecoding}
                 isLoading={isSubmitting}
                 isDecodingImage={isDecoding}
                 loadingText={t('verifying_geofence_punch', 'Verifying Geofence & Punch...')}
@@ -894,6 +894,7 @@ const styles = StyleSheet.create({
     container: {
         flex: 1,
         backgroundColor: '#000000',
+        overflow: 'hidden',
     },
     gpsChip: {
         flexDirection: 'row',

@@ -107,7 +107,7 @@ export function extractBranchQrPayload(rawScannedText: string): BranchQrParseRes
         };
     }
 
-    const trimmed = rawScannedText.trim();
+    const trimmed = rawScannedText.trim().replace(/^["']|["']$/g, '');
 
     // 1. Check if user scanned an Employee Personal Badge QR instead of Branch QR
     if (
