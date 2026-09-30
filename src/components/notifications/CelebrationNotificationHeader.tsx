@@ -153,7 +153,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderWidth: 1,
         borderColor: theme.colors.border,
         overflow: 'hidden',
-        ...theme.shadows.sm,
     },
     celebrantRow: {
         flexDirection: 'row',

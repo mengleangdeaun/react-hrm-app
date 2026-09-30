@@ -565,16 +565,5 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         borderRadius: 16,
         gap: 8,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.15,
-                shadowRadius: 6,
-            },
-            android: {
-                elevation: 2,
-            },
-        }),
     },
 });

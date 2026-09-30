@@ -802,7 +802,12 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                 }
             >
                 {/* 1. Review Month Picker */}
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.monthPillsRow}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.monthPillsRow}
+                    contentContainerStyle={styles.monthPillsContent}
+                >
                     {getMonthOptions().map((m) => {
                         const isSel = draftMonth === m.value;
                         return (
@@ -823,11 +828,6 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                 {/* 2. Category Selection */}
                 <View style={styles.filterSectionHeaderRow}>
                     <Text style={styles.filterSectionLabel}>{t('activity_category', 'Activity Category')}</Text>
-                    {draftCategory !== 'all' && (
-                        <Text style={[styles.filterActiveBadgeText, { color: primaryColor }]}>
-                            {FILTER_CATEGORIES.find((c) => c.id === draftCategory)?.label}
-                        </Text>
-                    )}
                 </View>
 
                 <View style={styles.categoryChipGrid}>
@@ -863,11 +863,7 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                                 >
                                     {cat.label}
                                 </Text>
-                                {isSel && (
-                                    <View style={styles.categoryChipCheck}>
-                                        <Check color="#FFFFFF" size={11} strokeWidth={3} />
-                                    </View>
-                                )}
+
                             </TouchableOpacity>
                         );
                     })}
@@ -1159,6 +1155,8 @@ const stylesheet = StyleSheet.create((theme) => ({
         flexDirection: 'row',
         marginBottom: theme.spacing.md,
         marginHorizontal: -20,
+    },
+    monthPillsContent: {
         paddingHorizontal: 20,
     },
     monthPill: {
@@ -1507,13 +1505,19 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontWeight: '600',
         flexShrink: 1,
     },
-    categoryChipCheck: {
-        width: 16,
-        height: 16,
-        borderRadius: 8,
-        backgroundColor: 'rgba(255,255,255,0.3)',
-        alignItems: 'center',
+    applyFilterBtn: {
+        backgroundColor: theme.colors.primary,
+        height: 52,
+        borderRadius: 16,
         justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 0,
+        width: '100%',
+    },
+    applyFilterBtnText: {
+        color: '#FFFFFF',
+        fontSize: 15,
+        fontWeight: '700',
     },
     previewModalOverlay: {
         flex: 1,

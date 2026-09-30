@@ -725,12 +725,11 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     submitBtn: {
         backgroundColor: theme.colors.primary,
-        minHeight: 48,
-        paddingVertical: 12,
-        borderRadius: theme.borderRadius.md,
+        height: 52,
+        borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
-        ...theme.shadows.sm,
+        width: '100%',
     },
     submitBtnText: {
         color: '#FFFFFF',

@@ -165,7 +165,7 @@ export const LegalDocumentSheet: React.FC<LegalDocumentSheetProps> = ({
                     title={resolvedAcceptText}
                     onPress={handleAcknowledge}
                     icon={<Check color="#FFFFFF" size={18} />}
-                    size="md"
+                    size="lg"
                 />
             }
         >

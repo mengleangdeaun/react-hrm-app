@@ -17,6 +17,7 @@ import * as Haptics from 'expo-haptics';
 import { leaveApi, LeaveBalance } from '../../api/leave';
 import { useAppTheme } from '../../context/ThemeContext';
 import { AppShell } from '../../components/common/AppShell';
+import { AppButton } from '../../components/common/AppButton';
 import { HeaderIconButton } from '../../components/common/AppHeader';
 import { CreateLeaveSkeleton } from '../../components/common/Skeletons';
 import { NativeDatePickerField } from '../../components/common/NativeDatePickerField';
@@ -389,6 +390,17 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
             title={t('apply_leave', 'Apply Leave')}
             onBack={() => navigation.goBack()}
             headerRight={headerRight}
+            footer={
+                !isLoading ? (
+                    <AppButton
+                        title={t('submit_leave_application', 'Submit Leave Application')}
+                        onPress={handleSubmit}
+                        loading={isSubmitting}
+                        disabled={!reason.trim() || isSubmitting}
+                        size="lg"
+                    />
+                ) : undefined
+            }
         >
             {isLoading ? (
                 <CreateLeaveSkeleton />
@@ -668,25 +680,6 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
                                 </Text>
                             </TouchableOpacity>
                         )}
-                    </View>
-
-                    {/* Submit Button */}
-                    <View style={styles.submitSection}>
-                        <TouchableOpacity
-                            style={[
-                                styles.submitBtn,
-                                (!reason.trim() || isSubmitting) && styles.submitBtnDisabled,
-                            ]}
-                            onPress={handleSubmit}
-                            disabled={!reason.trim() || isSubmitting}
-                            activeOpacity={0.85}
-                        >
-                            {isSubmitting ? (
-                                <ActivityIndicator color="#FFFFFF" size="small" />
-                            ) : (
-                                <Text style={styles.submitBtnText}>{t('submit_leave_application', 'Submit Leave Application')}</Text>
-                            )}
-                        </TouchableOpacity>
                     </View>
                 </View>
             )}
@@ -1072,26 +1065,6 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     attachedRemoveBtn: {
         padding: 4,
-    },
-    submitSection: {
-        marginTop: 6,
-        marginBottom: 24,
-    },
-    submitBtn: {
-        backgroundColor: theme.colors.brand,
-        height: 48,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    submitBtnDisabled: {
-        opacity: 0.45,
-    },
-    submitBtnText: {
-        color: '#FFFFFF',
-        fontWeight: '700',
-        fontSize: 15,
-        letterSpacing: 0.2,
     },
     attachOptionsContainer: {
         paddingTop: 8,

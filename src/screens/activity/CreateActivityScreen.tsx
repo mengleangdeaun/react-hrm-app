@@ -402,246 +402,271 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
     );
 
     return (
-        <AppShell title={t('log_activity', 'Log Activity')} onBack={() => navigation.goBack()} headerRight={headerRight}>
-            {/* Step Progress Bar */}
-            <View style={styles.stepHeaderRow}>
-                <Text style={styles.stepProgressText}>
-                    {t('step_x_of_y', `Step ${currentStep} of 3`, { step: currentStep, total: 3, current: currentStep })}
-                </Text>
-                <Text style={styles.stepPhaseText}>
-                    {currentStep === 1
-                        ? t('step_type', 'Type')
-                        : currentStep === 2
-                        ? t('step_photos', 'Photos')
-                        : t('step_finalize', 'Finalize')}
-                </Text>
-            </View>
-            <View style={styles.progressBarBg}>
-                <View style={[styles.progressBarFill, { width: `${(currentStep / 3) * 100}%` }]} />
-            </View>
+        <AppShell
+            title={t('log_activity', 'Log Activity')}
+            onBack={() => navigation.goBack()}
+            headerRight={headerRight}
+            scrollable={false}
+        >
+            {/* Fixed-layout: scroll area + fixed footer */}
+            <View style={styles.fixedLayout}>
 
-            {/* STEP 1: Select Category (2-Column Grid Layout) */}
-            {currentStep === 1 && (
-                <View>
-                    <Text style={styles.stepTitle}>{t('step_1_title', '1. Select Activity Type')}</Text>
-                    <Text style={styles.stepSubtitle}>{t('step_1_subtitle', 'Choose the category that best describes your task.')}</Text>
-
-                    <View style={styles.gridContainer}>
-                        {OFFICIAL_ACTIVITY_TYPES.map((cat) => {
-                            const CatIcon = CATEGORY_ICONS[cat.id] || MoreHorizontal;
-                            const isSelected = selectedCategory === cat.id;
-
-                            return (
-                                <TouchableOpacity
-                                    key={cat.id}
-                                    style={[styles.gridCardTile, isSelected && styles.gridCardTileSelected]}
-                                    onPress={() => setSelectedCategory(cat.id)}
-                                    activeOpacity={0.8}
-                                >
-                                    <View style={[styles.gridIconBg, isSelected && styles.gridIconBgSelected]}>
-                                        <CatIcon
-                                            color={isSelected ? '#FFFFFF' : theme.colors.textSecondary}
-                                            size={22}
-                                            strokeWidth={2}
-                                        />
-                                    </View>
-                                    <Text
-                                        style={[styles.gridCardLabel, isSelected && styles.gridCardLabelSelected]}
-                                        numberOfLines={2}
-                                    >
-                                        {cat.label}
-                                    </Text>
-                                    {isSelected && (
-                                        <View style={styles.gridCheckBadge}>
-                                            <Check color="#FFFFFF" size={12} strokeWidth={2.5} />
-                                        </View>
-                                    )}
-                                </TouchableOpacity>
-                            );
-                        })}
+                {/* ── Scrollable content area ─── */}
+                <ScrollView
+                    style={styles.scrollArea}
+                    contentContainerStyle={styles.scrollAreaContent}
+                    keyboardShouldPersistTaps="handled"
+                    keyboardDismissMode="on-drag"
+                    showsVerticalScrollIndicator={false}
+                >
+                    {/* Step Progress Bar */}
+                    <View style={styles.stepHeaderRow}>
+                        <Text style={styles.stepProgressText}>
+                            {t('step_x_of_y', `Step ${currentStep} of 3`, { step: currentStep, total: 3, current: currentStep })}
+                        </Text>
+                        <Text style={styles.stepPhaseText}>
+                            {currentStep === 1
+                                ? t('step_type', 'Type')
+                                : currentStep === 2
+                                ? t('step_photos', 'Photos')
+                                : t('step_finalize', 'Finalize')}
+                        </Text>
+                    </View>
+                    <View style={styles.progressBarBg}>
+                        <View style={[styles.progressBarFill, { width: `${(currentStep / 3) * 100}%` }]} />
                     </View>
 
-                    <TouchableOpacity
-                        style={[styles.nextBtn, !selectedCategory && styles.nextBtnDisabled]}
-                        disabled={!selectedCategory}
-                        onPress={() => setCurrentStep(2)}
-                        activeOpacity={0.85}
-                    >
-                        <Text style={styles.nextBtnText}>{t('continue_to_photo_proof', 'Continue to Photo Proof')}</Text>
-                        <ChevronRight color="#FFFFFF" size={18} />
-                    </TouchableOpacity>
-                </View>
-            )}
-
-            {/* STEP 2: Photo Proof Capture */}
-            {currentStep === 2 && (
-                <View>
-                    <Text style={styles.stepTitle}>{t('step_2_title', '2. Attach Photo Proof')}</Text>
-                    <Text style={styles.stepSubtitle}>{t('step_2_subtitle', 'Capture or upload photos to verify your activity.')}</Text>
-
-                    <View style={styles.photoPickerRow}>
-                        <TouchableOpacity style={styles.pickerTile} onPress={takePhoto} activeOpacity={0.8}>
-                            <Camera color={theme.colors.primary} size={28} />
-                            <Text style={styles.pickerTileText}>{t('take_camera_photo', 'Take Camera Photo')}</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity style={styles.pickerTile} onPress={pickImage} activeOpacity={0.8}>
-                            <ImageIcon color={theme.colors.status.success} size={28} />
-                            <Text style={styles.pickerTileText}>{t('choose_from_gallery', 'Choose from Gallery')}</Text>
-                        </TouchableOpacity>
-                    </View>
-
-                    {/* Thumbnail Grid */}
-                    {attachments.length > 0 && (
-                        <View style={styles.previewSection}>
-                            <View style={styles.previewHeaderRow}>
-                                <Text style={styles.previewTitle}>
-                                    {t('attached_photos_count', `Attached Photos (${attachments.length})`)}
-                                </Text>
-                                {isOptimizing && (
-                                    <View style={styles.optimizingBadge}>
-                                        <ActivityIndicator size="small" color={theme.colors.primary} />
-                                        <Text style={styles.optimizingBadgeText}>{t('compressing', 'Compressing...')}</Text>
-                                    </View>
-                                )}
-                            </View>
-                            <View style={styles.thumbnailGrid}>
-                                {attachments.map((item: any, index: number) => (
-                                    <View key={item.id || `${item.uri}-${index}`} style={styles.thumbnailWrapper}>
+                    {/* STEP 1: Select Category */}
+                    {currentStep === 1 && (
+                        <View>
+                            <Text style={styles.stepTitle}>{t('step_1_title', '1. Select Activity Type')}</Text>
+                            <Text style={styles.stepSubtitle}>{t('step_1_subtitle', 'Choose the category that best describes your task.')}</Text>
+                            <View style={styles.gridContainer}>
+                                {OFFICIAL_ACTIVITY_TYPES.map((cat) => {
+                                    const CatIcon = CATEGORY_ICONS[cat.id] || MoreHorizontal;
+                                    const isSelected = selectedCategory === cat.id;
+                                    return (
                                         <TouchableOpacity
-                                            style={styles.thumbnailTouch}
-                                            activeOpacity={0.85}
-                                            onPress={() => {
-                                                modalTranslateY.setValue(0);
-                                                setPreviewModalImage(item.uri);
-                                            }}
-                                        >
-                                            <Image
-                                                source={{ uri: item.uri }}
-                                                style={styles.thumbnailImg}
-                                                resizeMode="cover"
-                                            />
-                                        </TouchableOpacity>
-
-                                        {item.size ? (
-                                            <View style={styles.thumbnailSizeBadge} pointerEvents="none">
-                                                <Text style={styles.thumbnailSizeText}>{formatFileSize(item.size)}</Text>
-                                            </View>
-                                        ) : null}
-
-                                        <TouchableOpacity
-                                            style={styles.removeBtn}
-                                            onPress={() => removeAttachment(index)}
+                                            key={cat.id}
+                                            style={[styles.gridCardTile, isSelected && styles.gridCardTileSelected]}
+                                            onPress={() => setSelectedCategory(cat.id)}
                                             activeOpacity={0.8}
-                                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                                            accessibilityLabel="Remove photo"
                                         >
-                                            <X color="#FFFFFF" size={12} strokeWidth={2.5} />
+                                            <View style={[styles.gridIconBg, isSelected && styles.gridIconBgSelected]}>
+                                                <CatIcon
+                                                    color={isSelected ? '#FFFFFF' : theme.colors.textSecondary}
+                                                    size={22}
+                                                    strokeWidth={2}
+                                                />
+                                            </View>
+                                            <Text
+                                                style={[styles.gridCardLabel, isSelected && styles.gridCardLabelSelected]}
+                                                numberOfLines={2}
+                                            >
+                                                {cat.label}
+                                            </Text>
+                                            {isSelected && (
+                                                <View style={styles.gridCheckBadge}>
+                                                    <Check color="#FFFFFF" size={12} strokeWidth={2.5} />
+                                                </View>
+                                            )}
                                         </TouchableOpacity>
-                                    </View>
-                                ))}
+                                    );
+                                })}
                             </View>
                         </View>
                     )}
 
-                    <View style={styles.btnRow}>
-                        <TouchableOpacity
-                            style={styles.backStepBtn}
-                            onPress={() => setCurrentStep(1)}
-                            activeOpacity={0.8}
-                        >
-                            <Text style={styles.backStepBtnText}>{t('back', 'Back')}</Text>
-                        </TouchableOpacity>
+                    {/* STEP 2: Photo Proof Capture */}
+                    {currentStep === 2 && (
+                        <View>
+                            <Text style={styles.stepTitle}>{t('step_2_title', '2. Attach Photo Proof')}</Text>
+                            <Text style={styles.stepSubtitle}>{t('step_2_subtitle', 'Capture or upload photos to verify your activity.')}</Text>
 
-                        <TouchableOpacity
-                            style={[styles.nextBtnFlex, (attachments.length === 0 || isOptimizing) && styles.nextBtnDisabled]}
-                            disabled={attachments.length === 0 || isOptimizing}
-                            onPress={() => setCurrentStep(3)}
-                            activeOpacity={0.85}
-                        >
-                            <Text style={styles.nextBtnText}>{t('continue_to_notes', 'Continue to Notes')}</Text>
-                            <ChevronRight color="#FFFFFF" size={18} />
-                        </TouchableOpacity>
-                    </View>
-                </View>
-            )}
+                            <View style={styles.photoPickerRow}>
+                                <TouchableOpacity style={styles.pickerTile} onPress={takePhoto} activeOpacity={0.8}>
+                                    <Camera color={theme.colors.primary} size={28} />
+                                    <Text style={styles.pickerTileText}>{t('take_camera_photo', 'Take Camera Photo')}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.pickerTile} onPress={pickImage} activeOpacity={0.8}>
+                                    <ImageIcon color={theme.colors.status.success} size={28} />
+                                    <Text style={styles.pickerTileText}>{t('choose_from_gallery', 'Choose from Gallery')}</Text>
+                                </TouchableOpacity>
+                            </View>
 
-            {/* STEP 3: Notes & Location Tagging */}
-            {currentStep === 3 && (
-                <View>
-                    <Text style={styles.stepTitle}>{t('step_3_title', '3. Location & Activity Notes')}</Text>
-                    <Text style={styles.stepSubtitle}>{t('step_3_subtitle', 'Review GPS location tag and add descriptive notes.')}</Text>
-
-                    {/* GPS Tagged Location Banner */}
-                    <View style={styles.locationCard}>
-                        <View style={styles.locationIconBox}>
-                            <MapPin color={theme.colors.primary} size={18} />
-                        </View>
-                        <View style={styles.locationTextGroup}>
-                            <Text style={styles.locationCardTitle}>{t('verified_location_tag', 'Verified Location Tag')}</Text>
-                            <Text style={styles.locationCardSub} numberOfLines={2}>
-                                {isLocating
-                                    ? t('resolving_gps_coords', 'Resolving GPS location...')
-                                    : location?.address || t('location_tagged', 'Location Tagged')}
-                            </Text>
-                        </View>
-                        <TouchableOpacity
-                            style={styles.locationRefreshBtn}
-                            onPress={captureGpsLocation}
-                            disabled={isLocating}
-                            activeOpacity={0.7}
-                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-                            accessibilityLabel="Refresh GPS location"
-                        >
-                            {isLocating ? (
-                                <ActivityIndicator size="small" color={theme.colors.primary} />
-                            ) : (
-                                <RotateCw color={theme.colors.textSecondary} size={15} />
+                            {attachments.length > 0 && (
+                                <View style={styles.previewSection}>
+                                    <View style={styles.previewHeaderRow}>
+                                        <Text style={styles.previewTitle}>
+                                            {t('attached_photos_count', `Attached Photos (${attachments.length})`)}
+                                        </Text>
+                                        {isOptimizing && (
+                                            <View style={styles.optimizingBadge}>
+                                                <ActivityIndicator size="small" color={theme.colors.primary} />
+                                                <Text style={styles.optimizingBadgeText}>{t('compressing', 'Compressing...')}</Text>
+                                            </View>
+                                        )}
+                                    </View>
+                                    <View style={styles.thumbnailGrid}>
+                                        {attachments.map((item: any, index: number) => (
+                                            <View key={item.id || `${item.uri}-${index}`} style={styles.thumbnailWrapper}>
+                                                <TouchableOpacity
+                                                    style={styles.thumbnailTouch}
+                                                    activeOpacity={0.85}
+                                                    onPress={() => {
+                                                        modalTranslateY.setValue(0);
+                                                        setPreviewModalImage(item.uri);
+                                                    }}
+                                                >
+                                                    <Image
+                                                        source={{ uri: item.uri }}
+                                                        style={styles.thumbnailImg}
+                                                        resizeMode="cover"
+                                                    />
+                                                </TouchableOpacity>
+                                                {item.size ? (
+                                                    <View style={styles.thumbnailSizeBadge} pointerEvents="none">
+                                                        <Text style={styles.thumbnailSizeText}>{formatFileSize(item.size)}</Text>
+                                                    </View>
+                                                ) : null}
+                                                <TouchableOpacity
+                                                    style={styles.removeBtn}
+                                                    onPress={() => removeAttachment(index)}
+                                                    activeOpacity={0.8}
+                                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                    accessibilityLabel="Remove photo"
+                                                >
+                                                    <X color="#FFFFFF" size={12} strokeWidth={2.5} />
+                                                </TouchableOpacity>
+                                            </View>
+                                        ))}
+                                    </View>
+                                </View>
                             )}
-                        </TouchableOpacity>
-                    </View>
+                        </View>
+                    )}
 
-                    {/* Notes / Comment Text Input */}
-                    <Text style={styles.inputLabel}>{t('activity_notes_details', 'Activity Notes / Details')}</Text>
-                    <TextInput
-                        style={[styles.input, styles.textArea]}
-                        value={comment}
-                        onChangeText={setComment}
-                        placeholder={t('describe_work_placeholder', 'Describe work completed, client feedback, or tasks performed...')}
-                        placeholderTextColor={theme.colors.textSecondary}
-                        multiline
-                        numberOfLines={4}
-                    />
+                    {/* STEP 3: Notes & Location Tagging */}
+                    {currentStep === 3 && (
+                        <View>
+                            <Text style={styles.stepTitle}>{t('step_3_title', '3. Location & Activity Notes')}</Text>
+                            <Text style={styles.stepSubtitle}>{t('step_3_subtitle', 'Review GPS location tag and add descriptive notes.')}</Text>
 
-                    <View style={styles.btnRow}>
-                        <TouchableOpacity
-                            style={styles.backStepBtn}
-                            onPress={() => setCurrentStep(2)}
-                            activeOpacity={0.8}
-                        >
-                            <Text style={styles.backStepBtnText}>{t('back', 'Back')}</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={styles.submitBtnFlex}
-                            onPress={handleSubmit}
-                            disabled={isSubmitting}
-                            activeOpacity={0.85}
-                        >
-                            {isSubmitting ? (
-                                <View style={styles.submittingStatusRow}>
-                                    <ActivityIndicator color="#FFFFFF" size="small" />
-                                    <Text style={styles.submittingStatusText} numberOfLines={1}>
-                                        {submittingStatus || t('submitting', 'Submitting...')}
+                            <View style={styles.locationCard}>
+                                <View style={styles.locationIconBox}>
+                                    <MapPin color={theme.colors.primary} size={18} />
+                                </View>
+                                <View style={styles.locationTextGroup}>
+                                    <Text style={styles.locationCardTitle}>{t('verified_location_tag', 'Verified Location Tag')}</Text>
+                                    <Text style={styles.locationCardSub} numberOfLines={2}>
+                                        {isLocating
+                                            ? t('resolving_gps_coords', 'Resolving GPS location...')
+                                            : location?.address || t('location_tagged', 'Location Tagged')}
                                     </Text>
                                 </View>
-                            ) : (
-                                <Text style={styles.submitBtnText}>{t('submit_activity', 'Submit Activity')}</Text>
-                            )}
-                        </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.locationRefreshBtn}
+                                    onPress={captureGpsLocation}
+                                    disabled={isLocating}
+                                    activeOpacity={0.7}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                    accessibilityLabel="Refresh GPS location"
+                                >
+                                    {isLocating ? (
+                                        <ActivityIndicator size="small" color={theme.colors.primary} />
+                                    ) : (
+                                        <RotateCw color={theme.colors.textSecondary} size={15} />
+                                    )}
+                                </TouchableOpacity>
+                            </View>
+
+                            <Text style={styles.inputLabel}>{t('activity_notes_details', 'Activity Notes / Details')}</Text>
+                            <TextInput
+                                style={[styles.input, styles.textArea]}
+                                value={comment}
+                                onChangeText={setComment}
+                                placeholder={t('describe_work_placeholder', 'Describe work completed, client feedback, or tasks performed...')}
+                                placeholderTextColor={theme.colors.textSecondary}
+                                multiline
+                                numberOfLines={4}
+                            />
+                        </View>
+                    )}
+                </ScrollView>
+
+                {/* ── Fixed bottom action bar ─── */}
+                <View style={[styles.fixedFooter, { paddingBottom: Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 12) + (Platform.OS === 'ios' ? 14 : 18) }]}>
+                    <View style={styles.footerBtnRow}>
+                        {/* Step 1: single full-width Continue */}
+                        {currentStep === 1 && (
+                            <TouchableOpacity
+                                style={[styles.footerPrimaryBtn, !selectedCategory && styles.nextBtnDisabled]}
+                                disabled={!selectedCategory}
+                                onPress={() => setCurrentStep(2)}
+                                activeOpacity={0.85}
+                            >
+                                <Text style={styles.nextBtnText}>{t('continue_to_photo_proof', 'Continue to Photo Proof')}</Text>
+                                <ChevronRight color="#FFFFFF" size={18} />
+                            </TouchableOpacity>
+                        )}
+
+                        {/* Step 2: Back + Continue */}
+                        {currentStep === 2 && (
+                            <>
+                                <TouchableOpacity
+                                    style={styles.footerBackBtn}
+                                    onPress={() => setCurrentStep(1)}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={styles.backStepBtnText}>{t('back', 'Back')}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.footerPrimaryBtnFlex,
+                                        (attachments.length === 0 || isOptimizing) && styles.nextBtnDisabled,
+                                    ]}
+                                    disabled={attachments.length === 0 || isOptimizing}
+                                    onPress={() => setCurrentStep(3)}
+                                    activeOpacity={0.85}
+                                >
+                                    <Text style={styles.nextBtnText}>{t('continue_to_notes', 'Continue to Notes')}</Text>
+                                    <ChevronRight color="#FFFFFF" size={18} />
+                                </TouchableOpacity>
+                            </>
+                        )}
+
+                        {/* Step 3: Back + Submit */}
+                        {currentStep === 3 && (
+                            <>
+                                <TouchableOpacity
+                                    style={styles.footerBackBtn}
+                                    onPress={() => setCurrentStep(2)}
+                                    activeOpacity={0.8}
+                                >
+                                    <Text style={styles.backStepBtnText}>{t('back', 'Back')}</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity
+                                    style={styles.footerPrimaryBtnFlex}
+                                    onPress={handleSubmit}
+                                    disabled={isSubmitting}
+                                    activeOpacity={0.85}
+                                >
+                                    {isSubmitting ? (
+                                        <View style={styles.submittingStatusRow}>
+                                            <ActivityIndicator color="#FFFFFF" size="small" />
+                                            <Text style={styles.submittingStatusText} numberOfLines={1}>
+                                                {submittingStatus || t('submitting', 'Submitting...')}
+                                            </Text>
+                                        </View>
+                                    ) : (
+                                        <Text style={styles.submitBtnText}>{t('submit_activity', 'Submit Activity')}</Text>
+                                    )}
+                                </TouchableOpacity>
+                            </>
+                        )}
                     </View>
                 </View>
-            )}
+            </View>
 
             {/* Thumbnail Preview Modal */}
             <Modal
@@ -651,7 +676,6 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                 onRequestClose={closePreviewModal}
             >
                 <View style={styles.previewModalOverlay}>
-                    {/* Native-accelerated Backdrop Fade */}
                     <Animated.View
                         style={[
                             StyleSheet.absoluteFillObject,
@@ -666,7 +690,6 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                         ]}
                         pointerEvents="none"
                     />
-
                     <Animated.View
                         {...panResponder.panHandlers}
                         style={{
@@ -686,7 +709,6 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                             ],
                         }}
                     >
-                        {/* Top Bar: Close Button (Top-Right) */}
                         <View style={[styles.previewModalTopBar, { top: Math.max(48, insets.top + 10) }]}>
                             <View />
                             <TouchableOpacity
@@ -698,7 +720,6 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                                 <X color="#FFFFFF" size={20} strokeWidth={2.5} />
                             </TouchableOpacity>
                         </View>
-
                         {previewModalImage && (
                             <Image
                                 source={{ uri: previewModalImage }}
@@ -706,8 +727,6 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                                 resizeMode="contain"
                             />
                         )}
-
-                        {/* Bottom Close Button - Near Thumb (Aligned to Right) */}
                         <View style={[styles.previewModalBottomBar, { bottom: Math.max(28, insets.bottom + 12) }]}>
                             <TouchableOpacity
                                 style={styles.previewModalBottomCloseBtn}
@@ -1045,7 +1064,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         height: 100,
         textAlignVertical: 'top',
         paddingTop: theme.spacing.md,
-        marginBottom: theme.spacing.md,
+        marginBottom: theme.spacing.sm,
     },
     btnRow: {
         flexDirection: 'row',
@@ -1177,5 +1196,58 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: '#FFFFFF',
         fontSize: 13,
         fontWeight: '700',
+    },
+    // ── Fixed footer layout ──
+    fixedLayout: {
+        flex: 1,
+    },
+    scrollArea: {
+        flex: 1,
+    },
+    scrollAreaContent: {
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        paddingBottom: 16,
+    },
+    fixedFooter: {
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: theme.colors.border,
+        backgroundColor: theme.colors.background,
+    },
+    footerBtnRow: {
+        flexDirection: 'row',
+        gap: theme.spacing.md,
+    },
+    footerPrimaryBtn: {
+        flex: 1,
+        backgroundColor: theme.colors.primary,
+        height: 50,
+        borderRadius: theme.borderRadius.md,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 6,
+    },
+    footerPrimaryBtnFlex: {
+        flex: 1,
+        backgroundColor: theme.colors.primary,
+        height: 50,
+        borderRadius: theme.borderRadius.md,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 6,
+    },
+    footerBackBtn: {
+        backgroundColor: theme.colors.surfaceSubtle,
+        height: 50,
+        paddingHorizontal: theme.spacing.lg,
+        borderRadius: theme.borderRadius.md,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: theme.colors.border,
     },
 }));

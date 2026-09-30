@@ -37,14 +37,14 @@ import {
     Coffee,
 } from 'lucide-react-native';
 import * as Haptics from 'expo-haptics';
-import { formatDateDisplay, formatTimeDisplay, parseDateOnly } from '../../utils/dateTime';
+import { formatDateDisplay, formatTimeDisplay, parseDateOnly, formatRelativeTime } from '../../utils/dateTime';
 import { getDismissedBannerIds, dismissBannerId } from '../../utils/storage';
 import { useTranslation } from '../../context/LanguageContext';
 
 export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { user } = useAuth();
     const { isDark, toggleTheme } = useAppTheme();
-    const { t } = useTranslation();
+    const { t, locale } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
 
@@ -344,13 +344,13 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                     <HeaderIconButton
                         icon={isDark ? <Sun color="#F59E0B" size={18} /> : <Moon color="#2563EB" size={18} />}
                         onPress={toggleTheme}
-                        accessibilityLabel="Toggle theme"
+                        accessibilityLabel={t('toggle_theme', 'Toggle theme')}
                     />
 
                     <HeaderIconButton
                         icon={<Bell color={theme.colors.textPrimary} size={18} />}
                         onPress={() => navigation.navigate('Notifications')}
-                        accessibilityLabel="Notifications"
+                        accessibilityLabel={t('notifications', 'Notifications')}
                         badge={unreadNotifications > 0 ? (unreadNotifications > 9 ? '9+' : unreadNotifications) : undefined}
                         style={{ marginLeft: 8 }}
                     />
@@ -379,7 +379,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                         <View style={styles.clockHeader}>
                             <Clock color={theme.colors.primary} size={14} />
                             <Text style={styles.dateText}>
-                                {formatDateDisplay(todayDisplayDate, 'full')}
+                                {formatDateDisplay(todayDisplayDate, 'full', 'N/A', locale)}
                             </Text>
                         </View>
 
@@ -545,7 +545,9 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                                         {item.summary || item.content || item.description || t('tap_to_view_announcement', 'Tap to view announcement details.')}
                                     </Text>
                                     <View style={styles.announcementFooter}>
-                                        <Text style={styles.announcementDate}>{item.created_at || t('company_news', 'Company News')}</Text>
+                                        <Text style={styles.announcementDate}>
+                                            {item.created_at ? formatRelativeTime(item.created_at, locale, t('company_news', 'Company News')) : t('company_news', 'Company News')}
+                                        </Text>
                                         <ChevronRight color={theme.colors.textSecondary} size={16} />
                                     </View>
                                 </TouchableOpacity>

@@ -88,25 +88,58 @@ export function getTodayDateString(): string {
     return format(new Date(), 'yyyy-MM-dd');
 }
 
+const KHMER_DAYS = ['អាទិត្យ', 'ច័ន្ទ', 'អង្គារ', 'ពុធ', 'ព្រហស្បតិ៍', 'សុក្រ', 'សៅរ៍'];
+const KHMER_MONTHS = [
+    'មករា', 'កុម្ភៈ', 'មីនា', 'មេសា', 'ឧសភា', 'មិថុនា',
+    'កក្កដា', 'សីហា', 'កញ្ញា', 'តុលា', 'វិច្ឆិកា', 'ធ្នូ'
+];
+
 /**
  * Formats a date string (YYYY-MM-DD or ISO timestamp) into a human-readable display string.
- * - 'standard': 01 Sep 2026
- * - 'full': Tuesday, 01 Sep 2026
+ * - 'standard': 01 Sep 2026 (or "01 តុលា 2026")
+ * - 'full': Tuesday, 01 Sep 2026 (or "ថ្ងៃអង្គារ, 01 តុលា 2026")
  * - 'short': Sep 1, 2026
- * - 'monthYear': September 2026
+ * - 'monthYear': September 2026 (or "ខែតុលា ឆ្នាំ2026")
  * - 'dayMonth': 01 Sep
  * - 'iso': 2026-09-01
  */
 export function formatDateDisplay(
     dateInput?: string | Date | null,
     variant: DateDisplayVariant = 'standard',
-    fallback: string = 'N/A'
+    fallback: string = 'N/A',
+    locale: string = 'en'
 ): string {
     if (!dateInput) return fallback;
 
     try {
         const d = typeof dateInput === 'string' ? parseDateOnly(dateInput) : dateInput;
         if (!isValid(d)) return fallback;
+
+        const isKh = locale === 'kh' || locale === 'km';
+
+        if (isKh) {
+            const dayNum = String(d.getDate()).padStart(2, '0');
+            const khMonth = KHMER_MONTHS[d.getMonth()];
+            const khDay = KHMER_DAYS[d.getDay()];
+            const year = d.getFullYear();
+
+            switch (variant) {
+                case 'standard':
+                    return `${dayNum} ${khMonth} ${year}`;
+                case 'full':
+                    return `ថ្ងៃ${khDay}, ${dayNum} ${khMonth} ${year}`;
+                case 'short':
+                    return `${khMonth} ${d.getDate()}, ${year}`;
+                case 'monthYear':
+                    return `ខែ${khMonth} ឆ្នាំ${year}`;
+                case 'dayMonth':
+                    return `${dayNum} ${khMonth}`;
+                case 'iso':
+                    return format(d, 'yyyy-MM-dd');
+                default:
+                    return `${dayNum} ${khMonth} ${year}`;
+            }
+        }
 
         switch (variant) {
             case 'standard':
@@ -244,7 +277,10 @@ export function formatRelativeTime(
     locale: string = 'en',
     fallback: string = 'just now'
 ): string {
-    if (!dateInput) return fallback;
+    const isKh = locale === 'kh' || locale === 'km';
+    const localizedFallback = isKh && (fallback === 'just now' || fallback === 'N/A') ? 'អម្បាញ់មិញ' : fallback;
+
+    if (!dateInput) return localizedFallback;
 
     try {
         let d: Date;
@@ -258,7 +294,7 @@ export function formatRelativeTime(
             }
         }
 
-        if (!isValid(d)) return fallback;
+        if (!isValid(d)) return localizedFallback;
 
         const now = new Date();
         const diffMs = now.getTime() - d.getTime();
@@ -266,8 +302,6 @@ export function formatRelativeTime(
         const absDiffMin = Math.floor(absDiffSec / 60);
         const absDiffHr = Math.floor(absDiffMin / 60);
         const absDiffDays = Math.floor(absDiffHr / 24);
-
-        const isKh = locale === 'kh' || locale === 'km';
 
         if (absDiffSec < 45) {
             return isKh ? 'អម្បាញ់មិញ' : 'just now';
@@ -289,9 +323,10 @@ export function formatRelativeTime(
             return isKh ? `${absDiffDays} ថ្ងៃមុន` : `${absDiffDays}d ago`;
         }
 
-        return format(d, 'dd MMM');
+        const isDifferentYear = d.getFullYear() !== now.getFullYear();
+        return formatDateDisplay(d, isDifferentYear ? 'standard' : 'dayMonth', fallback, locale);
     } catch {
-        return fallback;
+        return localizedFallback;
     }
 }
 

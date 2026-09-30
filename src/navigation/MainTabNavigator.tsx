@@ -167,7 +167,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
     const inactiveColor = theme.colors.textSecondary;
 
     // Generous bottom clearance above navigation bars across iOS & Android
-    const bottomPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 10) + (Platform.OS === 'ios' ? 6 : 8);
+    const bottomPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 12) + (Platform.OS === 'ios' ? 6 : 8);
     const containerHeight = 52 + bottomPadding;
 
     const activeRoute = state.routes[state.index];

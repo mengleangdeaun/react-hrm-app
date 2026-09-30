@@ -12,6 +12,7 @@ export interface EmptyStateProps {
     actionTitle?: string;
     onAction?: () => void;
     style?: any;
+    bordered?: boolean;
 }
 
 export const EmptyState: React.FC<EmptyStateProps> = ({
@@ -21,6 +22,7 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
     actionTitle,
     onAction,
     style,
+    bordered = false,
 }) => {
     const { isDark } = useAppTheme();
     const theme = isDark ? darkTheme : lightTheme;
@@ -30,13 +32,14 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
             style={[
                 styles.container,
                 {
-                    backgroundColor: theme.colors.surface,
-                    borderColor: theme.colors.border,
+                    backgroundColor: bordered ? theme.colors.surface : 'transparent',
+                    borderColor: bordered ? theme.colors.border : 'transparent',
+                    borderWidth: bordered ? 1 : 0,
                 },
                 style,
             ]}
         >
-            <View style={[styles.iconWrapper, { backgroundColor: theme.colors.surfaceSubtle }]}>
+            <View style={[styles.iconWrapper, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.06)' : theme.colors.surfaceSubtle }]}>
                 {icon}
             </View>
 
@@ -68,8 +71,7 @@ const styles = StyleSheet.create({
     container: {
         alignSelf: 'stretch',
         borderRadius: 20,
-        borderWidth: 1,
-        paddingVertical: 24,
+        paddingVertical: 28,
         paddingHorizontal: 20,
         alignItems: 'center',
         justifyContent: 'center',

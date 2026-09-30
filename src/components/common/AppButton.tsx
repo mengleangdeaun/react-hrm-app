@@ -55,7 +55,7 @@ export const AppButton: React.FC<AppButtonProps> = ({
     const sizeStyles = {
         sm: { minHeight: 36, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10, fontSize: 12 },
         md: { minHeight: 44, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, fontSize: 14 },
-        lg: { minHeight: 50, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 14, fontSize: 15 },
+        lg: { minHeight: 52, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 16, fontSize: 15 },
     }[size];
 
     let backgroundColor: string = theme.colors.brand;

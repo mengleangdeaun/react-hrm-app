@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useUnistyles } from 'react-native-unistyles';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+
 import * as Haptics from 'expo-haptics';
 import {
     QrCode,
@@ -115,7 +115,7 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 bounces={false}
             >
                 {/* Top Utility Bar */}
-                <Animated.View entering={FadeInDown.duration(600).delay(100)} style={styles.topBar}>
+                <View style={styles.topBar}>
                     {/* Language Switcher */}
                     <TouchableOpacity
                         style={[
@@ -152,39 +152,36 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                             <Moon size={18} color="#6366F1" />
                         )}
                     </TouchableOpacity>
-                </Animated.View>
+                </View>
 
                 {/* Hero / Brand Section */}
                 <View style={styles.heroSection}>
-                    <Animated.View
-                        entering={FadeInDown.duration(700).delay(200)}
-                        style={styles.logoContainer}
-                    >
+                    <View style={styles.logoContainer}>
                         <Image
                             source={require('../../../assets/icon.png')}
                             style={styles.logoImage}
                             resizeMode="contain"
                         />
-                    </Animated.View>
+                    </View>
 
-                    <Animated.View entering={FadeInDown.duration(700).delay(300)} style={styles.brandTitleContainer}>
+                    <View style={styles.brandTitleContainer}>
                         <AppText style={[styles.brandTitle, { color: theme.colors.textPrimary }]}>
                             {ENV.APP_NAME || 'SCCG Mobile App'}
                         </AppText>
-                    </Animated.View>
+                    </View>
 
-                    <Animated.View entering={FadeInDown.duration(700).delay(400)}>
+                    <View>
                         <AppText style={[styles.heroHeadline, { color: theme.colors.textPrimary }]}>
                             {t('welcome_title')}
                         </AppText>
                         <AppText style={[styles.heroSubtitle, { color: theme.colors.textSecondary }]}>
                             {t('welcome_subtitle')}
                         </AppText>
-                    </Animated.View>
+                    </View>
                 </View>
 
                 {/* Action Buttons Section */}
-                <Animated.View entering={FadeInUp.duration(700).delay(500)} style={styles.actionsSection}>
+                <View style={styles.actionsSection}>
                     {/* Legal Confirmation Checkbox & Links Row */}
                     <View style={styles.legalContainer}>
                         <View style={styles.legalCheckboxRow}>
@@ -248,11 +245,11 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
                         {/* Inline Error Notice */}
                         {validationError && (
-                            <Animated.View entering={FadeInDown.duration(200)} style={styles.validationNotice}>
+                            <View style={styles.validationNotice}>
                                 <AppText style={[styles.validationText, { color: theme.colors.status.danger }]}>
                                     {t('legal_terms_required', 'Please agree to the Terms of Service & Privacy Policy to continue.')}
                                 </AppText>
-                            </Animated.View>
+                            </View>
                         )}
                     </View>
 
@@ -300,7 +297,7 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                             {t('scan_qr_login')}
                         </AppText>
                     </TouchableOpacity>
-                </Animated.View>
+                </View>
             </ScrollView>
 
             {/* Native BottomSheet for Legal Documents */}
@@ -362,17 +359,6 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 18,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000000',
-                shadowOffset: { width: 0, height: 6 },
-                shadowOpacity: 0.12,
-                shadowRadius: 10,
-            },
-            android: {
-                elevation: 4,
-            },
-        }),
     },
     logoImage: {
         width: 100,
@@ -414,17 +400,6 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderRadius: 14,
         gap: 8,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#DF0000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.25,
-                shadowRadius: 8,
-            },
-            android: {
-                elevation: 3,
-            },
-        }),
     },
     primaryButtonText: {
         fontSize: 16,

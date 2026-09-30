@@ -118,7 +118,7 @@ export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
     return (
         <View style={[styles.container, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
             {/* Weekdays Header */}
-            <View style={styles.weekdaysRow}>
+            <View style={[styles.weekdaysRow, { borderBottomColor: theme.colors.border }]}>
                 {WEEKDAYS.map((day) => (
                     <View key={day.key} style={styles.weekdayCol}>
                         <Text style={[styles.weekdayLabel, { color: theme.colors.textSecondary }]}>
@@ -144,19 +144,25 @@ export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
                     ].filter(Boolean).join(', ');
 
                     return (
-                        <View key={date.toISOString()} style={styles.dayCellWrapper}>
+                        <View
+                            key={date.toISOString()}
+                            style={[
+                                styles.dayCellWrapper,
+                                !isCurrentMonth && { opacity: 0.3 },
+                            ]}
+                        >
                             <TouchableOpacity
                                 style={[
                                     styles.dayCellInner,
                                     isSelected && {
-                                        backgroundColor: theme.colors.primary,
+                                        backgroundColor: theme.colors.brand,
                                         borderRadius: 12,
                                     },
                                     !isSelected && isCurrentDay && {
-                                        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : theme.colors.surfaceSubtle,
+                                        backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : theme.colors.brandSubtle,
                                         borderRadius: 12,
                                         borderWidth: 1.5,
-                                        borderColor: theme.colors.primary,
+                                        borderColor: theme.colors.brand,
                                     },
                                 ]}
                                 onPress={() => onSelectDate(date)}
@@ -174,7 +180,7 @@ export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
                                                 : !isCurrentMonth
                                                 ? theme.colors.textDisabled
                                                 : isCurrentDay
-                                                ? theme.colors.primary
+                                                ? theme.colors.brand
                                                 : theme.colors.textPrimary,
                                             fontWeight: isSelected || isCurrentDay ? '700' : '500',
                                         },
@@ -183,41 +189,43 @@ export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
                                     {format(date, 'd')}
                                 </Text>
 
-                                {/* Status Indicator Dots */}
-                                <View style={styles.dotsRow}>
-                                    {isAttended && (
-                                        <View
-                                            style={[
-                                                styles.dot,
-                                                { backgroundColor: isSelected ? '#FFFFFF' : '#10B981' },
-                                            ]}
-                                        />
-                                    )}
-                                    {isHoliday && (
-                                        <View
-                                            style={[
-                                                styles.dot,
-                                                { backgroundColor: isSelected ? '#FEF08A' : '#F59E0B' },
-                                            ]}
-                                        />
-                                    )}
-                                    {isLeave && (
-                                        <View
-                                            style={[
-                                                styles.dot,
-                                                { backgroundColor: isSelected ? '#E9D5FF' : '#8B5CF6' },
-                                            ]}
-                                        />
-                                    )}
-                                    {isDayOff && !isHoliday && (
-                                        <View
-                                            style={[
-                                                styles.dot,
-                                                { backgroundColor: isSelected ? '#FECDD3' : '#F43F5E' },
-                                            ]}
-                                        />
-                                    )}
-                                </View>
+                                {/* Status Indicator Dots (only for current month days) */}
+                                {isCurrentMonth && (
+                                    <View style={styles.dotsRow}>
+                                        {isAttended && (
+                                            <View
+                                                style={[
+                                                    styles.dot,
+                                                    { backgroundColor: isSelected ? '#FFFFFF' : '#10B981' },
+                                                ]}
+                                            />
+                                        )}
+                                        {isHoliday && (
+                                            <View
+                                                style={[
+                                                    styles.dot,
+                                                    { backgroundColor: isSelected ? '#FEF08A' : '#F59E0B' },
+                                                ]}
+                                            />
+                                        )}
+                                        {isLeave && (
+                                            <View
+                                                style={[
+                                                    styles.dot,
+                                                    { backgroundColor: isSelected ? '#E9D5FF' : '#8B5CF6' },
+                                                ]}
+                                            />
+                                        )}
+                                        {isDayOff && !isHoliday && (
+                                            <View
+                                                style={[
+                                                    styles.dot,
+                                                    { backgroundColor: isSelected ? '#FECDD3' : '#F43F5E' },
+                                                ]}
+                                            />
+                                        )}
+                                    </View>
+                                )}
                             </TouchableOpacity>
                         </View>
                     );
@@ -226,10 +234,6 @@ export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
 
             {/* Legend Bar */}
             <View style={[styles.legendRow, { borderTopColor: theme.colors.border }]}>
-                <View style={styles.legendItem}>
-                    <View style={[styles.legendDot, { backgroundColor: '#F43F5E' }]} />
-                    <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>{t('day_off', 'Day Off')}</Text>
-                </View>
                 <View style={styles.legendItem}>
                     <View style={[styles.legendDot, { backgroundColor: '#10B981' }]} />
                     <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>{t('present', 'Present')}</Text>
@@ -242,6 +246,10 @@ export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
                     <View style={[styles.legendDot, { backgroundColor: '#8B5CF6' }]} />
                     <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>{t('leave', 'Leave')}</Text>
                 </View>
+                <View style={styles.legendItem}>
+                    <View style={[styles.legendDot, { backgroundColor: '#F43F5E' }]} />
+                    <Text style={[styles.legendText, { color: theme.colors.textSecondary }]}>{t('day_off', 'Day Off')}</Text>
+                </View>
             </View>
         </View>
     );
@@ -249,20 +257,18 @@ export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
 
 const styles = StyleSheet.create({
     container: {
-        borderRadius: 20,
+        borderRadius: 16,
         borderWidth: 1,
         overflow: 'hidden',
-        paddingVertical: 12,
+        paddingVertical: 14,
         paddingHorizontal: 8,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.05,
-        shadowRadius: 6,
-        elevation: 2,
+        marginBottom: 12,
     },
     weekdaysRow: {
         flexDirection: 'row',
         marginBottom: 8,
+        paddingBottom: 8,
+        borderBottomWidth: StyleSheet.hairlineWidth,
     },
     weekdayCol: {
         width: '14.285%',

@@ -11,6 +11,7 @@ import {
     StyleSheet,
     BackHandler,
     ScrollView,
+    ActivityIndicator,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -33,6 +34,15 @@ export interface AppBottomSheetProps {
     containerStyle?: any;
     contentContainerStyle?: any;
     footer?: React.ReactNode;
+    // Built-in standard buttons matching OnboardingScreen aesthetics
+    primaryButtonTitle?: string;
+    onPrimaryButtonPress?: () => void;
+    primaryButtonLoading?: boolean;
+    primaryButtonDisabled?: boolean;
+    primaryButtonVariant?: 'primary' | 'secondary' | 'destructive';
+    primaryButtonIcon?: React.ReactNode;
+    secondaryButtonTitle?: string;
+    onSecondaryButtonPress?: () => void;
 }
 
 export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
@@ -49,6 +59,14 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
     containerStyle,
     contentContainerStyle,
     footer,
+    primaryButtonTitle,
+    onPrimaryButtonPress,
+    primaryButtonLoading = false,
+    primaryButtonDisabled = false,
+    primaryButtonVariant = 'primary',
+    primaryButtonIcon,
+    secondaryButtonTitle,
+    onSecondaryButtonPress,
 }) => {
     const { height: screenHeight } = useWindowDimensions();
     const { isDark } = useAppTheme();
@@ -122,8 +140,13 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
 
     const panResponder = useRef(
         PanResponder.create({
-            onStartShouldSetPanResponder: () => true,
-            onMoveShouldSetPanResponder: (_: any, gestureState: any) => gestureState.dy > 6,
+            // Don't claim the gesture on touch-start — let the ScrollView get first shot
+            onStartShouldSetPanResponder: () => false,
+            onStartShouldSetPanResponderCapture: () => false,
+            // Only claim a clear downward swipe that isn't a horizontal scroll
+            onMoveShouldSetPanResponder: (_: any, gestureState: any) =>
+                gestureState.dy > 8 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+            onMoveShouldSetPanResponderCapture: () => false,
             onPanResponderMove: (_: any, gestureState: any) => {
                 if (gestureState.dy > 0) {
                     panY.setValue(gestureState.dy);
@@ -152,8 +175,8 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
     const translateY = Animated.add(sheetAnim, panY);
     const maxSheetHeight = screenHeight * maxHeightPercent;
 
-    // Generous bottom clearance above navigation bars across iOS & Android
-    const bottomSafeMargin = Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 12) + (Platform.OS === 'ios' ? 14 : 18);
+    // Exact safe clearance matching OnboardingScreen comfort
+    const bottomSafeMargin = Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 12) + (Platform.OS === 'ios' ? 12 : 16);
 
     const renderSheetBody = () => (
         <Animated.View
@@ -222,13 +245,14 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                     style={styles.scrollContent}
                     contentContainerStyle={[
                         styles.scrollContentContainer,
-                        { paddingBottom: footer ? 16 : bottomSafeMargin },
+                        { paddingBottom: (footer || primaryButtonTitle) ? 16 : bottomSafeMargin },
                         contentContainerStyle,
                     ]}
                     showsVerticalScrollIndicator={false}
                     keyboardShouldPersistTaps="handled"
                     keyboardDismissMode="on-drag"
                     bounces={false}
+                    nestedScrollEnabled
                 >
                     {children}
                 </ScrollView>
@@ -236,7 +260,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                 <View
                     style={[
                         styles.fixedContent,
-                        { paddingBottom: footer ? 16 : bottomSafeMargin },
+                        { paddingBottom: (footer || primaryButtonTitle) ? 16 : bottomSafeMargin },
                         contentContainerStyle,
                     ]}
                 >
@@ -245,7 +269,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
             )}
 
             {/* Sticky Bottom Footer with Extra Navigator Clearance */}
-            {footer && (
+            {(footer || primaryButtonTitle) && (
                 <View
                     style={[
                         styles.footerContainer,
@@ -255,7 +279,69 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                         },
                     ]}
                 >
-                    {footer}
+                    {footer ? (
+                        footer
+                    ) : (
+                        <View style={styles.actionButtonGroup}>
+                            <TouchableOpacity
+                                style={[
+                                    styles.sheetPrimaryButton,
+                                    {
+                                        backgroundColor: primaryButtonVariant === 'destructive'
+                                            ? theme.colors.status.danger
+                                            : primaryButtonVariant === 'secondary'
+                                            ? theme.colors.surfaceSubtle
+                                            : theme.colors.primary,
+                                    },
+                                    (primaryButtonDisabled || primaryButtonLoading) && styles.sheetButtonDisabled,
+                                ]}
+                                onPress={onPrimaryButtonPress}
+                                disabled={primaryButtonDisabled || primaryButtonLoading}
+                                activeOpacity={0.85}
+                            >
+                                {primaryButtonLoading ? (
+                                    <ActivityIndicator
+                                        color={primaryButtonVariant === 'secondary' ? theme.colors.textPrimary : '#FFFFFF'}
+                                        size="small"
+                                    />
+                                ) : (
+                                    <View style={styles.buttonInnerRow}>
+                                        {primaryButtonIcon && <View style={styles.buttonIconWrapper}>{primaryButtonIcon}</View>}
+                                        <Text
+                                            style={[
+                                                styles.sheetPrimaryButtonText,
+                                                {
+                                                    color: primaryButtonVariant === 'secondary'
+                                                        ? theme.colors.textPrimary
+                                                        : '#FFFFFF',
+                                                },
+                                            ]}
+                                        >
+                                            {primaryButtonTitle}
+                                        </Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+
+                            {secondaryButtonTitle && onSecondaryButtonPress && (
+                                <TouchableOpacity
+                                    style={[
+                                        styles.sheetSecondaryButton,
+                                        {
+                                            backgroundColor: theme.colors.surfaceSubtle,
+                                            borderColor: theme.colors.border,
+                                        },
+                                    ]}
+                                    onPress={onSecondaryButtonPress}
+                                    activeOpacity={0.75}
+                                >
+                                    <Text style={[styles.sheetSecondaryButtonText, { color: theme.colors.textPrimary }]}>
+                                        {secondaryButtonTitle}
+                                    </Text>
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    )}
                 </View>
             )}
         </Animated.View>
@@ -284,8 +370,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                 {avoidKeyboard ? (
                     <KeyboardAvoidingView
                         style={styles.keyboardContainer}
-                        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : -insets.bottom}
+                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     >
                         {renderSheetBody()}
                     </KeyboardAvoidingView>
@@ -383,7 +468,52 @@ const styles = StyleSheet.create({
     },
     footerContainer: {
         paddingHorizontal: 20,
-        paddingTop: 14,
+        paddingTop: 12,
         borderTopWidth: StyleSheet.hairlineWidth,
+    },
+    actionButtonGroup: {
+        width: '100%',
+        gap: 10,
+    },
+    sheetPrimaryButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: 52,
+        paddingHorizontal: 20,
+        borderRadius: 16,
+        width: '100%',
+    },
+    buttonInnerRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+    },
+    buttonIconWrapper: {
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    sheetPrimaryButtonText: {
+        fontSize: 15,
+        fontWeight: '700',
+        letterSpacing: 0.1,
+    },
+    sheetSecondaryButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        height: 48,
+        paddingHorizontal: 20,
+        borderRadius: 16,
+        borderWidth: 1,
+        width: '100%',
+    },
+    sheetSecondaryButtonText: {
+        fontSize: 14,
+        fontWeight: '600',
+    },
+    sheetButtonDisabled: {
+        opacity: 0.5,
     },
 });

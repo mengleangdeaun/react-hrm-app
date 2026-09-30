@@ -1,4 +1,4 @@
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react';
 import {
     View,
     StyleSheet,
@@ -8,7 +8,6 @@ import {
     PanResponder,
     Platform,
 } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { CameraView } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
@@ -37,8 +36,8 @@ export interface ModernScannerCanvasProps {
     isDecodingImage?: boolean;
 }
 
-// ABA Bank style rounded squircle radius (smooth curve, zero 90° boxy corners)
-const CORNER_RADIUS = 28;
+// Modern rounded corner radius for clean corner brackets
+const CORNER_RADIUS = 20;
 
 export const ModernScannerCanvas: React.FC<ModernScannerCanvasProps> = ({
     onBarcodeScanned,
@@ -80,24 +79,7 @@ export const ModernScannerCanvas: React.FC<ModernScannerCanvasProps> = ({
     const availableHeight = height - topReserved - bottomReserved;
     const frameTop = Math.round(topReserved + Math.max(0, (availableHeight - frameSize) / 2));
 
-    // ── Smooth Squircle Cutout SVG Path (Zero 90-degree boxy edges) ──────
-    const cutoutPath = useMemo(() => {
-        if (width <= 0 || height <= 0 || frameSize <= 0) return '';
-        const r = CORNER_RADIUS;
-        const x = frameLeft;
-        const y = frameTop;
-        const size = frameSize;
-        return `M 0 0 L ${width} 0 L ${width} ${height} L 0 ${height} Z ` +
-            `M ${x + r} ${y} ` +
-            `L ${x + size - r} ${y} ` +
-            `A ${r} ${r} 0 0 1 ${x + size} ${y + r} ` +
-            `L ${x + size} ${y + size - r} ` +
-            `A ${r} ${r} 0 0 1 ${x + size - r} ${y + size} ` +
-            `L ${x + r} ${y + size} ` +
-            `A ${r} ${r} 0 0 1 ${x} ${y + size - r} ` +
-            `L ${x} ${y + r} ` +
-            `A ${r} ${r} 0 0 1 ${x + r} ${y} Z`;
-    }, [width, height, frameLeft, frameTop, frameSize]);
+
 
     // ── Pinch-to-Zoom Gesture (Multi-Touch via PanResponder) ─────────────
     const baseDistanceRef = useRef<number | null>(null);
@@ -139,6 +121,24 @@ export const ModernScannerCanvas: React.FC<ModernScannerCanvasProps> = ({
         [zoom]
     );
 
+    // Hardware Scan Lock to prevent multi-frame rapid-fire callbacks before React state commits
+    const scanLockRef = useRef<boolean>(false);
+
+    useEffect(() => {
+        if (!isScanned) {
+            scanLockRef.current = false;
+        }
+    }, [isScanned]);
+
+    const handleBarcodeScannedInternal = useCallback(
+        (result: { data: string }) => {
+            if (isScanned || scanLockRef.current || !onBarcodeScanned) return;
+            scanLockRef.current = true;
+            onBarcodeScanned(result);
+        },
+        [isScanned, onBarcodeScanned]
+    );
+
     const toggleTorch = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
         setTorch((prev) => !prev);
@@ -154,7 +154,7 @@ export const ModernScannerCanvas: React.FC<ModernScannerCanvasProps> = ({
                     autofocus="on"
                     zoom={zoom}
                     barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-                    onBarcodeScanned={isScanned ? undefined : onBarcodeScanned}
+                    onBarcodeScanned={isScanned ? undefined : handleBarcodeScannedInternal}
                 />
             ) : (
                 <View style={[StyleSheet.absoluteFill, { backgroundColor: '#000000' }]} />
@@ -165,21 +165,7 @@ export const ModernScannerCanvas: React.FC<ModernScannerCanvasProps> = ({
                 {topContent ? topContent : <View style={{ height: 38 }} />}
             </View>
 
-            {/* 3. Dark Backdrop with Smooth Squircle Cutout (ABA Bank Fintech Style) */}
-            <Svg
-                style={StyleSheet.absoluteFill}
-                width={width}
-                height={height}
-                pointerEvents="none"
-            >
-                <Path
-                    d={cutoutPath}
-                    fill="rgba(0, 0, 0, 0.05)"
-                    fillRule="evenodd"
-                />
-            </Svg>
-
-            {/* Viewfinder Frame (Clean, Minimalist, 100% Unobstructed Camera View) */}
+            {/* 3. Viewfinder Frame (Clean, Minimalist, 100% Unobstructed Camera View) */}
             <View
                 style={[
                     styles.scannerFrame,
@@ -198,9 +184,6 @@ export const ModernScannerCanvas: React.FC<ModernScannerCanvasProps> = ({
                 <View style={[styles.corner, styles.bottomLeft]} />
                 <View style={[styles.corner, styles.bottomRight]} />
 
-                {/* Subtle continuous frame guide */}
-                <View style={styles.frameGuideBorder} pointerEvents="none" />
-
                 {/* Authenticating / Submitting Loading Overlay */}
                 {(isLoading || isDecodingImage) && (
                     <View style={styles.loadingOverlay}>
@@ -214,22 +197,17 @@ export const ModernScannerCanvas: React.FC<ModernScannerCanvasProps> = ({
                 )}
             </View>
 
-            {/* 4. Anchored Guidance Copy & Rescan Action Below Frame */}
-            <View
-                style={[
-                    styles.underFrameContainer,
-                    {
-                        top: frameTop + frameSize + 22,
-                    },
-                ]}
-                pointerEvents="box-none"
-            >
-                <AppText style={styles.instructionText}>
-                    {instructionText || t('align_qr_within_frame', 'Align QR code within the frame')}
-                </AppText>
-
-                {/* Tap to Rescan Button */}
-                {isScanned && !isLoading && !isDecodingImage && onRescanPress && (
+            {/* 4. Rescan Action Below Frame */}
+            {isScanned && !isLoading && !isDecodingImage && onRescanPress && (
+                <View
+                    style={[
+                        styles.underFrameContainer,
+                        {
+                            top: frameTop + frameSize + 24,
+                        },
+                    ]}
+                    pointerEvents="box-none"
+                >
                     <TouchableOpacity
                         style={[styles.rescanBtn, { backgroundColor: accentColor }]}
                         onPress={() => {
@@ -244,8 +222,8 @@ export const ModernScannerCanvas: React.FC<ModernScannerCanvasProps> = ({
                             {t('tap_to_rescan', 'Tap to Rescan')}
                         </AppText>
                     </TouchableOpacity>
-                )}
-            </View>
+                </View>
+            )}
 
             {/* 5. Ergonomic Bottom Thumb-Zone Controls */}
             <View
@@ -331,16 +309,10 @@ const styles = StyleSheet.create({
         borderRadius: CORNER_RADIUS,
         zIndex: 20,
     },
-    frameGuideBorder: {
-        ...StyleSheet.absoluteFillObject,
-        borderRadius: CORNER_RADIUS,
-        borderWidth: 1,
-        borderColor: 'rgba(255, 255, 255, 0.20)',
-    },
     corner: {
         position: 'absolute',
-        width: 36,
-        height: 36,
+        width: 38,
+        height: 38,
         borderColor: '#FFFFFF',
     },
     topLeft: {
@@ -348,6 +320,8 @@ const styles = StyleSheet.create({
         left: 0,
         borderTopWidth: 3.5,
         borderLeftWidth: 3.5,
+        borderRightWidth: 0,
+        borderBottomWidth: 0,
         borderTopLeftRadius: CORNER_RADIUS,
     },
     topRight: {
@@ -355,6 +329,8 @@ const styles = StyleSheet.create({
         right: 0,
         borderTopWidth: 3.5,
         borderRightWidth: 3.5,
+        borderLeftWidth: 0,
+        borderBottomWidth: 0,
         borderTopRightRadius: CORNER_RADIUS,
     },
     bottomLeft: {
@@ -362,6 +338,8 @@ const styles = StyleSheet.create({
         left: 0,
         borderBottomWidth: 3.5,
         borderLeftWidth: 3.5,
+        borderTopWidth: 0,
+        borderRightWidth: 0,
         borderBottomLeftRadius: CORNER_RADIUS,
     },
     bottomRight: {
@@ -369,6 +347,8 @@ const styles = StyleSheet.create({
         right: 0,
         borderBottomWidth: 3.5,
         borderRightWidth: 3.5,
+        borderTopWidth: 0,
+        borderLeftWidth: 0,
         borderBottomRightRadius: CORNER_RADIUS,
     },
     loadingOverlay: {
@@ -393,32 +373,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         zIndex: 20,
     },
-    instructionText: {
-        color: '#FFFFFF',
-        fontSize: 14,
-        textAlign: 'center',
-        paddingHorizontal: 20,
-        fontWeight: '500',
-        lineHeight: 20,
-        letterSpacing: 0.2,
-        textShadowColor: 'rgba(0, 0, 0, 0.80)',
-        textShadowOffset: { width: 0, height: 1 },
-        textShadowRadius: 3,
-    },
     rescanBtn: {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 8,
-        marginTop: 16,
         paddingHorizontal: 22,
         paddingVertical: 12,
         borderRadius: 14,
         minHeight: 46,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 6,
-        elevation: 5,
     },
     rescanBtnText: {
         color: '#FFFFFF',
@@ -443,11 +405,6 @@ const styles = StyleSheet.create({
         borderColor: 'rgba(255, 255, 255, 0.20)',
         justifyContent: 'center',
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
-        shadowOpacity: 0.3,
-        shadowRadius: 5,
-        elevation: 4,
     },
     circleActionButtonActiveTorch: {
         backgroundColor: 'rgba(251, 191, 36, 0.25)',
@@ -460,11 +417,6 @@ const styles = StyleSheet.create({
         height: 50,
         paddingHorizontal: 24,
         borderRadius: 25,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.35,
-        shadowRadius: 8,
-        elevation: 6,
     },
     heroUploadText: {
         color: '#FFFFFF',

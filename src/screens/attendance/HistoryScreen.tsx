@@ -32,6 +32,12 @@ import {
     Clock,
     Sparkles,
     Coffee,
+    LayoutList,
+    AlarmClockCheck,
+    AlarmClockOff,
+    LogOut,
+    Timer,
+    Hourglass,
 } from 'lucide-react-native';
 import { format, formatDateDisplay, formatTimeDisplay } from '../../utils/dateTime';
 
@@ -42,12 +48,10 @@ interface HistoryItemCardProps {
     theme: any;
     styles: any;
     t: (key: string, fallback: string) => string;
+    locale?: string;
 }
 
-const HistoryItemCard = memo(({ item, theme, styles, t }: HistoryItemCardProps) => {
-    const isLate = (item.late_minutes || 0) > 0 || item.in_status?.toLowerCase() === 'late';
-    const hasOvertime = (item.overtime_minutes || 0) > 0;
-    const hasEarlyLeave = (item.early_departure_minutes || 0) > 0;
+const HistoryItemCard = memo(({ item, theme, styles, t, locale }: HistoryItemCardProps) => {
     const hasSplitShift = !!(item.session_1_out_time || item.session_2_in_time);
 
     return (
@@ -56,7 +60,7 @@ const HistoryItemCard = memo(({ item, theme, styles, t }: HistoryItemCardProps) 
             <View style={styles.cardHeader}>
                 <View style={styles.dateGroup}>
                     <Calendar color={theme.colors.primary} size={16} />
-                    <Text style={styles.dateText}>{formatDateDisplay(item.date, 'full')}</Text>
+                    <Text style={styles.dateText}>{formatDateDisplay(item.date, 'full', 'N/A', locale)}</Text>
                 </View>
             </View>
 
@@ -99,7 +103,7 @@ const HistoryItemCard = memo(({ item, theme, styles, t }: HistoryItemCardProps) 
 
             {/* Session 2 Row (If Split Shift) */}
             {hasSplitShift && (
-                <View style={[styles.sessionBox, { marginTop: theme.spacing.xs }]}>
+                <View style={styles.sessionBox}>
                     <View style={styles.sessionItem}>
                         <View style={styles.rowCentered}>
                             <ArrowDownLeft color={theme.colors.status.success} size={16} />
@@ -120,50 +124,32 @@ const HistoryItemCard = memo(({ item, theme, styles, t }: HistoryItemCardProps) 
                 </View>
             )}
 
-            {/* Footer Metrics & Deficit Chips */}
-            <View style={styles.cardFooter}>
-                <View style={styles.rowCentered}>
-                    {isLate && (
-                        <View style={styles.lateChip}>
-                            <Text style={styles.lateChipText}>-{item.late_minutes}m {t('late', 'Late')}</Text>
-                        </View>
-                    )}
-                    {hasEarlyLeave && (
-                        <View style={styles.earlyChip}>
-                            <Text style={styles.earlyChipText}>-{item.early_departure_minutes}m {t('early_leave', 'Early Leave')}</Text>
-                        </View>
-                    )}
-                    {hasOvertime && (
-                        <View style={styles.overtimeChip}>
-                            <Sparkles color={theme.colors.status.success} size={11} />
-                            <Text style={styles.overtimeChipText}>+{item.overtime_minutes}m {t('ot', 'OT')}</Text>
-                        </View>
-                    )}
-                </View>
-
-                {item.working_hours && (
+            {/* Footer: Working Hours Total */}
+            {item.working_hours && (
+                <View style={styles.cardFooter}>
                     <Text style={styles.workingHoursText}>
                         {t('total', 'Total')}: <Text style={styles.workingHoursHighlight}>{item.working_hours}</Text>
                     </Text>
-                )}
-            </View>
+                </View>
+            )}
+
         </View>
     );
 });
 
 export const AUDIT_CATEGORIES = [
-    { id: 'all', keyName: 'all_logs', fallback: 'All Logs' },
-    { id: 'early_in', keyName: 'early_in', fallback: 'Early In', key: 'in_status', value: 'Early' },
-    { id: 'late_in', keyName: 'late_in', fallback: 'Late In', key: 'in_status', value: 'Late' },
-    { id: 'early_departure', keyName: 'early_depart', fallback: 'Early Depart', key: 'out_status', value: 'Early' },
-    { id: 'stay_late', keyName: 'stay_late', fallback: 'Stay Late', key: 'out_status', value: 'Stay Late' },
-    { id: 'overtime', keyName: 'overtime', fallback: 'Overtime', key: 'out_status', value: 'Overtime' },
+    { id: 'all',              keyName: 'all_logs',      fallback: 'All Logs',      icon: LayoutList },
+    { id: 'early_in',        keyName: 'early_in',      fallback: 'Early In',      icon: AlarmClockCheck,  key: 'in_status',  value: 'Early' },
+    { id: 'late_in',         keyName: 'late_in',       fallback: 'Late In',       icon: AlarmClockOff,    key: 'in_status',  value: 'Late' },
+    { id: 'early_departure', keyName: 'early_depart',  fallback: 'Early Depart',  icon: LogOut,           key: 'out_status', value: 'Early' },
+    { id: 'stay_late',       keyName: 'stay_late',     fallback: 'Stay Late',     icon: Timer,            key: 'out_status', value: 'Stay Late' },
+    { id: 'overtime',        keyName: 'overtime',      fallback: 'Overtime',      icon: Hourglass,        key: 'out_status', value: 'Overtime' },
 ];
 
 export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const { isDark, primaryColor } = useAppTheme();
-    const { t } = useTranslation();
+    const { t, locale } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
     const queryClient = useQueryClient();
@@ -260,9 +246,9 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
     const renderItem = useCallback(
         ({ item }: { item: HistoryRecord }) => (
-            <HistoryItemCard item={item} theme={theme} styles={styles} t={t} />
+            <HistoryItemCard item={item} theme={theme} styles={styles} t={t} locale={locale} />
         ),
-        [theme, styles, t]
+        [theme, styles, t, locale]
     );
 
     const headerRight = (
@@ -315,7 +301,7 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 <View style={styles.activeMonthChip}>
                     <Clock color="#FFFFFF" size={14} />
                     <Text style={styles.activeMonthChipText}>
-                        {formatDateDisplay(selectedMonth + '-01', 'monthYear')}
+                        {formatDateDisplay(selectedMonth + '-01', 'monthYear', 'N/A', locale)}
                     </Text>
                     <TouchableOpacity
                         onPress={() => setSelectedMonth('')}
@@ -391,8 +377,12 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 }
             >
                 {/* Review Month Picker */}
-                <Text style={styles.filterSectionLabel}>{t('review_month', 'Review Month')}</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.monthPillsRow}>
+                <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.monthPillsRow}
+                    contentContainerStyle={styles.monthPillsContent}
+                >
                     {getMonthOptions().map((m) => {
                         const isSel = draftMonth === m.value;
                         return (
@@ -410,32 +400,43 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                     })}
                 </ScrollView>
 
-                {/* Quick Filter Selection */}
-                <Text style={styles.filterSectionLabel}>{t('status_category', 'Status Category')}</Text>
-                <View style={styles.quickFilterCol}>
+                {/* Status Category Selection */}
+                <View style={styles.filterSectionHeaderRow}>
+                    <Text style={styles.filterSectionLabel}>{t('status_category', 'Status Category')}</Text>
+                </View>
+                <View style={styles.categoryChipGrid}>
                     {AUDIT_CATEGORIES.map((f) => {
                         const isSel = draftQuickFilter === f.id;
+                        const CatIcon = f.icon;
                         return (
                             <TouchableOpacity
                                 key={f.id}
-                                style={styles.filterOption}
+                                style={[
+                                    styles.categoryChip,
+                                    isSel
+                                        ? { backgroundColor: primaryColor, borderColor: primaryColor }
+                                        : { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border },
+                                ]}
                                 onPress={() => {
                                     setDraftQuickFilter(f.id);
                                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                                 }}
-                                activeOpacity={0.65}
+                                activeOpacity={0.75}
                             >
+                                <CatIcon
+                                    color={isSel ? '#FFFFFF' : theme.colors.textSecondary}
+                                    size={14}
+                                />
                                 <Text
                                     style={[
-                                        styles.filterOptionText,
-                                        isSel && [styles.filterOptionTextSelected, { color: primaryColor }],
+                                        styles.categoryChipLabel,
+                                        { color: isSel ? '#FFFFFF' : theme.colors.textPrimary },
                                     ]}
+                                    numberOfLines={1}
                                 >
                                     {t(f.keyName, f.fallback)}
                                 </Text>
-                                {isSel && (
-                                    <Check color={primaryColor} size={18} strokeWidth={2.5} />
-                                )}
+
                             </TouchableOpacity>
                         );
                     })}
@@ -570,7 +571,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderColor: theme.colors.border,
         position: 'relative',
         overflow: 'hidden',
-        ...theme.shadows.sm,
     },
     cardAccentBar: {
         position: 'absolute',
@@ -783,8 +783,10 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     monthPillsRow: {
         flexDirection: 'row',
-        marginBottom: theme.spacing.md,
+        marginBottom: theme.spacing.sm,
         marginHorizontal: -20,
+    },
+    monthPillsContent: {
         paddingHorizontal: 20,
     },
     monthPill: {
@@ -829,18 +831,49 @@ const stylesheet = StyleSheet.create((theme) => ({
     filterOptionTextSelected: {
         fontWeight: '700',
     },
+    filterSectionHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: theme.spacing.xs + 4,
+        marginTop: theme.spacing.sm,
+    },
+    filterActiveBadgeText: {
+        fontSize: 12,
+        fontWeight: '700',
+    },
+    categoryChipGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 8,
+        marginBottom: theme.spacing.md,
+    },
+    categoryChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        paddingHorizontal: 12,
+        paddingVertical: 9,
+        borderRadius: theme.borderRadius.full,
+        borderWidth: 1,
+    },
+    categoryChipLabel: {
+        fontSize: 13,
+        fontWeight: '600',
+        flexShrink: 1,
+    },
     applyFilterBtn: {
         backgroundColor: theme.colors.primary,
-        height: 48,
-        borderRadius: theme.borderRadius.md,
+        height: 52,
+        borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
         marginTop: 0,
-        ...theme.shadows.sm,
+        width: '100%',
     },
     applyFilterBtnText: {
         color: '#FFFFFF',
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: '700',
     },
 }));

@@ -248,10 +248,11 @@ const styles = StyleSheet.create({
         marginBottom: 12,
     },
     submitButton: {
-        borderRadius: 14,
-        paddingVertical: 14,
+        borderRadius: 16,
+        height: 52,
         alignItems: 'center',
         justifyContent: 'center',
+        width: '100%',
     },
     submitButtonDisabled: {
         opacity: 0.45,

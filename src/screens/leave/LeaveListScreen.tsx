@@ -218,7 +218,6 @@ const MyLeaveRequestCard = memo(({ req, styles, theme, t, onOpenDetail }: MyLeav
 
     const typeName = getLeaveTypeName(req.leave_type, req, t('leave', 'Leave'));
     const statusMeta = getStatusMeta(statusStr, styles);
-    const StatusIcon = statusMeta.icon;
 
     const handlePressCard = useCallback(() => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -243,7 +242,6 @@ const MyLeaveRequestCard = memo(({ req, styles, theme, t, onOpenDetail }: MyLeav
                 </View>
 
                 <View style={[styles.statusBadge, statusMeta.badgeStyle]}>
-                    <StatusIcon size={12} style={styles.statusBadgeIcon} />
                     <Text style={[styles.statusBadgeText, statusMeta.textStyle]}>
                         {statusStr.toUpperCase()}
                     </Text>
@@ -465,7 +463,6 @@ const LeaveDetailSheet: React.FC<LeaveDetailSheetProps> = ({
     const isRejected = statusStr === 'rejected';
     const typeName = getLeaveTypeName(item.leave_type, item, t('leave', 'Leave'));
     const statusMeta = getStatusMeta(statusStr, styles);
-    const StatusIcon = statusMeta.icon;
     const daysCount = item.total_days || item.days_count || 1;
     const durationLabel = getDurationTypeLabel(item.duration_type, item.start_time, item.end_time, t);
 
@@ -526,7 +523,6 @@ const LeaveDetailSheet: React.FC<LeaveDetailSheetProps> = ({
                 <View style={styles.detailHeroCard}>
                     <View style={styles.detailHeroTop}>
                         <View style={[styles.statusBadge, statusMeta.badgeStyle]}>
-                            <StatusIcon size={14} style={styles.statusBadgeIcon} />
                             <Text style={[styles.statusBadgeText, statusMeta.textStyle]}>
                                 {statusStr.toUpperCase()}
                             </Text>
@@ -968,7 +964,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             {activeTab === 'my_requests' && leaveBalances.length > 0 && (
                 <View style={styles.balanceSection}>
                     <View style={styles.balanceSectionHeader}>
-                        <Text style={styles.sectionTitle}>{t('leave_balances_summary', 'Leave Balances')}</Text>
+                        <Text style={styles.sectionTitle}>{t('leave_balances', 'Leave Balances')}</Text>
                         {selectedLeaveTypeId !== null && (
                             <TouchableOpacity
                                 onPress={() => setSelectedLeaveTypeId(null)}
@@ -1622,9 +1618,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         paddingVertical: 3,
         borderRadius: theme.borderRadius.full,
         gap: 4,
-    },
-    statusBadgeIcon: {
-        marginRight: 1,
     },
     statusBadgePending: {
         backgroundColor: theme.colors.status.warningSubtle,

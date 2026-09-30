@@ -22,6 +22,7 @@ interface AppShellProps {
     onClose?: () => void;
     headerRight?: React.ReactNode;
     subHeader?: React.ReactNode;
+    footer?: React.ReactNode;
     scrollable?: boolean;
     refreshing?: boolean;
     onRefresh?: () => void;
@@ -45,6 +46,7 @@ export const AppShell: React.FC<AppShellProps> = ({
     onClose,
     headerRight,
     subHeader,
+    footer,
     scrollable = true,
     refreshing = false,
     onRefresh,
@@ -70,6 +72,8 @@ export const AppShell: React.FC<AppShellProps> = ({
     const defaultOffset = Platform.OS === 'ios' ? (hasHeader ? 12 : 0) : 0;
     const verticalOffset = keyboardVerticalOffset !== undefined ? keyboardVerticalOffset : defaultOffset;
 
+    const footerBottomPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 12) + (Platform.OS === 'ios' ? 12 : 16);
+
     const renderContent = () => {
         if (scrollable) {
             return (
@@ -77,7 +81,11 @@ export const AppShell: React.FC<AppShellProps> = ({
                     style={styles.scrollContainer}
                     contentContainerStyle={[
                         styles.scrollContent,
-                        { paddingBottom: hasTabBar ? 16 : Math.max(20, bottomInset + 16) },
+                        {
+                            paddingBottom: footer
+                                ? 100
+                                : (hasTabBar ? 16 : Math.max(20, bottomInset + 16)),
+                        },
                         contentContainerStyle,
                     ]}
                     keyboardShouldPersistTaps="handled"
@@ -103,6 +111,26 @@ export const AppShell: React.FC<AppShellProps> = ({
             </View>
         );
     };
+
+    const renderBody = () => (
+        <>
+            {renderContent()}
+            {footer && (
+                <View
+                    style={[
+                        styles.fixedFooter,
+                        {
+                            backgroundColor: theme.colors.background,
+                            borderTopColor: theme.colors.border,
+                            paddingBottom: footerBottomPadding,
+                        },
+                    ]}
+                >
+                    {footer}
+                </View>
+            )}
+        </>
+    );
 
     return (
         <View style={[styles.safeArea, { paddingTop: topInset, backgroundColor: theme.colors.background }, style]}>
@@ -130,10 +158,10 @@ export const AppShell: React.FC<AppShellProps> = ({
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                     keyboardVerticalOffset={verticalOffset}
                 >
-                    {renderContent()}
+                    {renderBody()}
                 </KeyboardAvoidingView>
             ) : (
-                renderContent()
+                renderBody()
             )}
         </View>
     );
@@ -163,5 +191,11 @@ const styles = StyleSheet.create({
     },
     fixedContainer: {
         flex: 1,
+    },
+    fixedFooter: {
+        borderTopWidth: 1,
+        paddingHorizontal: 16,
+        paddingTop: 12,
+        width: '100%',
     },
 });

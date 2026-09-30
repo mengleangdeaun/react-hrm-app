@@ -299,6 +299,44 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
         )
     );
 
+    const renderFooter = () => {
+        if (activeTab !== 'my') return undefined;
+
+        if (!showForm) {
+            return (
+                <AppButton
+                    title={t('request_day_off_change', 'Request Day-Off Change')}
+                    onPress={() => {
+                        resetForm();
+                        setShowForm(true);
+                    }}
+                    icon={<Plus color="#FFFFFF" size={18} />}
+                    size="lg"
+                />
+            );
+        }
+
+        return (
+            <View style={styles.footerRow}>
+                <AppButton
+                    title={t('cancel', 'Cancel')}
+                    onPress={() => setShowForm(false)}
+                    variant="outline"
+                    size="lg"
+                    style={styles.footerCancelBtn}
+                />
+                <AppButton
+                    title={t('submit_request', 'Submit Request')}
+                    onPress={handleSubmitForm}
+                    loading={submitMutation.isPending}
+                    icon={<Send color="#FFFFFF" size={18} />}
+                    size="lg"
+                    style={styles.footerSubmitBtn}
+                />
+            </View>
+        );
+    };
+
     return (
         <AppShell
             title={t('day_off', 'Day Off')}
@@ -306,6 +344,7 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
             headerRight={headerRight}
             refreshing={isRefreshing}
             onRefresh={onRefresh}
+            footer={renderFooter()}
         >
             {/* Top Navigation Tabs */}
             <View style={[styles.tabBar, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
@@ -608,7 +647,12 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
                                     <NativeDatePickerField
                                         label={t('effective_from', 'Effective From')}
                                         value={effectiveFrom}
-                                        onChange={setEffectiveFrom}
+                                        onChange={(d) => {
+                                            setEffectiveFrom(d);
+                                            if (effectiveTo && d > effectiveTo) {
+                                                setEffectiveTo(d);
+                                            }
+                                        }}
                                     />
                                 </View>
                                 <View style={styles.dateCol}>
@@ -617,6 +661,8 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
                                         value={effectiveTo}
                                         onChange={setEffectiveTo}
                                         minDate={effectiveFrom}
+                                        isClearable
+                                        placeholder={t('optional', 'Optional')}
                                     />
                                 </View>
                             </View>
@@ -631,23 +677,6 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
                                 numberOfLines={3}
                                 icon={<FileText color={theme.colors.textSecondary} size={18} />}
                             />
-
-                            {/* Form Action Buttons */}
-                            <View style={styles.formButtonRow}>
-                                <AppButton
-                                    title={t('cancel', 'Cancel')}
-                                    onPress={() => setShowForm(false)}
-                                    variant="outline"
-                                    style={styles.cancelFormBtn}
-                                />
-                                <AppButton
-                                    title={t('submit_request', 'Submit Request')}
-                                    onPress={handleSubmitForm}
-                                    loading={submitMutation.isPending}
-                                    icon={<Send color="#FFFFFF" size={16} />}
-                                    style={styles.submitFormBtn}
-                                />
-                            </View>
                         </View>
                     )}
 
@@ -1096,18 +1125,17 @@ const styles = StyleSheet.create({
     dateCol: {
         flex: 1,
     },
-    formButtonRow: {
+    footerRow: {
         flexDirection: 'row',
-        gap: 10,
-        marginTop: 6,
+        gap: 12,
+        alignItems: 'center',
+        width: '100%',
     },
-    cancelFormBtn: {
+    footerCancelBtn: {
         flex: 1,
-        height: 46,
     },
-    submitFormBtn: {
+    footerSubmitBtn: {
         flex: 2,
-        height: 46,
     },
     historySection: {
         marginTop: 4,

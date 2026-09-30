@@ -14,10 +14,12 @@ import {
     subMonths,
     isSameMonth,
     startOfDay,
+    isToday,
     formatDateDisplay,
     formatTimeDisplay,
     formatDateRangeDisplay,
     parseDateOnly,
+    formatDateOnly,
 } from '../../utils/dateTime';
 import {
     Clock,
@@ -36,6 +38,7 @@ import { useAppTheme } from '../../context/ThemeContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
 import { AppShell } from '../../components/common/AppShell';
 import { HeaderIconButton } from '../../components/common/AppHeader';
+import { EmptyState } from '../../components/common/EmptyState';
 import { calendarApi } from '../../api/calendar';
 import { MonthCalendarGrid } from '../../components/calendar/MonthCalendarGrid';
 
@@ -43,7 +46,7 @@ import { useTranslation } from '../../context/LanguageContext';
 
 export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
     const { isDark } = useAppTheme();
-    const { t } = useTranslation();
+    const { t, locale } = useTranslation();
     const theme = isDark ? darkTheme : lightTheme;
     const queryClient = useQueryClient();
 
@@ -145,6 +148,78 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
         };
     }, [data, currentMonth]);
 
+    // Selected Date Details
+    const selectedDateInfo = useMemo(() => {
+        if (!selectedDate) return null;
+        const dateStr = formatDateOnly(selectedDate);
+        const dayName = format(selectedDate, 'eeee').toLowerCase();
+
+        // 1. Attendance
+        const att = (data?.attendance || []).find((a: any) => a.date === dateStr);
+
+        // 2. Holiday
+        const hol = (data?.holidays || []).find(
+            (h: any) => dateStr >= h.start_date && dateStr <= h.end_date
+        );
+
+        // 3. Leave
+        const lev = (data?.leaves || []).find(
+            (l: any) => (l.status === 'approved' || l.status === 'pending') && dateStr >= l.start_date && dateStr <= l.end_date
+        );
+
+        // 4. Day Off
+        let isDayOff = false;
+        let dayOffReason = '';
+        if (data?.day_offs && data.day_offs.length > 0) {
+            const activeAssignment = data.day_offs.find((d: any) => {
+                const from = d.effective_from;
+                const to = d.effective_to;
+                return dateStr >= from && (!to || dateStr <= to);
+            });
+
+            if (activeAssignment) {
+                if (activeAssignment.frequency === 'specific_dates') {
+                    isDayOff = (activeAssignment.specific_dates || []).includes(dateStr);
+                } else if (activeAssignment.frequency === 'monthly') {
+                    const daysOffList = (activeAssignment.days_off || []).map((dn: string) => dn.toLowerCase());
+                    if (daysOffList.includes(dayName)) {
+                        const weekOfMonth = Math.ceil(selectedDate.getDate() / 7);
+                        const isLastWeek = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate() + 7).getMonth() !== selectedDate.getMonth();
+                        const weeks = activeAssignment.weeks_of_month || [];
+                        isDayOff = weeks.includes(weekOfMonth) || (weeks.includes(5) && isLastWeek);
+                    }
+                } else {
+                    const daysOffList = (activeAssignment.days_off || []).map((dn: string) => dn.toLowerCase());
+                    isDayOff = daysOffList.includes(dayName);
+                }
+                if (isDayOff) dayOffReason = activeAssignment.reason || '';
+            }
+        }
+
+        const shiftDay = data?.working_days
+            ? Array.isArray(data.working_days)
+                ? data.working_days[['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'].indexOf(dayName)]
+                : data.working_days[dayName]
+            : null;
+
+        const isShiftWorking = shiftDay ? shiftDay.is_working !== false : true;
+        if (!isDayOff && !isShiftWorking) {
+            isDayOff = true;
+        }
+
+        return {
+            dateStr,
+            dayName,
+            attendance: att,
+            holiday: hol,
+            leave: lev,
+            isDayOff,
+            dayOffReason,
+            shiftDay,
+            isToday: isToday(selectedDate),
+        };
+    }, [selectedDate, data]);
+
     const isCurrentMonthActive = isSameMonth(currentMonth, new Date());
 
     const handlePrevMonth = () => {
@@ -189,18 +264,18 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
 
                 <View style={styles.monthTitleWrapper}>
                     <Text style={[styles.monthTitle, { color: theme.colors.textPrimary }]}>
-                        {formatDateDisplay(currentMonth, 'monthYear')}
+                        {formatDateDisplay(currentMonth, 'monthYear', 'N/A', locale)}
                     </Text>
                     {!isCurrentMonthActive && (
                         <TouchableOpacity
                             onPress={handleGoToday}
-                            style={[styles.jumpTodayBtn, { backgroundColor: theme.colors.primarySubtle, borderColor: theme.colors.primary }]}
+                            style={[styles.jumpTodayBtn, { backgroundColor: theme.colors.brandSubtle, borderColor: theme.colors.brand }]}
                             accessibilityRole="button"
                             accessibilityLabel="Jump back to current month"
                             activeOpacity={0.7}
                         >
-                            <RotateCcw color={theme.colors.primary} size={11} />
-                            <Text style={[styles.jumpTodayBtnText, { color: theme.colors.primary }]}>{t('today', 'Today')}</Text>
+                            <RotateCcw color={theme.colors.brand} size={11} />
+                            <Text style={[styles.jumpTodayBtnText, { color: theme.colors.brand }]}>{t('today', 'Today')}</Text>
                         </TouchableOpacity>
                     )}
                 </View>
@@ -217,44 +292,48 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
             </View>
 
             {/* 2. Monthly Summary Stats 2x2 Grid */}
-            <View style={styles.statsRow}>
-                <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                    <View style={[styles.statIconBadge, { backgroundColor: theme.colors.status.successSubtle }]}>
-                        <CalendarCheck color={theme.colors.status.success} size={18} />
+            <View style={styles.statsGrid}>
+                <View style={styles.statsRow}>
+                    <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                        <View style={[styles.statIconBadge, { backgroundColor: theme.colors.status.successSubtle }]}>
+                            <CalendarCheck color={theme.colors.status.success} size={18} />
+                        </View>
+                        <View style={styles.statTextCol}>
+                            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{stats.attendance}</Text>
+                            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{t('present', 'Present')}</Text>
+                        </View>
                     </View>
-                    <View style={styles.statTextCol}>
-                        <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{stats.attendance}</Text>
-                        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{t('present', 'Present')}</Text>
+
+                    <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                        <View style={[styles.statIconBadge, { backgroundColor: theme.colors.status.warningSubtle }]}>
+                            <PartyPopper color={theme.colors.status.warning} size={18} />
+                        </View>
+                        <View style={styles.statTextCol}>
+                            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{stats.holidays}</Text>
+                            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{t('holidays', 'Holidays')}</Text>
+                        </View>
                     </View>
                 </View>
 
-                <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                    <View style={[styles.statIconBadge, { backgroundColor: theme.colors.status.warningSubtle }]}>
-                        <PartyPopper color={theme.colors.status.warning} size={18} />
+                <View style={styles.statsRow}>
+                    <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                        <View style={[styles.statIconBadge, { backgroundColor: theme.colors.status.purpleSubtle }]}>
+                            <CalendarPlus color={theme.colors.status.purple} size={18} />
+                        </View>
+                        <View style={styles.statTextCol}>
+                            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{stats.leaves}</Text>
+                            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{t('leaves', 'Leaves')}</Text>
+                        </View>
                     </View>
-                    <View style={styles.statTextCol}>
-                        <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{stats.holidays}</Text>
-                        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{t('holidays', 'Holidays')}</Text>
-                    </View>
-                </View>
 
-                <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                    <View style={[styles.statIconBadge, { backgroundColor: theme.colors.status.purpleSubtle }]}>
-                        <CalendarPlus color={theme.colors.status.purple} size={18} />
-                    </View>
-                    <View style={styles.statTextCol}>
-                        <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{stats.leaves}</Text>
-                        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{t('leaves', 'Leaves')}</Text>
-                    </View>
-                </View>
-
-                <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                    <View style={[styles.statIconBadge, { backgroundColor: theme.colors.status.dangerSubtle }]}>
-                        <CalendarOff color={theme.colors.status.danger} size={18} />
-                    </View>
-                    <View style={styles.statTextCol}>
-                        <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{stats.dayOffs}</Text>
-                        <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{t('day_off', 'Day Off')}</Text>
+                    <View style={[styles.statCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                        <View style={[styles.statIconBadge, { backgroundColor: theme.colors.status.dangerSubtle }]}>
+                            <CalendarOff color={theme.colors.status.danger} size={18} />
+                        </View>
+                        <View style={styles.statTextCol}>
+                            <Text style={[styles.statValue, { color: theme.colors.textPrimary }]}>{stats.dayOffs}</Text>
+                            <Text style={[styles.statLabel, { color: theme.colors.textSecondary }]}>{t('day_off', 'Day Off')}</Text>
+                        </View>
                     </View>
                 </View>
             </View>
@@ -267,14 +346,82 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                 data={data}
             />
 
-            {/* 4. Agenda Tab Switcher */}
+            {/* 4. Selected Date Focus Banner */}
+            {selectedDate && (
+                <View style={[styles.selectedDayCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                    <View style={styles.selectedDayHeader}>
+                        <View style={styles.selectedDayTitleRow}>
+                            <CalendarIcon size={15} color={theme.colors.brand} />
+                            <Text style={[styles.selectedDayTitle, { color: theme.colors.textPrimary }]}>
+                                {formatDateDisplay(selectedDate, 'full', 'N/A', locale)}
+                            </Text>
+                        </View>
+                        {selectedDateInfo?.isToday && (
+                            <View style={[styles.miniTodayBadge, { backgroundColor: theme.colors.brand }]}>
+                                <Text style={styles.miniTodayText}>{t('today', 'TODAY')}</Text>
+                            </View>
+                        )}
+                    </View>
+
+                    <View style={styles.selectedDayTagsRow}>
+                        {selectedDateInfo?.attendance && (
+                            <View style={[styles.dayStatusChip, { backgroundColor: theme.colors.status.successSubtle, borderColor: theme.colors.status.successBorder }]}>
+                                <Text style={[styles.dayStatusChipText, { color: theme.colors.status.success }]}>
+                                    ✓ {t('present', 'Present')}
+                                    {(() => {
+                                        const cin = selectedDateInfo.attendance.clock_in_time || (selectedDateInfo.attendance as any).check_in_time;
+                                        const cout = selectedDateInfo.attendance.clock_out_time || (selectedDateInfo.attendance as any).check_out_time;
+                                        if (cin && cout) return ` (${formatTime(cin)} - ${formatTime(cout)})`;
+                                        if (cin) return ` (${formatTime(cin)})`;
+                                        return '';
+                                    })()}
+                                </Text>
+                            </View>
+                        )}
+                        {selectedDateInfo?.holiday && (
+                            <View style={[styles.dayStatusChip, { backgroundColor: theme.colors.status.warningSubtle, borderColor: theme.colors.status.warningBorder }]}>
+                                <Text style={[styles.dayStatusChipText, { color: theme.colors.status.warning }]}>
+                                     {selectedDateInfo.holiday.title}
+                                </Text>
+                            </View>
+                        )}
+                        {selectedDateInfo?.leave && (
+                            <View style={[styles.dayStatusChip, { backgroundColor: theme.colors.status.purpleSubtle, borderColor: theme.colors.status.purpleBorder }]}>
+                                <Text style={[styles.dayStatusChipText, { color: theme.colors.status.purple }]}>
+                                     {selectedDateInfo.leave.leave_type?.name || t('leave', 'Leave')} ({selectedDateInfo.leave.status})
+                                </Text>
+                            </View>
+                        )}
+                        {selectedDateInfo?.isDayOff && !selectedDateInfo?.holiday && (
+                            <View style={[styles.dayStatusChip, { backgroundColor: theme.colors.status.dangerSubtle, borderColor: theme.colors.status.dangerBorder }]}>
+                                <Text style={[styles.dayStatusChipText, { color: theme.colors.status.danger }]}>
+                                     {t('day_off', 'Day Off')}{selectedDateInfo.dayOffReason ? `: ${selectedDateInfo.dayOffReason}` : ''}
+                                </Text>
+                            </View>
+                        )}
+                        {!selectedDateInfo?.isDayOff && !selectedDateInfo?.holiday && (
+                            <View style={[styles.dayStatusChip, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}>
+                                <Text style={[styles.dayStatusChipText, { color: theme.colors.textPrimary }]}>
+                                     {data?.working_shift?.name || t('working_day', 'Workday')}
+                                    {data?.working_shift?.start_time ? ` (${formatTime(data.working_shift.start_time)} - ${formatTime(data.working_shift.end_time)})` : ''}
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+                </View>
+            )}
+
+            {/* 5. Agenda Tab Switcher */}
             <View style={[styles.tabBar, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}>
                 <TouchableOpacity
                     onPress={() => setActiveTab('workday')}
-                    style={[styles.tabItem, activeTab === 'workday' && { backgroundColor: theme.colors.surface }]}
+                    style={[
+                        styles.tabItem,
+                        activeTab === 'workday' && [styles.tabItemActive, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }],
+                    ]}
                     activeOpacity={0.7}
                 >
-                    <Clock color={activeTab === 'workday' ? theme.colors.primary : theme.colors.textSecondary} size={14} />
+                    <Clock color={activeTab === 'workday' ? theme.colors.brand : theme.colors.textSecondary} size={14} />
                     <Text style={[styles.tabLabel, { color: activeTab === 'workday' ? theme.colors.textPrimary : theme.colors.textSecondary }]}>
                         {t('workday', 'Workday')}
                     </Text>
@@ -282,10 +429,13 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
 
                 <TouchableOpacity
                     onPress={() => setActiveTab('holiday')}
-                    style={[styles.tabItem, activeTab === 'holiday' && { backgroundColor: theme.colors.surface }]}
+                    style={[
+                        styles.tabItem,
+                        activeTab === 'holiday' && [styles.tabItemActive, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }],
+                    ]}
                     activeOpacity={0.7}
                 >
-                    <PartyPopper color={activeTab === 'holiday' ? theme.colors.primary : theme.colors.textSecondary} size={14} />
+                    <PartyPopper color={activeTab === 'holiday' ? theme.colors.brand : theme.colors.textSecondary} size={14} />
                     <Text style={[styles.tabLabel, { color: activeTab === 'holiday' ? theme.colors.textPrimary : theme.colors.textSecondary }]}>
                         {t('holidays', 'Holidays')}
                     </Text>
@@ -293,10 +443,13 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
 
                 <TouchableOpacity
                     onPress={() => setActiveTab('leave')}
-                    style={[styles.tabItem, activeTab === 'leave' && { backgroundColor: theme.colors.surface }]}
+                    style={[
+                        styles.tabItem,
+                        activeTab === 'leave' && [styles.tabItemActive, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }],
+                    ]}
                     activeOpacity={0.7}
                 >
-                    <CalendarPlus color={activeTab === 'leave' ? theme.colors.primary : theme.colors.textSecondary} size={14} />
+                    <CalendarPlus color={activeTab === 'leave' ? theme.colors.brand : theme.colors.textSecondary} size={14} />
                     <Text style={[styles.tabLabel, { color: activeTab === 'leave' ? theme.colors.textPrimary : theme.colors.textSecondary }]}>
                         {t('leaves', 'Leaves')}
                     </Text>
@@ -304,10 +457,13 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
 
                 <TouchableOpacity
                     onPress={() => setActiveTab('day_off')}
-                    style={[styles.tabItem, activeTab === 'day_off' && { backgroundColor: theme.colors.surface }]}
+                    style={[
+                        styles.tabItem,
+                        activeTab === 'day_off' && [styles.tabItemActive, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }],
+                    ]}
                     activeOpacity={0.7}
                 >
-                    <CalendarOff color={activeTab === 'day_off' ? theme.colors.primary : theme.colors.textSecondary} size={14} />
+                    <CalendarOff color={activeTab === 'day_off' ? theme.colors.brand : theme.colors.textSecondary} size={14} />
                     <Text style={[styles.tabLabel, { color: activeTab === 'day_off' ? theme.colors.textPrimary : theme.colors.textSecondary }]}>
                         {t('day_off', 'Day Off')}
                     </Text>
@@ -428,13 +584,11 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                     {activeTab === 'holiday' && (
                         <View style={styles.tabSection}>
                             {(!data?.holidays || data.holidays.length === 0) ? (
-                                <View style={[styles.emptyCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                                    <PartyPopper color={theme.colors.textDisabled} size={36} />
-                                    <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>No Holidays</Text>
-                                    <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
-                                        There are no official public or company holidays scheduled in {format(currentMonth, 'MMMM yyyy')}.
-                                    </Text>
-                                </View>
+                                <EmptyState
+                                    icon={<PartyPopper color={theme.colors.textSecondary} size={32} />}
+                                    title={t('no_holidays', 'No Holidays')}
+                                    description={t('no_holidays_desc', `There are no official public or company holidays scheduled in ${formatDateDisplay(currentMonth, 'monthYear')}.`)}
+                                />
                             ) : (
                                 data.holidays.map((h) => (
                                     <View key={h.id} style={[styles.itemCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
@@ -467,19 +621,13 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                     {activeTab === 'leave' && (
                         <View style={styles.tabSection}>
                             {(!data?.leaves || data.leaves.length === 0) ? (
-                                <View style={[styles.emptyCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                                    <CalendarPlus color={theme.colors.textDisabled} size={36} />
-                                    <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>No Leave Records</Text>
-                                    <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
-                                        You have not taken or submitted any leaves during this month.
-                                    </Text>
-                                    <TouchableOpacity
-                                        onPress={() => navigation?.navigate('CreateLeave')}
-                                        style={[styles.emptyActionBtn, { backgroundColor: theme.colors.primary }]}
-                                    >
-                                        <Text style={styles.emptyActionBtnText}>Apply Leave</Text>
-                                    </TouchableOpacity>
-                                </View>
+                                <EmptyState
+                                    icon={<CalendarPlus color={theme.colors.textSecondary} size={32} />}
+                                    title={t('no_leave_records', 'No Leave Records')}
+                                    description={t('no_leaves_desc', 'You have not taken or submitted any leaves during this month.')}
+                                    actionTitle={t('apply_leave', 'Apply Leave')}
+                                    onAction={() => navigation?.navigate('CreateLeave')}
+                                />
                             ) : (
                                 data.leaves.map((l) => (
                                     <View key={l.id} style={[styles.itemCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
@@ -536,13 +684,11 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                     {activeTab === 'day_off' && (
                         <View style={styles.tabSection}>
                             {(!data?.day_offs || data.day_offs.length === 0) ? (
-                                <View style={[styles.emptyCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
-                                    <Coffee color={theme.colors.textDisabled} size={36} />
-                                    <Text style={[styles.emptyTitle, { color: theme.colors.textPrimary }]}>Standard Rest Days</Text>
-                                    <Text style={[styles.emptySubtitle, { color: theme.colors.textSecondary }]}>
-                                        You follow the standard working shift days with no custom override assignments.
-                                    </Text>
-                                </View>
+                                <EmptyState
+                                    icon={<Coffee color={theme.colors.textSecondary} size={32} />}
+                                    title={t('standard_rest_days', 'Standard Rest Days')}
+                                    description={t('standard_rest_days_desc', 'You follow the standard working shift days with no custom override assignments.')}
+                                />
                             ) : (
                                 data.day_offs.map((d) => (
                                     <View key={d.id} style={[styles.itemCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
@@ -621,21 +767,22 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    statsRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'space-between',
+    statsGrid: {
         gap: 8,
         marginBottom: 12,
     },
+    statsRow: {
+        flexDirection: 'row',
+        gap: 8,
+    },
     statCard: {
-        width: '48%',
+        flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         padding: 10,
         borderRadius: 14,
         borderWidth: 1,
-        gap: 8,
+        gap: 10,
     },
     statTextCol: {
         flex: 1,
@@ -643,25 +790,64 @@ const styles = StyleSheet.create({
     statIconBadge: {
         width: 32,
         height: 32,
-        borderRadius: 9,
+        borderRadius: 10,
         justifyContent: 'center',
         alignItems: 'center',
     },
     statValue: {
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: '800',
-        lineHeight: 17,
+        lineHeight: 18,
     },
     statLabel: {
-        fontSize: 9,
-        fontWeight: '600',
+        fontSize: 10,
+        fontWeight: '700',
         textTransform: 'uppercase',
+        letterSpacing: 0.3,
+        marginTop: 1,
+    },
+    selectedDayCard: {
+        padding: 12,
+        borderRadius: 14,
+        borderWidth: 1,
+        marginBottom: 12,
+    },
+    selectedDayHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 8,
+    },
+    selectedDayTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        flex: 1,
+    },
+    selectedDayTitle: {
+        fontSize: 13,
+        fontWeight: '700',
+        letterSpacing: 0.1,
+    },
+    selectedDayTagsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 6,
+    },
+    dayStatusChip: {
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 8,
+        borderWidth: 1,
+    },
+    dayStatusChipText: {
+        fontSize: 11,
+        fontWeight: '600',
     },
     tabBar: {
         flexDirection: 'row',
-        borderRadius: 14,
-        padding: 4,
-        marginTop: 14,
+        borderRadius: 12,
+        padding: 3,
         marginBottom: 12,
         borderWidth: 1,
     },
@@ -670,9 +856,12 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        paddingVertical: 8,
-        borderRadius: 10,
+        paddingVertical: 7,
+        borderRadius: 9,
         gap: 4,
+    },
+    tabItemActive: {
+        borderWidth: 1,
     },
     tabLabel: {
         fontSize: 11,
@@ -829,35 +1018,6 @@ const styles = StyleSheet.create({
         fontSize: 11,
         fontStyle: 'italic',
         marginTop: 4,
-    },
-    emptyCard: {
-        padding: 28,
-        borderRadius: 18,
-        borderWidth: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-    },
-    emptyTitle: {
-        fontSize: 15,
-        fontWeight: '700',
-        marginTop: 4,
-    },
-    emptySubtitle: {
-        fontSize: 12,
-        textAlign: 'center',
-        lineHeight: 17,
-    },
-    emptyActionBtn: {
-        marginTop: 10,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
-        borderRadius: 10,
-    },
-    emptyActionBtnText: {
-        color: '#FFFFFF',
-        fontSize: 12,
-        fontWeight: '700',
     },
     loadingWrapper: {
         padding: 40,

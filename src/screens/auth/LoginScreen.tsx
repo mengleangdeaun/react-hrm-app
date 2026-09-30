@@ -14,7 +14,6 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useUnistyles } from 'react-native-unistyles';
-import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 import {
     Lock,
     Mail,
@@ -40,7 +39,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { t, locale, setLocale } = useTranslation();
     const { theme } = useUnistyles();
     const insets = useSafeAreaInsets();
-    const scrollViewRef = useRef<ScrollView>(null);
+    const scrollViewRef = useRef<any>(null);
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -197,7 +196,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                     bounces={false}
                 >
                     {/* ── Hero / Branding Section ─────────────────────────────── */}
-                    <Animated.View entering={FadeInDown.duration(600).delay(100)} style={styles.brandContainer}>
+                    <View style={styles.brandContainer}>
                         <View style={styles.logoContainer}>
                             <Image
                                 source={require('../../../assets/icon.png')}
@@ -214,11 +213,10 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                         <AppText style={[styles.welcomeSubtitle, { color: theme.colors.textSecondary }]}>
                             {t('employee_self_service', 'Employee Self-Service Portal')}
                         </AppText>
-                    </Animated.View>
+                    </View>
 
                     {/* ── Login Form Card ─────────────────────────────────────── */}
-                    <Animated.View
-                        entering={FadeInUp.duration(650).delay(200)}
+                    <View
                         style={[
                             styles.card,
                             {
@@ -356,7 +354,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                                 </TouchableOpacity>
                             )}
                         </View>
-                    </Animated.View>
+                    </View>
                 </ScrollView>
             </KeyboardAvoidingView>
         </SafeAreaView>
@@ -413,23 +411,12 @@ const styles = StyleSheet.create({
     },
     brandContainer: {
         alignItems: 'center',
-        marginVertical: 14,
+        marginVertical: 20,
     },
     logoContainer: {
         alignItems: 'center',
         justifyContent: 'center',
-        marginBottom: 10,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000000',
-                shadowOffset: { width: 0, height: 6 },
-                shadowOpacity: 0.1,
-                shadowRadius: 10,
-            },
-            android: {
-                elevation: 1,
-            },
-        }),
+        marginBottom: 12,
     },
     logoImage: {
         width: 76,
@@ -453,21 +440,10 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     card: {
-        borderRadius: 20,
+        borderRadius: 16,
         padding: 20,
         borderWidth: 1,
         gap: 16,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#000000',
-                shadowOffset: { width: 0, height: 8 },
-                shadowOpacity: 0.05,
-                shadowRadius: 16,
-            },
-            android: {
-                elevation: 1,
-            },
-        }),
     },
     inputGroup: {
         width: '100%',
@@ -499,17 +475,6 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderRadius: 14,
         marginTop: 4,
-        ...Platform.select({
-            ios: {
-                shadowColor: '#DF0000',
-                shadowOffset: { width: 0, height: 4 },
-                shadowOpacity: 0.25,
-                shadowRadius: 8,
-            },
-            android: {
-                elevation: 1,
-            },
-        }),
     },
     submitContent: {
         flexDirection: 'row',
@@ -534,7 +499,7 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         paddingHorizontal: 12,
         borderRadius: 12,
-        borderWidth: 1,
+        borderWidth: 0,
         gap: 8,
     },
     quickActionText: {

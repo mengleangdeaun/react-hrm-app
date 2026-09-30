@@ -222,8 +222,8 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        height: 50,
-        borderRadius: 14,
+        height: 52,
+        borderRadius: 16,
         gap: 8,
     },
     submitBtnDisabled: {

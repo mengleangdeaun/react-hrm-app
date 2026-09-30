@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
     View,
     TouchableOpacity,
@@ -7,7 +7,7 @@ import {
 import { AppText as Text } from '../AppText';
 import { AppBottomSheet } from './AppBottomSheet';
 import * as Haptics from 'expo-haptics';
-import { Clock, X, Check, ChevronUp, ChevronDown } from 'lucide-react-native';
+import { Clock, ChevronUp, ChevronDown } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
 import { formatTimeDisplay } from '../../utils/dateTime';
@@ -21,6 +21,42 @@ export interface NativeTimePickerFieldProps {
 }
 
 const COMMON_PRESETS = ['08:00', '08:30', '09:00', '12:00', '13:00', '17:00', '17:30', '18:00'];
+const MINUTE_PRESETS = [0, 15, 30, 45];
+
+interface Time12State {
+    hour12: number; // 1 to 12
+    minute: number; // 0 to 59
+    period: 'AM' | 'PM';
+}
+
+function parse24To12(time24?: string | null): Time12State {
+    if (!time24) return { hour12: 8, minute: 0, period: 'AM' };
+    const parts = time24.split(':');
+    let h = parseInt(parts[0], 10);
+    let m = parseInt(parts[1], 10);
+    if (isNaN(h)) h = 8;
+    if (isNaN(m)) m = 0;
+    h = Math.min(23, Math.max(0, h));
+    m = Math.min(59, Math.max(0, m));
+
+    const period: 'AM' | 'PM' = h >= 12 ? 'PM' : 'AM';
+    const hour12 = h % 12 === 0 ? 12 : h % 12;
+    return { hour12, minute: m, period };
+}
+
+function format12To24(hour12: number, minute: number, period: 'AM' | 'PM'): string {
+    let h24 = hour12 % 12;
+    if (period === 'PM') h24 += 12;
+    const hh = h24 < 10 ? `0${h24}` : `${h24}`;
+    const mm = minute < 10 ? `0${minute}` : `${minute}`;
+    return `${hh}:${mm}`;
+}
+
+function format12Display(hour12: number, minute: number, period: 'AM' | 'PM'): string {
+    const hh = hour12 < 10 ? `0${hour12}` : `${hour12}`;
+    const mm = minute < 10 ? `0${minute}` : `${minute}`;
+    return `${hh}:${mm} ${period}`;
+}
 
 export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
     label,
@@ -34,79 +70,75 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
 
     const [modalVisible, setModalVisible] = useState(false);
 
-    // Parse Initial HH and mm from value prop safely
-    const parsedTime = useMemo(() => {
-        const parts = (value || '08:00').split(':');
-        const h = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10);
-        return {
-            hours: isNaN(h) ? 8 : Math.min(23, Math.max(0, h)),
-            minutes: isNaN(m) ? 0 : Math.min(59, Math.max(0, m)),
-        };
-    }, [value]);
-
-    const [hours, setHours] = useState<number>(parsedTime.hours);
-    const [minutes, setMinutes] = useState<number>(parsedTime.minutes);
+    // 12-hour decomposed state
+    const initialParsed = useMemo(() => parse24To12(value), [value]);
+    const [hour12, setHour12] = useState<number>(initialParsed.hour12);
+    const [minute, setMinute] = useState<number>(initialParsed.minute);
+    const [period, setPeriod] = useState<'AM' | 'PM'>(initialParsed.period);
 
     useEffect(() => {
-        setHours(parsedTime.hours);
-        setMinutes(parsedTime.minutes);
-    }, [parsedTime]);
+        setHour12(initialParsed.hour12);
+        setMinute(initialParsed.minute);
+        setPeriod(initialParsed.period);
+    }, [initialParsed]);
 
     const formattedDisplay = value ? formatTimeDisplay(value) : 'Select Time';
 
     const handleOpen = () => {
-        setHours(parsedTime.hours);
-        setMinutes(parsedTime.minutes);
+        const parsed = parse24To12(value);
+        setHour12(parsed.hour12);
+        setMinute(parsed.minute);
+        setPeriod(parsed.period);
         setModalVisible(true);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     };
 
     const handleConfirm = () => {
-        const hStr = hours < 10 ? `0${hours}` : `${hours}`;
-        const mStr = minutes < 10 ? `0${minutes}` : `${minutes}`;
-        onChange(`${hStr}:${mStr}`);
+        const time24 = format12To24(hour12, minute, period);
+        onChange(time24);
         setModalVisible(false);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
     };
 
-    const handlePreset = (preset: string) => {
-        const parts = preset.split(':');
-        const h = parseInt(parts[0], 10);
-        const m = parseInt(parts[1], 10);
-        setHours(h);
-        setMinutes(m);
+    const handlePreset = (preset24: string) => {
+        const parsed = parse24To12(preset24);
+        setHour12(parsed.hour12);
+        setMinute(parsed.minute);
+        setPeriod(parsed.period);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     };
 
-    const stepHour = (delta: number) => {
-        setHours((prev) => {
-            let next = (prev + delta) % 24;
-            if (next < 0) next += 24;
+    const stepHour = useCallback((delta: number) => {
+        setHour12((prev) => {
+            let next = prev + delta;
+            if (next > 12) next = 1;
+            if (next < 1) next = 12;
             return next;
         });
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    };
+    }, []);
 
-    const stepMinute = (delta: number) => {
-        setMinutes((prev) => {
+    const stepMinute = useCallback((delta: number) => {
+        setMinute((prev) => {
             let next = (prev + delta) % 60;
             if (next < 0) next += 60;
             return next;
         });
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-    };
+    }, []);
 
-    const toggleAmPm = () => {
-        setHours((prev) => (prev >= 12 ? prev - 12 : prev + 12));
+    const handleSetPeriod = (p: 'AM' | 'PM') => {
+        setPeriod(p);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     };
 
     const modalDisplayTime = useMemo(() => {
-        const hStr = hours < 10 ? `0${hours}` : `${hours}`;
-        const mStr = minutes < 10 ? `0${minutes}` : `${minutes}`;
-        return formatTimeDisplay(`${hStr}:${mStr}`);
-    }, [hours, minutes]);
+        return format12Display(hour12, minute, period);
+    }, [hour12, minute, period]);
+
+    const currentTime24 = useMemo(() => {
+        return format12To24(hour12, minute, period);
+    }, [hour12, minute, period]);
 
     return (
         <View style={[styles.container, containerStyle]}>
@@ -130,7 +162,7 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                 ]}
             >
                 <View style={styles.iconContainer}>
-                    <Clock color={theme.colors.primary} size={18} />
+                    <Clock color={theme.colors.brand} size={18} />
                 </View>
                 <Text
                     style={[
@@ -158,8 +190,8 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                 footer={
                     <TouchableOpacity
                         onPress={handleConfirm}
-                        style={[styles.confirmBtn, { backgroundColor: theme.colors.primary }]}
-                        activeOpacity={0.8}
+                        style={[styles.confirmBtn, { backgroundColor: theme.colors.brand }]}
+                        activeOpacity={0.85}
                     >
                         <Text style={styles.confirmBtnText}>
                             Select {modalDisplayTime}
@@ -167,10 +199,10 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                     </TouchableOpacity>
                 }
             >
-                {/* Quick Presets */}
+                {/* Workday Quick Presets */}
                 <View style={styles.presetsWrapper}>
                     {COMMON_PRESETS.map((p) => {
-                        const isCurrent = value === p;
+                        const isCurrent = currentTime24 === p;
                         return (
                             <TouchableOpacity
                                 key={p}
@@ -178,10 +210,11 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                                 style={[
                                     styles.presetChip,
                                     {
-                                        backgroundColor: isCurrent ? theme.colors.primary : theme.colors.surfaceSubtle,
-                                        borderColor: isCurrent ? theme.colors.primary : theme.colors.border,
+                                        backgroundColor: isCurrent ? theme.colors.brand : theme.colors.surfaceSubtle,
+                                        borderColor: isCurrent ? theme.colors.brand : theme.colors.border,
                                     },
                                 ]}
+                                activeOpacity={0.75}
                             >
                                 <Text
                                     style={[
@@ -196,75 +229,157 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                     })}
                 </View>
 
-                {/* Interactive Time Selector */}
-                <View style={styles.pickerBody}>
+                {/* Interactive Time Selector Body */}
+                <View style={styles.stepperContainer}>
                     {/* Hours Column */}
-                    <View style={styles.pickerCol}>
+                    <View style={styles.stepperCol}>
                         <TouchableOpacity
                             onPress={() => stepHour(1)}
-                            style={[styles.arrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
+                            style={[styles.stepperArrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
                             accessibilityRole="button"
                             accessibilityLabel="Increment hour"
+                            activeOpacity={0.7}
                         >
                             <ChevronUp color={theme.colors.textPrimary} size={22} />
                         </TouchableOpacity>
 
-                        <View style={[styles.numberBox, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}>
-                            <Text style={[styles.numberText, { color: theme.colors.textPrimary }]}>
-                                {hours < 10 ? `0${hours}` : `${hours}`}
+                        <View style={[styles.stepperValueBox, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}>
+                            <Text style={[styles.stepperValueText, { color: theme.colors.textPrimary }]}>
+                                {hour12 < 10 ? `0${hour12}` : `${hour12}`}
                             </Text>
                         </View>
 
                         <TouchableOpacity
                             onPress={() => stepHour(-1)}
-                            style={[styles.arrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
+                            style={[styles.stepperArrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
                             accessibilityRole="button"
                             accessibilityLabel="Decrement hour"
+                            activeOpacity={0.7}
                         >
                             <ChevronDown color={theme.colors.textPrimary} size={22} />
                         </TouchableOpacity>
+
+                        <Text style={[styles.stepperUnitLabel, { color: theme.colors.textSecondary }]}>
+                            HOUR
+                        </Text>
                     </View>
 
-                    <Text style={[styles.colonText, { color: theme.colors.textPrimary }]}>:</Text>
+                    <Text style={[styles.stepperColon, { color: theme.colors.textPrimary }]}>:</Text>
 
                     {/* Minutes Column */}
-                    <View style={styles.pickerCol}>
+                    <View style={styles.stepperCol}>
                         <TouchableOpacity
                             onPress={() => stepMinute(5)}
-                            style={[styles.arrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
+                            style={[styles.stepperArrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
                             accessibilityRole="button"
                             accessibilityLabel="Increment minutes by 5"
+                            activeOpacity={0.7}
                         >
                             <ChevronUp color={theme.colors.textPrimary} size={22} />
                         </TouchableOpacity>
 
-                        <View style={[styles.numberBox, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}>
-                            <Text style={[styles.numberText, { color: theme.colors.textPrimary }]}>
-                                {minutes < 10 ? `0${minutes}` : `${minutes}`}
+                        <View style={[styles.stepperValueBox, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}>
+                            <Text style={[styles.stepperValueText, { color: theme.colors.textPrimary }]}>
+                                {minute < 10 ? `0${minute}` : `${minute}`}
                             </Text>
                         </View>
 
                         <TouchableOpacity
                             onPress={() => stepMinute(-5)}
-                            style={[styles.arrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
+                            style={[styles.stepperArrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
                             accessibilityRole="button"
                             accessibilityLabel="Decrement minutes by 5"
+                            activeOpacity={0.7}
                         >
                             <ChevronDown color={theme.colors.textPrimary} size={22} />
                         </TouchableOpacity>
+
+                        <Text style={[styles.stepperUnitLabel, { color: theme.colors.textSecondary }]}>
+                            MIN
+                        </Text>
                     </View>
 
-                    {/* AM / PM Toggle */}
-                    <TouchableOpacity
-                        onPress={toggleAmPm}
-                        style={[styles.periodBadge, { backgroundColor: theme.colors.primarySubtle }]}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Toggle AM PM, currently ${hours >= 12 ? 'PM' : 'AM'}`}
-                    >
-                        <Text style={[styles.periodText, { color: theme.colors.primary }]}>
-                            {hours >= 12 ? 'PM' : 'AM'}
+                    {/* AM / PM Segmented Control */}
+                    <View style={styles.periodCol}>
+                        <View style={[styles.periodSegmentContainer, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}>
+                            <TouchableOpacity
+                                onPress={() => handleSetPeriod('AM')}
+                                style={[
+                                    styles.periodSegmentBtn,
+                                    period === 'AM' && [styles.periodSegmentBtnActive, { backgroundColor: theme.colors.brand }],
+                                ]}
+                                activeOpacity={0.8}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: period === 'AM' }}
+                            >
+                                <Text
+                                    style={[
+                                        styles.periodSegmentText,
+                                        { color: period === 'AM' ? '#FFFFFF' : theme.colors.textSecondary },
+                                    ]}
+                                >
+                                    AM
+                                </Text>
+                            </TouchableOpacity>
+
+                            <TouchableOpacity
+                                onPress={() => handleSetPeriod('PM')}
+                                style={[
+                                    styles.periodSegmentBtn,
+                                    period === 'PM' && [styles.periodSegmentBtnActive, { backgroundColor: theme.colors.brand }],
+                                ]}
+                                activeOpacity={0.8}
+                                accessibilityRole="button"
+                                accessibilityState={{ selected: period === 'PM' }}
+                            >
+                                <Text
+                                    style={[
+                                        styles.periodSegmentText,
+                                        { color: period === 'PM' ? '#FFFFFF' : theme.colors.textSecondary },
+                                    ]}
+                                >
+                                    PM
+                                </Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <Text style={[styles.stepperUnitLabel, { color: theme.colors.textSecondary }]}>
+                            PERIOD
                         </Text>
-                    </TouchableOpacity>
+                    </View>
+                </View>
+
+                {/* Minute Quick Chips */}
+                <View style={styles.minuteChipsRow}>
+                    {MINUTE_PRESETS.map((m) => {
+                        const isMatch = minute === m;
+                        return (
+                            <TouchableOpacity
+                                key={m}
+                                onPress={() => {
+                                    setMinute(m);
+                                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                                }}
+                                style={[
+                                    styles.minuteChip,
+                                    {
+                                        backgroundColor: isMatch ? theme.colors.brandSubtle : theme.colors.surfaceSubtle,
+                                        borderColor: isMatch ? theme.colors.brand : theme.colors.border,
+                                    },
+                                ]}
+                                activeOpacity={0.7}
+                            >
+                                <Text
+                                    style={[
+                                        styles.minuteChipText,
+                                        { color: isMatch ? theme.colors.brand : theme.colors.textSecondary },
+                                    ]}
+                                >
+                                    :{m < 10 ? `0${m}` : m}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
                 </View>
             </AppBottomSheet>
         </View>
@@ -285,8 +400,8 @@ const styles = StyleSheet.create({
     fieldWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
-        height: 48,
-        borderRadius: 12,
+        height: 50,
+        borderRadius: 14,
         borderWidth: 1.5,
         paddingHorizontal: 12,
     },
@@ -303,118 +418,116 @@ const styles = StyleSheet.create({
         marginTop: 4,
         marginLeft: 2,
     },
-    modalBackdrop: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.55)',
-        justifyContent: 'flex-end',
-    },
-    backdropDismiss: {
-        flex: 1,
-    },
-    sheetContainer: {
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        borderTopWidth: 1,
-        paddingHorizontal: 20,
-        paddingBottom: 36,
-        paddingTop: 10,
-    },
-    sheetHandle: {
-        width: 36,
-        height: 4,
-        borderRadius: 2,
-        backgroundColor: 'rgba(150, 150, 150, 0.4)',
-        alignSelf: 'center',
-        marginBottom: 14,
-    },
-    sheetHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 14,
-    },
-    circleBtn: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    sheetTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-    },
     presetsWrapper: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 8,
-        marginBottom: 18,
+        marginBottom: 20,
         justifyContent: 'center',
     },
     presetChip: {
         paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 8,
+        paddingVertical: 7,
+        borderRadius: 10,
         borderWidth: 1,
     },
     presetText: {
         fontSize: 12,
-        fontWeight: '600',
+        fontWeight: '700',
     },
     stepperContainer: {
         flexDirection: 'row',
         justifyContent: 'center',
         alignItems: 'center',
-        gap: 16,
-        marginBottom: 20,
+        gap: 14,
+        marginBottom: 16,
     },
     stepperCol: {
         alignItems: 'center',
         gap: 6,
     },
     stepperArrowBtn: {
-        width: 44,
-        height: 34,
+        width: 48,
+        height: 36,
         borderRadius: 10,
         justifyContent: 'center',
         alignItems: 'center',
     },
     stepperValueBox: {
-        width: 64,
-        height: 58,
+        width: 68,
+        height: 60,
         borderRadius: 14,
+        borderWidth: 1.5,
         justifyContent: 'center',
         alignItems: 'center',
     },
     stepperValueText: {
-        fontSize: 26,
-        fontWeight: '800',
-        lineHeight: 30,
-    },
-    stepperUnitLabel: {
-        fontSize: 9,
-        fontWeight: '700',
-        textTransform: 'uppercase',
-    },
-    stepperColon: {
         fontSize: 28,
         fontWeight: '800',
+        lineHeight: 32,
     },
-    periodBadge: {
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 10,
-        alignSelf: 'center',
+    stepperUnitLabel: {
+        fontSize: 10,
+        fontWeight: '700',
+        letterSpacing: 0.5,
+        marginTop: 2,
     },
-    periodText: {
-        fontSize: 14,
+    stepperColon: {
+        fontSize: 32,
         fontWeight: '800',
+        marginBottom: 20,
     },
-    confirmBtn: {
-        height: 48,
+    periodCol: {
+        alignItems: 'center',
+        gap: 6,
+    },
+    periodSegmentContainer: {
+        width: 60,
+        height: 106,
         borderRadius: 14,
+        borderWidth: 1.5,
+        padding: 4,
+        justifyContent: 'space-between',
+    },
+    periodSegmentBtn: {
+        flex: 1,
+        borderRadius: 10,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    periodSegmentBtnActive: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.15,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    periodSegmentText: {
+        fontSize: 13,
+        fontWeight: '800',
+    },
+    minuteChipsRow: {
+        flexDirection: 'row',
+        justifyContent: 'center',
+        gap: 10,
+        marginBottom: 10,
+    },
+    minuteChip: {
+        paddingHorizontal: 16,
+        paddingVertical: 7,
+        borderRadius: 10,
+        borderWidth: 1,
+    },
+    minuteChipText: {
+        fontSize: 13,
+        fontWeight: '700',
+    },
+    confirmBtn: {
+        height: 52,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: '100%',
     },
     confirmBtnText: {
         color: '#FFFFFF',

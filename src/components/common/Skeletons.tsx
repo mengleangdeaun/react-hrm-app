@@ -140,21 +140,23 @@ export function ActivityListSkeleton() {
     );
 }
 
-export function NotificationListSkeleton() {
+export function NotificationListSkeleton({ style }: { style?: any } = {}) {
     return (
-        <View style={styles.container}>
-            {[1, 2, 3].map((i) => (
-                <View key={i} style={styles.attendanceCardPlaceholder}>
-                    <View style={styles.cardHeaderRow}>
-                        <Skeleton.Box width={160} height={16} borderRadius={6} />
-                        <Skeleton.Box width={70} height={18} borderRadius={9} />
-                    </View>
-                    <Skeleton.Box width="100%" height={54} borderRadius={10} style={{ marginTop: 12 }} />
-                    <Skeleton.Box width="100%" height={22} borderRadius={11} style={{ marginTop: 8 }} />
-                    <Skeleton.Box width="100%" height={54} borderRadius={10} style={{ marginTop: 8 }} />
-                    <View style={[styles.cardHeaderRow, { marginTop: 12 }]}>
-                        <Skeleton.Box width={80} height={18} borderRadius={6} />
-                        <Skeleton.Box width={95} height={14} borderRadius={4} />
+        <View style={[styles.notificationContainer, style]}>
+            {[1, 2, 3, 4].map((i) => (
+                <View key={i} style={styles.notificationCardPlaceholder}>
+                    <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                        <View style={{ width: 46, alignItems: 'center', marginRight: 10 }}>
+                            <Skeleton.Box width={38} height={38} borderRadius={11} />
+                            <Skeleton.Box width={36} height={9} borderRadius={3} style={{ marginTop: 4 }} />
+                        </View>
+                        <View style={{ flex: 1, minWidth: 0, paddingTop: 1 }}>
+                            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                                <Skeleton.Box width="60%" height={14} borderRadius={4} />
+                                <Skeleton.Box width={16} height={16} borderRadius={4} />
+                            </View>
+                            <Skeleton.Text lines={2} height={12} gap={6} />
+                        </View>
                     </View>
                 </View>
             ))}
@@ -162,24 +164,81 @@ export function NotificationListSkeleton() {
     );
 }
 
-export function AttendanceHistorySkeleton() {
+export function AttendanceHistorySkeleton({ style }: { style?: any } = {}) {
     return (
-        <View style={styles.container}>
-            {[1, 2, 3].map((i) => (
-                <View key={i} style={styles.attendanceCardPlaceholder}>
-                    <View style={styles.cardHeaderRow}>
-                        <Skeleton.Box width={160} height={16} borderRadius={6} />
-                        <Skeleton.Box width={70} height={18} borderRadius={9} />
+        <View style={[styles.attendanceContainer, style]}>
+            {[1, 2, 3].map((i) => {
+                const isSplitShift = i === 2;
+                return (
+                    <View key={i} style={styles.attendanceCard}>
+                        {/* Card Header: Calendar Icon + Date */}
+                        <View style={styles.attendanceDateHeader}>
+                            <Skeleton.Box width={16} height={16} borderRadius={4} />
+                            <Skeleton.Box width={135} height={15} borderRadius={4} style={{ marginLeft: 8 }} />
+                        </View>
+
+                        {/* Session 1 Box */}
+                        <View style={styles.attendanceSessionBox}>
+                            <View style={styles.attendanceSessionItem}>
+                                <View style={styles.attendanceSessionLabelRow}>
+                                    <Skeleton.Box width={14} height={14} borderRadius={3} />
+                                    <Skeleton.Box width={48} height={11} borderRadius={3} style={{ marginLeft: 5 }} />
+                                </View>
+                                <Skeleton.Box width={72} height={16} borderRadius={4} style={{ marginTop: 5 }} />
+                            </View>
+
+                            <View style={styles.attendanceSessionDivider} />
+
+                            <View style={styles.attendanceSessionItem}>
+                                <View style={styles.attendanceSessionLabelRow}>
+                                    <Skeleton.Box width={14} height={14} borderRadius={3} />
+                                    <Skeleton.Box width={54} height={11} borderRadius={3} style={{ marginLeft: 5 }} />
+                                </View>
+                                <Skeleton.Box width={72} height={16} borderRadius={4} style={{ marginTop: 5 }} />
+                            </View>
+                        </View>
+
+                        {/* Split Shift / Break Row & Session 2 */}
+                        {isSplitShift && (
+                            <>
+                                <View style={styles.attendanceBreakRow}>
+                                    <View style={styles.attendanceBreakLine} />
+                                    <View style={styles.attendanceBreakPill}>
+                                        <Skeleton.Box width={12} height={12} borderRadius={3} />
+                                        <Skeleton.Box width={62} height={10} borderRadius={3} style={{ marginLeft: 5 }} />
+                                    </View>
+                                    <View style={styles.attendanceBreakLine} />
+                                </View>
+
+                                <View style={styles.attendanceSessionBox}>
+                                    <View style={styles.attendanceSessionItem}>
+                                        <View style={styles.attendanceSessionLabelRow}>
+                                            <Skeleton.Box width={14} height={14} borderRadius={3} />
+                                            <Skeleton.Box width={58} height={11} borderRadius={3} style={{ marginLeft: 5 }} />
+                                        </View>
+                                        <Skeleton.Box width={72} height={16} borderRadius={4} style={{ marginTop: 5 }} />
+                                    </View>
+
+                                    <View style={styles.attendanceSessionDivider} />
+
+                                    <View style={styles.attendanceSessionItem}>
+                                        <View style={styles.attendanceSessionLabelRow}>
+                                            <Skeleton.Box width={14} height={14} borderRadius={3} />
+                                            <Skeleton.Box width={54} height={11} borderRadius={3} style={{ marginLeft: 5 }} />
+                                        </View>
+                                        <Skeleton.Box width={72} height={16} borderRadius={4} style={{ marginTop: 5 }} />
+                                    </View>
+                                </View>
+                            </>
+                        )}
+
+                        {/* Footer: Working Hours Total */}
+                        <View style={styles.attendanceFooter}>
+                            <Skeleton.Box width={100} height={13} borderRadius={4} />
+                        </View>
                     </View>
-                    <Skeleton.Box width="100%" height={54} borderRadius={10} style={{ marginTop: 12 }} />
-                    <Skeleton.Box width="100%" height={22} borderRadius={11} style={{ marginTop: 8 }} />
-                    <Skeleton.Box width="100%" height={54} borderRadius={10} style={{ marginTop: 8 }} />
-                    <View style={[styles.cardHeaderRow, { marginTop: 12 }]}>
-                        <Skeleton.Box width={80} height={18} borderRadius={6} />
-                        <Skeleton.Box width={95} height={14} borderRadius={4} />
-                    </View>
-                </View>
-            ))}
+                );
+            })}
         </View>
     );
 }
@@ -316,5 +375,85 @@ const styles = StyleSheet.create({
     userHeaderRow: {
         flexDirection: 'row',
         alignItems: 'center',
+    },
+    notificationContainer: {
+        width: '100%',
+        paddingTop: 0,
+        marginHorizontal: 0,
+    },
+    notificationCardPlaceholder: {
+        padding: 14,
+        borderRadius: 16,
+        marginBottom: 10,
+        borderWidth: 1,
+        borderColor: 'rgba(148, 163, 184, 0.15)',
+    },
+    notificationHeaderRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    attendanceContainer: {
+        width: '100%',
+        paddingTop: 0,
+        paddingHorizontal: 16,
+    },
+    attendanceCard: {
+        padding: 16,
+        borderRadius: 20,
+        marginBottom: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(148, 163, 184, 0.15)',
+    },
+    attendanceDateHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: 12,
+    },
+    attendanceSessionBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(148, 163, 184, 0.08)',
+        borderRadius: 12,
+        padding: 10,
+    },
+    attendanceSessionItem: {
+        flex: 1,
+    },
+    attendanceSessionLabelRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    attendanceSessionDivider: {
+        width: 1,
+        height: 28,
+        backgroundColor: 'rgba(148, 163, 184, 0.18)',
+        marginHorizontal: 12,
+    },
+    attendanceBreakRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginVertical: 8,
+    },
+    attendanceBreakLine: {
+        flex: 1,
+        height: 1,
+        backgroundColor: 'rgba(148, 163, 184, 0.15)',
+    },
+    attendanceBreakPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(148, 163, 184, 0.08)',
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 999,
+        marginHorizontal: 6,
+    },
+    attendanceFooter: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginTop: 10,
+        paddingTop: 10,
+        borderTopWidth: 1,
+        borderTopColor: 'rgba(148, 163, 184, 0.12)',
     },
 });

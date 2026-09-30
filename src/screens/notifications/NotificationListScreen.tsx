@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { isToday, isYesterday, isThisWeek, parseISO, isValid, formatRelativeTime } from '../../utils/dateTime';
+import { isToday, isYesterday, isThisWeek, isSameMonth, subMonths, parseISO, isValid, formatRelativeTime } from '../../utils/dateTime';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notificationApi, NotificationItem, CelebrantItem } from '../../api/notification';
 import { useAppTheme } from '../../context/ThemeContext';
@@ -22,13 +22,11 @@ import { EmptyState } from '../../components/common/EmptyState';
 import { CelebrationNotificationHeader } from '../../components/notifications/CelebrationNotificationHeader';
 import {
     Bell,
-    ChevronRight,
     CheckCheck,
     Trash2,
     Calendar,
     Cake,
     PartyPopper,
-    AlertTriangle,
     Megaphone,
 } from 'lucide-react-native';
 
@@ -51,7 +49,12 @@ export const groupNotificationsByDate = (items: NotificationItem[]): GroupedNoti
     const todayItems: NotificationItem[] = [];
     const yesterdayItems: NotificationItem[] = [];
     const thisWeekItems: NotificationItem[] = [];
+    const thisMonthItems: NotificationItem[] = [];
+    const lastMonthItems: NotificationItem[] = [];
     const olderItems: NotificationItem[] = [];
+
+    const now = new Date();
+    const prevMonth = subMonths(now, 1);
 
     items.forEach((item) => {
         if (!item.created_at) {
@@ -68,6 +71,10 @@ export const groupNotificationsByDate = (items: NotificationItem[]): GroupedNoti
                 yesterdayItems.push(item);
             } else if (isThisWeek(d, { weekStartsOn: 1 })) {
                 thisWeekItems.push(item);
+            } else if (isSameMonth(d, now)) {
+                thisMonthItems.push(item);
+            } else if (isSameMonth(d, prevMonth)) {
+                lastMonthItems.push(item);
             } else {
                 olderItems.push(item);
             }
@@ -80,6 +87,8 @@ export const groupNotificationsByDate = (items: NotificationItem[]): GroupedNoti
     if (todayItems.length > 0) groups.push({ titleKey: 'today', fallbackTitle: 'Today', data: todayItems });
     if (yesterdayItems.length > 0) groups.push({ titleKey: 'yesterday', fallbackTitle: 'Yesterday', data: yesterdayItems });
     if (thisWeekItems.length > 0) groups.push({ titleKey: 'this_week', fallbackTitle: 'This Week', data: thisWeekItems });
+    if (thisMonthItems.length > 0) groups.push({ titleKey: 'this_month', fallbackTitle: 'This Month', data: thisMonthItems });
+    if (lastMonthItems.length > 0) groups.push({ titleKey: 'last_month', fallbackTitle: 'Last Month', data: lastMonthItems });
     if (olderItems.length > 0) groups.push({ titleKey: 'earlier', fallbackTitle: 'Earlier', data: olderItems });
     return groups;
 };
@@ -326,13 +335,43 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
 
     const groupedData = useMemo(() => groupNotificationsByDate(filteredNotifications), [filteredNotifications]);
 
-    const getCategoryIcon = (category: string) => {
-        if (category === 'leave') return <Calendar color={primaryColor} size={18} />;
-        if (category === 'birthday') return <Cake color="#EC4899" size={18} />;
-        if (category === 'anniversary') return <PartyPopper color="#F59E0B" size={18} />;
-        if (category === 'announcement') return <Megaphone color={primaryColor} size={18} />;
-        return <Bell color={primaryColor} size={18} />;
-    };
+    const getCategoryConfig = useCallback(
+        (category: string) => {
+            switch (category) {
+                case 'leave':
+                    return {
+                        icon: <Calendar color={theme.colors.status.info} size={18} />,
+                        bg: theme.colors.status.infoSubtle,
+                        border: theme.colors.status.infoBorder,
+                    };
+                case 'birthday':
+                    return {
+                        icon: <Cake color="#EC4899" size={18} />,
+                        bg: theme.colors.status.pinkSubtle,
+                        border: theme.colors.status.pinkBorder,
+                    };
+                case 'anniversary':
+                    return {
+                        icon: <PartyPopper color="#F59E0B" size={18} />,
+                        bg: theme.colors.status.warningSubtle,
+                        border: theme.colors.status.warningBorder,
+                    };
+                case 'announcement':
+                    return {
+                        icon: <Megaphone color={theme.colors.brand} size={18} />,
+                        bg: theme.colors.brandSubtle,
+                        border: 'rgba(223, 0, 0, 0.2)',
+                    };
+                default:
+                    return {
+                        icon: <Bell color={theme.colors.brand} size={18} />,
+                        bg: theme.colors.brandSubtle,
+                        border: 'rgba(223, 0, 0, 0.2)',
+                    };
+            }
+        },
+        [theme]
+    );
 
     const hasBirthdayToday = celebrations.some((c) => c.type === 'birthday');
     const hasAnniversaryToday = celebrations.some(
@@ -372,16 +411,19 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
                             key={cat.id}
                             style={[
                                 styles.tabItem,
-                                isActive && { backgroundColor: primaryColor },
+                                isActive
+                                    ? { backgroundColor: theme.colors.brand, borderColor: theme.colors.brand }
+                                    : { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border },
                             ]}
                             onPress={() => setSelectedCategory(cat.id)}
-                            activeOpacity={0.8}
+                            activeOpacity={0.7}
                         >
                             <View style={styles.tabLabelRow}>
                                 <Text
                                     style={[
                                         styles.tabLabel,
-                                        isActive && { color: '#FFFFFF', fontWeight: '800' },
+                                        { color: isActive ? '#FFFFFF' : theme.colors.textSecondary },
+                                        isActive && { fontWeight: '700' },
                                     ]}
                                 >
                                     {t(cat.labelKey, cat.fallback)}
@@ -408,6 +450,7 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
         ({ item }: { item: NotificationItem }) => {
             const isUnread = !item.read_at;
             const itemCat = getNotificationCategory(item);
+            const catConfig = getCategoryConfig(itemCat);
             const relativeDate = formatRelativeTime(item.created_at, locale);
             const titleText = renderNotificationText(item.title, item.data);
             const messageText = renderNotificationText(item.message, item.data);
@@ -416,65 +459,63 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
                 <TouchableOpacity
                     style={[
                         styles.card,
-                        isUnread && [
-                            styles.unreadCard,
-                            { borderColor: `${primaryColor}35`, backgroundColor: `${primaryColor}0C` },
-                        ],
+                        isUnread && styles.unreadCard,
                     ]}
                     onPress={() => handleItemPress(item)}
-                    activeOpacity={0.8}
+                    activeOpacity={0.7}
                 >
-                    {/* Bold left accent bar — instantly signals unread */}
-                    {isUnread && <View style={[styles.unreadAccentBar, { backgroundColor: primaryColor }]} />}
-
-                    <View style={styles.cardInner}>
-                        <View style={styles.cardHeader}>
-                            <View style={[
-                                styles.iconBg,
-                                isUnread && { backgroundColor: `${primaryColor}18`, borderColor: `${primaryColor}35` },
-                            ]}>
-                                {getCategoryIcon(itemCat)}
+                    <View style={styles.cardRow}>
+                        {/* Left Column: Icon + Timeline Timestamp */}
+                        <View style={styles.leftCol}>
+                            <View style={[styles.iconBg, { backgroundColor: catConfig.bg, borderColor: catConfig.border }]}>
+                                {catConfig.icon}
                             </View>
-
-                            <View style={styles.headerTextGroup}>
-                                <Text style={[styles.cardTitle, isUnread && styles.unreadCardTitle]} numberOfLines={1}>
-                                    {titleText}
-                                </Text>
-                                <Text style={styles.cardDate}>{relativeDate}</Text>
-                            </View>
-
-                            {isUnread && (
-                                <View style={[styles.unreadBadge, { backgroundColor: primaryColor }]}>
-                                    <Text style={styles.unreadBadgeText}>NEW</Text>
-                                </View>
-                            )}
+                            <Text style={styles.dateUnderIcon} numberOfLines={2}>
+                                {relativeDate}
+                            </Text>
                         </View>
 
-                        <Text
-                            style={[
-                                styles.cardMessage,
-                                isUnread && { color: theme.colors.textPrimary, opacity: 0.8 },
-                            ]}
-                            numberOfLines={2}
-                        >
-                            {messageText}
-                        </Text>
+                        {/* Right Column: Title, Actions & Message */}
+                        <View style={styles.contentCol}>
+                            <View style={styles.cardTitleRow}>
+                                <View style={styles.titleWithBadge}>
+                                    <Text style={[styles.cardTitle, isUnread && styles.unreadCardTitle]} numberOfLines={1}>
+                                        {titleText}
+                                    </Text>
+                                    {isUnread && (
+                                        <View style={[styles.unreadBadge, { backgroundColor: theme.colors.brand }]}>
+                                            <Text style={styles.unreadBadgeText}>{t('new_badge', 'NEW')}</Text>
+                                        </View>
+                                    )}
+                                </View>
 
-                        <View style={styles.cardFooter}>
-                            <TouchableOpacity
-                                style={styles.deleteBtn}
-                                onPress={() => handleDeleteItem(item.id)}
-                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                            >
-                                <Trash2 color={theme.colors.textSecondary} size={14} />
-                            </TouchableOpacity>
-                            <ChevronRight color={theme.colors.textSecondary} size={16} />
+                                <TouchableOpacity
+                                    style={styles.deleteBtn}
+                                    onPress={() => handleDeleteItem(item.id)}
+                                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                                    accessibilityLabel="Delete notification"
+                                >
+                                    <Trash2 color={theme.colors.textMuted} size={15} />
+                                </TouchableOpacity>
+                            </View>
+
+                            {messageText ? (
+                                <Text
+                                    style={[
+                                        styles.cardMessage,
+                                        isUnread ? { color: theme.colors.textPrimary } : { color: theme.colors.textSecondary },
+                                    ]}
+                                    numberOfLines={2}
+                                >
+                                    {messageText}
+                                </Text>
+                            ) : null}
                         </View>
                     </View>
                 </TouchableOpacity>
             );
         },
-        [primaryColor, theme, styles, locale, renderNotificationText]
+        [theme, styles, locale, renderNotificationText, getCategoryConfig]
     );
 
     const renderSectionHeader = useCallback(
@@ -554,14 +595,14 @@ const stylesheet = StyleSheet.create((theme) => ({
     scrollContent: {
         flexGrow: 1,
         paddingHorizontal: theme.spacing.screenGutter,
-        paddingTop: theme.spacing.md,
+        paddingTop: theme.spacing.screenGutter,
         paddingBottom: theme.spacing.lg,
     },
     emptyContainer: {
-        paddingTop: theme.spacing.xl,
-        paddingBottom: theme.spacing.xxl,
+        paddingVertical: 40,
         width: '100%',
         alignItems: 'center',
+        justifyContent: 'center',
     },
     headerRightRow: {
         flexDirection: 'row',
@@ -574,17 +615,19 @@ const stylesheet = StyleSheet.create((theme) => ({
         overflow: 'hidden',
     },
     tabBarScrollContent: {
-        paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.xs + 2,
+        paddingHorizontal: theme.spacing.screenGutter,
+        paddingVertical: 10,
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 6,
+        gap: 8,
     },
     tabItem: {
-        paddingHorizontal: theme.spacing.md,
-        paddingVertical: theme.spacing.xs + 3,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
         alignItems: 'center',
+        justifyContent: 'center',
         borderRadius: 20,
+        borderWidth: 1,
     },
     tabLabelRow: {
         flexDirection: 'row',
@@ -593,10 +636,8 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     tabLabel: {
         fontSize: 12,
-        fontWeight: '700',
-        color: theme.colors.textSecondary,
-        textTransform: 'uppercase',
-        letterSpacing: 0.4,
+        fontWeight: '600',
+        letterSpacing: 0.2,
     },
     smartDot: {
         width: 6,
@@ -605,96 +646,100 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     dateSectionHeader: {
         fontSize: 11,
-        fontWeight: '800',
+        fontWeight: '700',
         textTransform: 'uppercase',
-        letterSpacing: 0.8,
+        letterSpacing: 0.6,
         color: theme.colors.textSecondary,
-        marginBottom: theme.spacing.xs + 2,
-        marginTop: theme.spacing.xs,
+        marginBottom: 8,
+        marginTop: 14,
     },
     card: {
         backgroundColor: theme.colors.surface,
-        borderRadius: theme.borderRadius.lg,
-        marginBottom: theme.spacing.sm + 4,
+        borderRadius: 16,
+        marginBottom: 10,
         borderWidth: 1,
         borderColor: theme.colors.border,
-        overflow: 'hidden',
+        paddingVertical: 14,
+        paddingHorizontal: 14,
     },
     unreadCard: {
-        borderWidth: 1.5,
+        borderColor: 'rgba(223, 0, 0, 0.28)',
+        backgroundColor: theme.colors.surface,
     },
-    unreadAccentBar: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        bottom: 0,
-        width: 4,
-    },
-    cardInner: {
-        padding: theme.spacing.md,
-    },
-    cardHeader: {
+    cardRow: {
         flexDirection: 'row',
+        alignItems: 'flex-start',
+    },
+    leftCol: {
+        width: 46,
         alignItems: 'center',
-        marginBottom: theme.spacing.xs + 2,
+        marginRight: 10,
     },
     iconBg: {
-        width: 36,
-        height: 36,
-        borderRadius: theme.borderRadius.md,
-        backgroundColor: theme.colors.surfaceSubtle,
+        width: 38,
+        height: 38,
+        borderRadius: 11,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: theme.colors.border,
     },
-    headerTextGroup: {
+    dateUnderIcon: {
+        fontSize: 9.5,
+        fontWeight: '700',
+        color: theme.colors.textMuted,
+        marginTop: 4,
+        textAlign: 'center',
+        letterSpacing: -0.1,
+    },
+    contentCol: {
         flex: 1,
-        marginLeft: theme.spacing.sm + 2,
+        minWidth: 0,
+        paddingTop: 1,
+    },
+    cardTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 3,
+    },
+    titleWithBadge: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        flex: 1,
+        marginRight: 8,
     },
     cardTitle: {
-        fontSize: 14,
+        fontSize: 13.5,
         fontWeight: '600',
         color: theme.colors.textPrimary,
+        flexShrink: 1,
     },
     unreadCardTitle: {
-        fontWeight: '800',
-    },
-    cardDate: {
-        fontSize: 11,
-        color: theme.colors.textSecondary,
-        marginTop: 1,
+        fontWeight: '700',
     },
     unreadBadge: {
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 20,
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 10,
         alignItems: 'center',
         justifyContent: 'center',
-        marginLeft: 6,
     },
     unreadBadgeText: {
         color: '#FFFFFF',
-        fontSize: 9,
+        fontSize: 8.5,
         fontWeight: '900',
-        letterSpacing: 0.8,
-        textTransform: 'uppercase',
+        letterSpacing: 0.5,
     },
     cardMessage: {
-        fontSize: 13,
+        fontSize: 12.5,
         color: theme.colors.textSecondary,
         lineHeight: 18,
-        marginBottom: theme.spacing.sm,
-    },
-    cardFooter: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingTop: theme.spacing.xs,
-        borderTopWidth: 1,
-        borderTopColor: theme.colors.border,
     },
     deleteBtn: {
         padding: 4,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderRadius: 8,
     },
 }));

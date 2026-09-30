@@ -69,6 +69,19 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
     const [isSuccess, setIsSuccess] = useState<boolean>(false);
     const autoReturnTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+    // Stable references to prevent background query updates from re-triggering useFocusEffect
+    const evaluateGuardRef = useRef(evaluateGuard);
+    useEffect(() => {
+        evaluateGuardRef.current = evaluateGuard;
+    }, [evaluateGuard]);
+
+    const isSuccessRef = useRef<boolean>(false);
+    useEffect(() => {
+        isSuccessRef.current = isSuccess;
+    }, [isSuccess]);
+
+    // Cooldown timestamp: blocks any scan within 15 seconds of a successful punch
+    const lastPunchTimeRef = useRef<number>(0);
 
     const handleReturnToDashboard = useCallback(() => {
         if (autoReturnTimerRef.current) {
@@ -76,6 +89,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
             autoReturnTimerRef.current = null;
         }
         setIsSuccess(false);
+        isSuccessRef.current = false;
         resetScanState();
         navigation.navigate('HomeTab');
     }, [navigation]);
@@ -96,7 +110,15 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
 
     useFocusEffect(
         useCallback(() => {
+            // CRITICAL GUARD: If the success confirmation screen is actively displaying,
+            // or if a punch was completed recently (< 15 seconds), do NOT reset state or dismount success!
+            // This prevents background query invalidation from re-arming the camera and duplicating scans.
+            if (isSuccessRef.current || (Date.now() - lastPunchTimeRef.current < 15000 && lastPunchTimeRef.current > 0)) {
+                return;
+            }
+
             setIsSuccess(false);
+            isSuccessRef.current = false;
             setScanned(false);
             isProcessingRef.current = false;
 
@@ -111,7 +133,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
             // guardReady starts false, so the camera is not mounted yet.
             // We check here whether a reason is mandatory for the current punch type.
             setGuardReady(false);
-            const guard = evaluateGuard(new Date());
+            const guard = evaluateGuardRef.current(new Date());
             if (!paramReason && guard.require_reason && (guard.type === 'late' || guard.type === 'early_departure')) {
                 // Reason is required — show modal first. Camera stays off (guardReady = false).
                 setReasonType(guard.type);
@@ -128,7 +150,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
                     autoReturnTimerRef.current = null;
                 }
             };
-        }, [route?.params?.reason, evaluateGuard])
+        }, [route?.params?.reason])
     );
 
     useEffect(() => {
@@ -257,6 +279,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
 
     const resetScanState = () => {
         isProcessingRef.current = false;
+        isSuccessRef.current = false;
         setScanned(false);
         setIsSubmitting(false);
         setPendingQrResult(null);
@@ -319,9 +342,10 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
                 scanned_at: new Date().toISOString(),
             };
 
+            const idempotencyKey = `punch_${qrResult.branchCode || 'branch'}_${new Date().toISOString().slice(0, 10)}_${shiftPhase}_${Date.now()}`;
             let response: AttendanceClockInResponse;
             try {
-                response = await attendanceApi.clockIn(punchPayload);
+                response = await attendanceApi.clockIn(punchPayload, idempotencyKey);
             } catch (networkErr: any) {
                 // If network failure or offline, queue punch for durable background sync
                 const isOffline = !networkErr.response || networkErr.message === 'Network Error' || networkErr.code === 'ECONNABORTED';
@@ -335,6 +359,10 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
 
                     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
 
+                    lastPunchTimeRef.current = Date.now();
+                    isSuccessRef.current = true;
+                    isProcessingRef.current = true;
+
                     setPunchResult({
                         time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                         message: t('attendance_offline_saved', 'Attendance Saved Offline • Will sync automatically when connection is restored.'),
@@ -344,6 +372,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
                     setReasonModalVisible(false);
                     setIsSubmitting(false);
                     setIsSuccess(true);
+                    setScanned(true);
                     return;
                 }
 
@@ -364,6 +393,11 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
             // Attendance punch successful! Instant UI feedback without blocking on background sync
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
 
+            // Record timestamp for cooldown deduplication and keep hardware/processing locked
+            lastPunchTimeRef.current = Date.now();
+            isSuccessRef.current = true;
+            isProcessingRef.current = true;
+
             setPunchResult({
                 time: response.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 message: response.message || t('attendance_success_desc', 'Attendance Recorded Successfully'),
@@ -373,12 +407,14 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
             setReasonModalVisible(false);
             setIsSubmitting(false);
             setIsSuccess(true);
+            setScanned(true);
 
             // Fire-and-forget cache invalidation in background (never block success screen)
             queryClient.invalidateQueries({ queryKey: ['dashboardBootstrap'] });
             queryClient.invalidateQueries({ queryKey: ['attendanceHistory'] });
             queryClient.invalidateQueries({ queryKey: ['shiftToday'] });
         } catch (error: any) {
+            isProcessingRef.current = false;
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
 
             const resData = error?.response?.data;
@@ -418,7 +454,10 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
     };
 
     const handleBarCodeScanned = async ({ data }: { data: string }, force: boolean = false) => {
-        if ((isProcessingRef.current && !force) || (scanned && !force) || isSubmitting) return;
+        // Cooldown guard: block any scan within 15s of a successful punch
+        if (!force && Date.now() - lastPunchTimeRef.current < 15000 && lastPunchTimeRef.current > 0) return;
+
+        if ((isProcessingRef.current && !force) || (scanned && !force) || isSubmitting || isSuccess || isSuccessRef.current) return;
         isProcessingRef.current = true;
         setScanned(true);
 
@@ -746,6 +785,8 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
                     if (pendingQrResult) {
                         const qr = pendingQrResult;
                         setPendingQrResult(null);
+                        isProcessingRef.current = true;
+                        setScanned(true);
                         await executePunch(qr, reasonText);
                     } else {
                         // Guard cleared — reason provided proactively before any scan.
@@ -998,27 +1039,27 @@ const styles = StyleSheet.create({
     },
     modalSecondaryBtn: {
         flex: 1,
-        minHeight: 48,
-        borderRadius: 14,
+        minHeight: 52,
+        borderRadius: 16,
         borderWidth: 1,
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 16,
     },
     modalSecondaryBtnText: {
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: '600',
     },
     modalPrimaryBtn: {
         flex: 1,
-        minHeight: 48,
-        borderRadius: 14,
+        minHeight: 52,
+        borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 16,
     },
     modalPrimaryBtnText: {
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: '700',
         color: '#FFFFFF',
     },

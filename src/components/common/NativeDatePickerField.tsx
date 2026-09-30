@@ -12,13 +12,11 @@ import {
     ChevronLeft,
     ChevronRight,
     X,
-    Check,
 } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
 import {
     format,
-    addDays,
     startOfMonth,
     endOfMonth,
     startOfWeek,
@@ -32,6 +30,7 @@ import {
     parseDateOnly,
     formatDateOnly,
     formatDateDisplay,
+    DateDisplayVariant,
 } from '../../utils/dateTime';
 
 export interface NativeDatePickerFieldProps {
@@ -42,6 +41,9 @@ export interface NativeDatePickerFieldProps {
     maxDate?: string; // YYYY-MM-DD
     containerStyle?: any;
     error?: string;
+    displayVariant?: DateDisplayVariant;
+    placeholder?: string;
+    isClearable?: boolean;
 }
 
 export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
@@ -52,6 +54,9 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
     maxDate,
     containerStyle,
     error,
+    displayVariant = 'standard',
+    placeholder = 'Select Date',
+    isClearable = false,
 }) => {
     const { isDark } = useAppTheme();
     const theme = isDark ? darkTheme : lightTheme;
@@ -59,14 +64,34 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
     const [modalVisible, setModalVisible] = useState(false);
 
     // Selected Date inside modal
-    const parsedInitial = useMemo(() => (value ? parseDateOnly(value) : new Date()), [value]);
+    const parsedInitial = useMemo(() => {
+        let d = value ? parseDateOnly(value) : new Date();
+        const dStr = formatDateOnly(d);
+        if (minDate && dStr < minDate) {
+            d = parseDateOnly(minDate);
+        }
+        if (maxDate && dStr > maxDate) {
+            d = parseDateOnly(maxDate);
+        }
+        return d;
+    }, [value, minDate, maxDate]);
+
     const [selectedDate, setSelectedDate] = useState<Date>(parsedInitial);
     const [viewMonth, setViewMonth] = useState<Date>(() => startOfMonth(parsedInitial));
 
-    const formattedDisplay = value ? formatDateDisplay(value, 'full') : 'Select Date';
+    const formattedDisplay = value
+        ? formatDateDisplay(value, displayVariant)
+        : placeholder;
 
     const handleOpen = () => {
-        const d = value ? parseDateOnly(value) : new Date();
+        let d = value ? parseDateOnly(value) : new Date();
+        const dStr = formatDateOnly(d);
+        if (minDate && dStr < minDate) {
+            d = parseDateOnly(minDate);
+        }
+        if (maxDate && dStr > maxDate) {
+            d = parseDateOnly(maxDate);
+        }
         setSelectedDate(d);
         setViewMonth(startOfMonth(d));
         setModalVisible(true);
@@ -78,16 +103,6 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
         onChange(dateStr);
         setModalVisible(false);
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    };
-
-    const handleQuickSelect = (d: Date) => {
-        const dateStr = formatDateOnly(d);
-        if (minDate && dateStr < minDate) return;
-        if (maxDate && dateStr > maxDate) return;
-
-        setSelectedDate(d);
-        setViewMonth(startOfMonth(d));
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     };
 
     // Calendar generation for modal view
@@ -118,7 +133,7 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
                 onPress={handleOpen}
                 activeOpacity={0.75}
                 accessibilityRole="button"
-                accessibilityLabel={`${label || 'Select Date'}: ${formattedDisplay}`}
+                accessibilityLabel={`${label || placeholder}: ${formattedDisplay}`}
                 style={[
                     styles.fieldWrapper,
                     {
@@ -127,19 +142,36 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
                     },
                 ]}
             >
-                <View style={styles.iconContainer}>
-                    <CalendarIcon color={theme.colors.primary} size={18} />
+                <View style={styles.fieldContent}>
+                    <View style={styles.iconContainer}>
+                        <CalendarIcon color={theme.colors.brand} size={18} />
+                    </View>
+                    <Text
+                        numberOfLines={1}
+                        style={[
+                            styles.fieldText,
+                            {
+                                color: value ? theme.colors.textPrimary : theme.colors.textDisabled,
+                            },
+                        ]}
+                    >
+                        {formattedDisplay}
+                    </Text>
                 </View>
-                <Text
-                    style={[
-                        styles.fieldText,
-                        {
-                            color: value ? theme.colors.textPrimary : theme.colors.textDisabled,
-                        },
-                    ]}
-                >
-                    {formattedDisplay}
-                </Text>
+
+                {isClearable && Boolean(value) && (
+                    <TouchableOpacity
+                        onPress={() => {
+                            onChange('');
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                        }}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        style={styles.clearBtn}
+                        accessibilityLabel="Clear date"
+                    >
+                        <X size={15} color={theme.colors.textSecondary} />
+                    </TouchableOpacity>
+                )}
             </TouchableOpacity>
 
             {error && (
@@ -156,8 +188,8 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
                 footer={
                     <TouchableOpacity
                         onPress={handleConfirm}
-                        style={[styles.confirmBtn, { backgroundColor: theme.colors.primary }]}
-                        activeOpacity={0.8}
+                        style={[styles.confirmBtn, { backgroundColor: theme.colors.brand }]}
+                        activeOpacity={0.85}
                     >
                         <Text style={styles.confirmBtnText}>
                             Select {formatDateDisplay(selectedDate, 'standard')}
@@ -165,43 +197,6 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
                     </TouchableOpacity>
                 }
             >
-                {/* Quick Presets */}
-                <View style={styles.presetsRow}>
-                    <TouchableOpacity
-                        onPress={() => handleQuickSelect(new Date())}
-                        disabled={isDateDisabled(new Date())}
-                        style={[
-                            styles.presetChip,
-                            { backgroundColor: theme.colors.surfaceSubtle },
-                            isDateDisabled(new Date()) && { opacity: 0.4 },
-                        ]}
-                    >
-                        <Text style={[styles.presetText, { color: theme.colors.textPrimary }]}>Today</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        onPress={() => handleQuickSelect(addDays(new Date(), 1))}
-                        disabled={isDateDisabled(addDays(new Date(), 1))}
-                        style={[
-                            styles.presetChip,
-                            { backgroundColor: theme.colors.surfaceSubtle },
-                            isDateDisabled(addDays(new Date(), 1)) && { opacity: 0.4 },
-                        ]}
-                    >
-                        <Text style={[styles.presetText, { color: theme.colors.textPrimary }]}>Tomorrow</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        onPress={() => handleQuickSelect(addDays(new Date(), 7))}
-                        disabled={isDateDisabled(addDays(new Date(), 7))}
-                        style={[
-                            styles.presetChip,
-                            { backgroundColor: theme.colors.surfaceSubtle },
-                            isDateDisabled(addDays(new Date(), 7)) && { opacity: 0.4 },
-                        ]}
-                    >
-                        <Text style={[styles.presetText, { color: theme.colors.textPrimary }]}>+1 Week</Text>
-                    </TouchableOpacity>
-                </View>
-
                 {/* Month Switcher Header */}
                 <View style={styles.monthNavRow}>
                     <TouchableOpacity
@@ -209,6 +204,7 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
                         style={[styles.navBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
                         accessibilityRole="button"
                         accessibilityLabel="Previous month"
+                        activeOpacity={0.7}
                     >
                         <ChevronLeft color={theme.colors.textPrimary} size={18} />
                     </TouchableOpacity>
@@ -220,6 +216,7 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
                         style={[styles.navBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
                         accessibilityRole="button"
                         accessibilityLabel="Next month"
+                        activeOpacity={0.7}
                     >
                         <ChevronRight color={theme.colors.textPrimary} size={18} />
                     </TouchableOpacity>
@@ -258,12 +255,12 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
                                     style={[
                                         styles.dayCell,
                                         isSelected && {
-                                            backgroundColor: theme.colors.primary,
+                                            backgroundColor: theme.colors.brand,
                                         },
                                         !isSelected && isCurrentDay && {
                                             borderWidth: 1.5,
-                                            borderColor: theme.colors.primary,
-                                            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : theme.colors.surfaceSubtle,
+                                            borderColor: theme.colors.brand,
+                                            backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : theme.colors.brandSubtle,
                                         },
                                         disabled && {
                                             opacity: 0.25,
@@ -272,7 +269,7 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
                                 >
                                     <Text
                                         style={[
-                                            styles.dayText,
+                                            styles.dayCellText,
                                             {
                                                 color: isSelected
                                                     ? '#FFFFFF'
@@ -281,7 +278,7 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
                                                     : !isCurrentMonth
                                                     ? theme.colors.textDisabled
                                                     : isCurrentDay
-                                                    ? theme.colors.primary
+                                                    ? theme.colors.brand
                                                     : theme.colors.textPrimary,
                                                 fontWeight: isSelected || isCurrentDay ? '700' : '500',
                                             },
@@ -313,13 +310,23 @@ const styles = StyleSheet.create({
     fieldWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
-        height: 48,
-        borderRadius: 12,
+        justifyContent: 'space-between',
+        height: 50,
+        borderRadius: 14,
         borderWidth: 1.5,
         paddingHorizontal: 12,
     },
+    fieldContent: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        flex: 1,
+        marginRight: 6,
+    },
     iconContainer: {
         marginRight: 10,
+    },
+    clearBtn: {
+        padding: 4,
     },
     fieldText: {
         fontSize: 14,
@@ -331,70 +338,15 @@ const styles = StyleSheet.create({
         marginTop: 4,
         marginLeft: 2,
     },
-    modalBackdrop: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.55)',
-        justifyContent: 'flex-end',
-    },
-    backdropDismiss: {
-        flex: 1,
-    },
-    sheetContainer: {
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        borderTopWidth: 1,
-        paddingHorizontal: 20,
-        paddingBottom: 36,
-        paddingTop: 10,
-    },
-    sheetHandle: {
-        width: 36,
-        height: 4,
-        borderRadius: 2,
-        backgroundColor: 'rgba(150, 150, 150, 0.4)',
-        alignSelf: 'center',
-        marginBottom: 14,
-    },
-    sheetHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 14,
-    },
-    circleBtn: {
-        width: 36,
-        height: 36,
-        borderRadius: 18,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    sheetTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-    },
-    presetsRow: {
-        flexDirection: 'row',
-        gap: 8,
-        marginBottom: 14,
-    },
-    presetChip: {
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 8,
-    },
-    presetText: {
-        fontSize: 12,
-        fontWeight: '600',
-    },
     monthNavRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 10,
+        marginBottom: 12,
     },
     monthNavTitle: {
         fontSize: 15,
-        fontWeight: '700',
+        fontWeight: '800',
     },
     navBtn: {
         width: 36,
@@ -405,7 +357,7 @@ const styles = StyleSheet.create({
     },
     weekdaysRow: {
         flexDirection: 'row',
-        marginBottom: 6,
+        marginBottom: 8,
     },
     weekdayCol: {
         width: '14.285%',
@@ -438,12 +390,14 @@ const styles = StyleSheet.create({
     },
     dayCellText: {
         fontSize: 13,
+        textAlign: 'center',
     },
     confirmBtn: {
-        height: 48,
-        borderRadius: 14,
+        height: 52,
+        borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
+        width: '100%',
     },
     confirmBtnText: {
         color: '#FFFFFF',
