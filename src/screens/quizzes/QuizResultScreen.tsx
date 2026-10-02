@@ -11,6 +11,7 @@ import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useQuery } from '@tanstack/react-query';
 import { format, parseISO, isValid } from 'date-fns';
 import { quizApi } from '../../api/quiz';
+import { queryKeys } from '../../api/queryKeys';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { AppText as Text } from '../../components/AppText';
@@ -47,7 +48,7 @@ export const QuizResultScreen: React.FC<{ route: any; navigation: any }> = ({
 
     // 10-minute React Query Caching for Quiz Result Breakdown
     const { data: resultData, isLoading } = useQuery({
-        queryKey: ['quizResult', token],
+        queryKey: queryKeys.quizzes.result(token || 'default'),
         queryFn: async () => {
             if (!token) return paramQuizData || null;
             const res = await quizApi.getQuizResult(token).catch(() => null);
@@ -344,7 +345,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: 62,
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 4,
+        borderWidth: 3,
         marginBottom: theme.spacing.md,
     },
     scoreCirclePassed: {
@@ -422,7 +423,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     questionCard: {
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg,
-        padding: theme.spacing.md,
+        padding: theme.spacing.cardPadding,
         marginBottom: theme.spacing.md,
         borderWidth: 1,
         borderColor: theme.colors.border,

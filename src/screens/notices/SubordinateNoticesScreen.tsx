@@ -26,6 +26,10 @@ import { AppHeader } from '../../components/common/AppHeader';
 import { ListSkeleton } from '../../components/common/Skeletons';
 import { EmptyState } from '../../components/common/EmptyState';
 import { AppBottomSheet } from '../../components/common/AppBottomSheet';
+import { AppCard } from '../../components/common/AppCard';
+import { AppButton } from '../../components/common/AppButton';
+import { AppInput } from '../../components/common/AppInput';
+import { queryKeys } from '../../api/queryKeys';
 import {
     ArrowLeft,
     Plus,
@@ -73,7 +77,7 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
 
     // 1. Fetch Subordinates
     const { data: subordinates = [] } = useQuery<Subordinate[]>({
-        queryKey: ['subordinates'],
+        queryKey: queryKeys.notifications.subordinates,
         queryFn: async () => {
             const res = await noticeApi.getSubordinates();
             return Array.isArray(res) ? res : Array.isArray(res?.data) ? res.data : [];
@@ -87,7 +91,7 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
         isFetching,
         refetch,
     } = useQuery<SubordinateNotice[]>({
-        queryKey: ['subordinateNotices', selectedSubordinateId, selectedCategory],
+        queryKey: queryKeys.notifications.subordinateNotices(selectedSubordinateId ?? undefined, selectedCategory),
         queryFn: async () => {
             const params: any = {};
             if (selectedSubordinateId) params.employee_id = selectedSubordinateId;
@@ -102,8 +106,8 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
     const createMutation = useMutation({
         mutationFn: noticeApi.createNotice,
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ['subordinateNotices'] });
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
             Alert.alert(
                 t('notice_recorded', 'Notice Recorded'),
                 t('notice_logged_desc', 'Subordinate notice logged successfully.')
@@ -118,8 +122,8 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
     });
 
     const onRefresh = async () => {
-        await queryClient.invalidateQueries({ queryKey: ['subordinateNotices'] });
-        await queryClient.invalidateQueries({ queryKey: ['subordinates'] });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.notifications.all });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.notifications.subordinates });
         refetch();
     };
 
@@ -279,7 +283,7 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
                     const creatorName = item.creator?.full_name || t('manager', 'Manager');
 
                     return (
-                        <View key={item.id} style={styles.noticeCard}>
+                        <AppCard key={item.id} style={styles.noticeCard}>
                             <View style={styles.cardHeader}>
                                 <View style={styles.userGroup}>
                                     <View style={styles.userAvatar}>
@@ -315,7 +319,7 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
                                     <Text style={styles.dateText}>{formatDateDisplay(item.notice_date || item.created_at, 'standard', 'Recent')}</Text>
                                 </View>
                             </View>
-                        </View>
+                        </AppCard>
                     );
                 })
             )}
@@ -326,18 +330,12 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
                 onClose={() => setCreateModalVisible(false)}
                 title={t('log_subordinate_notice', 'Log Subordinate Notice')}
                 footer={
-                    <TouchableOpacity
-                        style={styles.submitBtn}
+                    <AppButton
+                        title={t('record_subordinate_notice', 'Record Subordinate Notice')}
                         onPress={handleCreateNotice}
-                        disabled={createMutation.isPending}
-                        activeOpacity={0.85}
-                    >
-                        {createMutation.isPending ? (
-                            <ActivityIndicator color="#FFFFFF" />
-                        ) : (
-                            <Text style={styles.submitBtnText}>{t('record_subordinate_notice', 'Record Subordinate Notice')}</Text>
-                        )}
-                    </TouchableOpacity>
+                        loading={createMutation.isPending}
+                        fullWidth
+                    />
                 }
             >
                 {/* Select Subordinate */}
@@ -398,13 +396,11 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
                 />
 
                 {/* Notice Comment */}
-                <Text style={styles.inputLabel}>{t('notice_details_comments', 'Notice Details / Comments')}</Text>
-                <TextInput
-                    style={styles.textArea}
+                <AppInput
+                    label={t('notice_details_comments', 'Notice Details / Comments')}
                     value={formComment}
                     onChangeText={setFormComment}
                     placeholder={t('describe_notice_placeholder', 'Describe employee feedback, praise, or warning details...')}
-                    placeholderTextColor={theme.colors.textSecondary}
                     multiline
                     numberOfLines={4}
                 />
@@ -524,7 +520,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     emptyCard: {
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg,
-        padding: theme.spacing.xl,
+        padding: theme.spacing.cardPadding,
         alignItems: 'center',
         borderWidth: 1,
         borderColor: theme.colors.border,
@@ -543,7 +539,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     noticeCard: {
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg,
-        padding: theme.spacing.md,
+        padding: theme.spacing.cardPadding,
         marginBottom: theme.spacing.md,
         borderWidth: 1,
         borderColor: theme.colors.border,

@@ -17,7 +17,9 @@ import { HeaderIconButton } from '../../components/common/AppHeader';
 import { AttendanceHistorySkeleton } from '../../components/common/Skeletons';
 import { EmptyState } from '../../components/common/EmptyState';
 import { AppBottomSheet } from '../../components/common/AppBottomSheet';
+import { StatusBadge } from '../../components/common/StatusBadge';
 import { attendanceApi, HistoryRecord } from '../../api/attendance';
+import { queryKeys } from '../../api/queryKeys';
 import * as Haptics from 'expo-haptics';
 import { useAppTheme } from '../../context/ThemeContext';
 import {
@@ -56,12 +58,13 @@ const HistoryItemCard = memo(({ item, theme, styles, t, locale }: HistoryItemCar
 
     return (
         <View style={styles.card}>
-            {/* Card Header: Date */}
+            {/* Card Header: Date & Status */}
             <View style={styles.cardHeader}>
                 <View style={styles.dateGroup}>
                     <Calendar color={theme.colors.primary} size={16} />
                     <Text style={styles.dateText}>{formatDateDisplay(item.date, 'full', 'N/A', locale)}</Text>
                 </View>
+                <StatusBadge status={item.status || item.in_status || 'present'} size="sm" />
             </View>
 
             {/* Session 1 Row */}
@@ -166,7 +169,7 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         isFetching,
         refetch,
     } = useQuery<HistoryRecord[]>({
-        queryKey: ['attendanceHistory', selectedMonth, selectedQuickFilter],
+        queryKey: queryKeys.attendance.history(selectedMonth, selectedQuickFilter),
         queryFn: async () => {
             try {
                 const params: any = {};
@@ -202,7 +205,7 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     );
 
     const onRefresh = useCallback(async () => {
-        await queryClient.invalidateQueries({ queryKey: ['attendanceHistory'] });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.attendance.all });
     }, [queryClient]);
 
     // Advanced Filter Modal Draft State
@@ -563,8 +566,8 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     card: {
         backgroundColor: theme.colors.surface,
-        borderRadius: theme.borderRadius.lg + 4,
-        padding: theme.spacing.md + 2,
+        borderRadius: theme.borderRadius.lg,
+        padding: theme.spacing.cardPadding,
         marginHorizontal: theme.spacing.screenGutter,
         marginBottom: theme.spacing.screenGutter,
         borderWidth: 1,

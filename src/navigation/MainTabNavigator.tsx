@@ -24,6 +24,7 @@ import { lightTheme, darkTheme } from '../styles/theme';
 import { useAttendanceGuard } from '../hooks/useAttendanceGuard';
 import { useTranslation } from '../context/LanguageContext';
 import { apiClient } from '../api/client';
+import { queryKeys } from '../api/queryKeys';
 
 // Screens
 import { DashboardScreen } from '../screens/dashboard/DashboardScreen';
@@ -149,7 +150,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
 
     // Fetch unread count for badge parity
     const { data: bootstrapData } = useQuery({
-        queryKey: ['dashboardBootstrap'],
+        queryKey: queryKeys.dashboard.bootstrap,
         queryFn: async () => {
             const res = await apiClient.get('/employee-app/bootstrap');
             return res.data;

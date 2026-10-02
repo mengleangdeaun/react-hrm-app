@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
     View,
     TextInput,
@@ -8,6 +8,8 @@ import {
     Dimensions,
     TouchableOpacity,
     StyleSheet,
+    Keyboard,
+    ScrollView,
 } from 'react-native';
 import { MessageSquare, Send, Smartphone } from 'lucide-react-native';
 import { useAppTheme } from '../context/ThemeContext';
@@ -30,8 +32,17 @@ export const AppFeedbackSheet: React.FC<AppFeedbackSheetProps> = ({ visible, onC
 
     const [message, setMessage] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isFocused, setIsFocused] = useState(false);
+    const scrollViewRef = useRef<any>(null);
+
+    const handleClose = () => {
+        Keyboard.dismiss();
+        setIsFocused(false);
+        onClose();
+    };
 
     const handleSubmit = async () => {
+        Keyboard.dismiss();
         if (!message.trim()) {
             Alert.alert(t('required', 'Required'), t('feedback_message_required', 'Please enter your message first.'));
             return;
@@ -57,6 +68,7 @@ export const AppFeedbackSheet: React.FC<AppFeedbackSheetProps> = ({ visible, onC
             });
 
             setMessage('');
+            setIsFocused(false);
             onClose();
             Alert.alert(
                 t('feedback_submitted', 'Feedback submitted! 🎉'),
@@ -75,7 +87,8 @@ export const AppFeedbackSheet: React.FC<AppFeedbackSheetProps> = ({ visible, onC
     return (
         <AppBottomSheet
             visible={visible}
-            onClose={onClose}
+            onClose={handleClose}
+            scrollViewRef={scrollViewRef}
             title={t('app_feedback', 'App Feedback')}
             footer={
                 <TouchableOpacity
@@ -99,18 +112,27 @@ export const AppFeedbackSheet: React.FC<AppFeedbackSheetProps> = ({ visible, onC
                 </TouchableOpacity>
             }
         >
-            {/* Hero Header */}
-            <View style={styles.heroWrapper}>
-                <View style={[styles.iconCircle, { backgroundColor: `${primaryColor}18` }]}>
-                    <MessageSquare color={primaryColor} size={28} />
+            {/* Hero Header - Adaptive between full view and compact typing mode */}
+            {!isFocused ? (
+                <View style={styles.heroWrapper}>
+                    <View style={[styles.iconCircle, { backgroundColor: `${primaryColor}18` }]}>
+                        <MessageSquare color={primaryColor} size={28} />
+                    </View>
+                    <Text style={[styles.heroTitle, { color: theme.colors.textPrimary }]}>
+                        {t('help_us_improve', 'Help Us Improve')}
+                    </Text>
+                    <Text style={[styles.heroSub, { color: theme.colors.textSecondary }]}>
+                        {t('feedback_desc', 'Found a bug or have a suggestion? Tell us about it.')}
+                    </Text>
                 </View>
-                <Text style={[styles.heroTitle, { color: theme.colors.textPrimary }]}>
-                    {t('help_us_improve', 'Help Us Improve')}
-                </Text>
-                <Text style={[styles.heroSub, { color: theme.colors.textSecondary }]}>
-                    {t('feedback_desc', 'Found a bug or have a suggestion? Tell us about it.')}
-                </Text>
-            </View>
+            ) : (
+                <View style={[styles.compactHeroWrapper, { backgroundColor: `${primaryColor}12` }]}>
+                    <MessageSquare color={primaryColor} size={16} />
+                    <Text style={[styles.compactHeroText, { color: theme.colors.textSecondary }]}>
+                        {t('feedback_desc', 'Found a bug or have a suggestion? Tell us about it.')}
+                    </Text>
+                </View>
+            )}
 
             {/* Input Area */}
             <View style={styles.inputGroup}>
@@ -122,16 +144,24 @@ export const AppFeedbackSheet: React.FC<AppFeedbackSheetProps> = ({ visible, onC
                         styles.textArea,
                         {
                             backgroundColor: theme.colors.surfaceSubtle,
-                            borderColor: theme.colors.border,
+                            borderColor: isFocused ? primaryColor : theme.colors.border,
+                            borderWidth: isFocused ? 1.5 : 1,
                             color: theme.colors.textPrimary,
                         },
                     ]}
                     value={message}
                     onChangeText={setMessage}
+                    onFocus={() => {
+                        setIsFocused(true);
+                        setTimeout(() => {
+                            scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+                        }, 50);
+                    }}
+                    onBlur={() => setIsFocused(false)}
                     placeholder={t('feedback_placeholder', 'Describe your experience or suggestion in detail...')}
                     placeholderTextColor={theme.colors.textDisabled}
                     multiline
-                    numberOfLines={5}
+                    numberOfLines={4}
                     editable={!isSubmitting}
                     textAlignVertical="top"
                 />
@@ -164,6 +194,20 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingVertical: 12,
     },
+    compactHeroWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 10,
+        gap: 8,
+        marginVertical: 4,
+    },
+    compactHeroText: {
+        fontSize: 12,
+        fontWeight: '500',
+        flex: 1,
+    },
     iconCircle: {
         width: 56,
         height: 56,
@@ -185,7 +229,7 @@ const styles = StyleSheet.create({
         lineHeight: 18,
     },
     inputGroup: {
-        marginVertical: 12,
+        marginVertical: 10,
     },
     inputLabel: {
         fontSize: 11,
@@ -195,10 +239,9 @@ const styles = StyleSheet.create({
     },
     textArea: {
         borderRadius: 14,
-        borderWidth: 1,
         padding: 14,
         fontSize: 14,
-        minHeight: 110,
+        minHeight: 100,
         textAlignVertical: 'top',
     },
     infoBanner: {
@@ -238,3 +281,4 @@ const styles = StyleSheet.create({
         fontWeight: '700',
     },
 });
+

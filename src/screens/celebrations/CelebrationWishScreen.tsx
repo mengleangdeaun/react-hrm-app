@@ -35,6 +35,7 @@ import { EmptyState } from '../../components/common/EmptyState';
 import { ListSkeleton } from '../../components/common/Skeletons';
 import { useTranslation } from '../../context/LanguageContext';
 import { celebrationApi, CelebrantItem, WishItem } from '../../api/celebration';
+import { queryKeys } from '../../api/queryKeys';
 import { formatRelativeTime } from '../../utils/dateTime';
 
 const BIRTHDAY_PRESETS = [
@@ -90,7 +91,7 @@ export const CelebrationWishScreen: React.FC<{ navigation: any; route: any }> = 
         data: celebrants = [],
         isLoading: isCelebrantsLoading,
     } = useQuery<CelebrantItem[]>({
-        queryKey: ['celebrations'],
+        queryKey: queryKeys.celebrations.list,
         queryFn: celebrationApi.getCelebrations,
     });
 
@@ -132,7 +133,7 @@ export const CelebrationWishScreen: React.FC<{ navigation: any; route: any }> = 
 
     // Received wishes query (when self view)
     const { data: myWishes = [], isLoading: isLoadingMyWishes } = useQuery<WishItem[]>({
-        queryKey: ['myWishes'],
+        queryKey: queryKeys.celebrations.myWishes,
         queryFn: celebrationApi.getMyWishes,
         enabled: isSelf,
     });
@@ -153,9 +154,9 @@ export const CelebrationWishScreen: React.FC<{ navigation: any; route: any }> = 
             if (selectedCelebrant) {
                 setSentCelebrantIds((prev) => [...new Set([...prev, String(selectedCelebrant.id)])]);
             }
-            queryClient.invalidateQueries({ queryKey: ['celebrations'] });
-            queryClient.invalidateQueries({ queryKey: ['myWishes'] });
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+            queryClient.invalidateQueries({ queryKey: queryKeys.celebrations.all });
+            queryClient.invalidateQueries({ queryKey: queryKeys.celebrations.myWishes });
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
             Alert.alert(
                 t('wish_sent', 'Wish Sent! 🎉'),
                 t('wish_sent_desc', 'Your celebratory wish has been delivered to your colleague.'),
@@ -924,7 +925,7 @@ const styles = StyleSheet.create({
     emptyWishesBox: {
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 32,
+        padding: 20,
         borderRadius: 16,
         borderWidth: 1,
         borderStyle: 'dashed',
@@ -935,7 +936,7 @@ const styles = StyleSheet.create({
         textAlign: 'center',
     },
     wishItemCard: {
-        padding: 14,
+        padding: 16,
         marginBottom: 10,
     },
     wishSenderRow: {

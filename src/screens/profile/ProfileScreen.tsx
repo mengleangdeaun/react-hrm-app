@@ -17,6 +17,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { profileApi, ProfileData } from '../../api/profile';
+import { queryKeys } from '../../api/queryKeys';
 import { AppText as Text } from '../../components/AppText';
 import { AppShell } from '../../components/common/AppShell';
 import { AppHeader, HeaderIconButton } from '../../components/common/AppHeader';
@@ -55,7 +56,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
     // Query with 10-minute cache & robust response unwrapping
     const { data: profileData, isFetching, refetch } = useQuery<ProfileData>({
-        queryKey: ['profile'],
+        queryKey: queryKeys.auth.profile,
         queryFn: async () => {
             const res = await profileApi.getProfile();
             return res?.data?.employee || res?.employee || res?.data || res;
@@ -80,7 +81,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         onSuccess: (res, uri) => {
             Alert.alert(t('success', 'Success!'), t('avatar_updated', 'Profile photo updated successfully.'));
             const newUrl = res?.profile_image_url || res?.profile_image || uri;
-            queryClient.setQueryData(['profile'], (oldData: any) => ({
+            queryClient.setQueryData(queryKeys.auth.profile, (oldData: any) => ({
                 ...(oldData || {}),
                 profile_image_url: newUrl,
                 profile_image: newUrl,
@@ -150,7 +151,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
     const handleRefresh = async () => {
         setAvatarLoadError(false);
-        await queryClient.invalidateQueries({ queryKey: ['profile'] });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.auth.profile });
         refetch();
     };
 
@@ -495,7 +496,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     infoCard: {
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg,
-        padding: theme.spacing.md,
+        padding: theme.spacing.cardPadding,
         marginBottom: theme.spacing.lg,
         borderWidth: 1,
         borderColor: theme.colors.border,

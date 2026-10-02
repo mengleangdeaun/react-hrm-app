@@ -8,6 +8,9 @@ import {
     Alert,
     Modal,
     RefreshControl,
+    Linking,
+    AppState,
+    Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
@@ -20,6 +23,7 @@ import { useAppTheme, FontSizeScaleId } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { getDeviceId } from '../../utils/device';
 import { profileApi, UserPreferences, PwaInfo } from '../../api/profile';
+import { queryKeys } from '../../api/queryKeys';
 import { AppText as Text } from '../../components/AppText';
 import { AppFeedbackSheet } from '../../components/AppFeedbackSheet';
 import { LegalDocumentSheet } from '../../components/common/LegalDocumentSheet';
@@ -81,7 +85,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
     // React Query: Fetch Preferences
     const { data: prefs, isFetching: isFetchingPrefs } = useQuery<UserPreferences>({
-        queryKey: ['userPreferences'],
+        queryKey: queryKeys.auth.preferences,
         queryFn: async () => {
             const res = await profileApi.getPreferences();
             return res?.data || res;
@@ -91,7 +95,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
     // React Query: Fetch PWA Info (App Version, Privacy Policy, Terms)
     const { data: pwaInfo } = useQuery<PwaInfo>({
-        queryKey: ['pwaInfo'],
+        queryKey: queryKeys.auth.pwaInfo,
         queryFn: async () => {
             const res = await profileApi.getPwaInfo();
             return res?.data || res;
@@ -104,9 +108,9 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         mutationFn: (newPrefs: Partial<UserPreferences>) =>
             profileApi.updatePreferences({ ...(prefs || {}), ...newPrefs }),
         onMutate: async (newPrefs) => {
-            await queryClient.cancelQueries({ queryKey: ['userPreferences'] });
-            const previousPrefs = queryClient.getQueryData<UserPreferences>(['userPreferences']);
-            queryClient.setQueryData(['userPreferences'], (old: any) => ({
+            await queryClient.cancelQueries({ queryKey: queryKeys.auth.preferences });
+            const previousPrefs = queryClient.getQueryData<UserPreferences>(queryKeys.auth.preferences);
+            queryClient.setQueryData(queryKeys.auth.preferences, (old: any) => ({
                 ...(old || {}),
                 ...newPrefs,
             }));
@@ -114,17 +118,41 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         },
         onError: (_err, _newPrefs, context) => {
             if (context?.previousPrefs) {
-                queryClient.setQueryData(['userPreferences'], context.previousPrefs);
+                queryClient.setQueryData(queryKeys.auth.preferences, context.previousPrefs);
             }
             Alert.alert(t('error', 'Error'), t('sync_failed', 'Failed to sync preferences. Please try again.'));
         },
         onSettled: () => {
-            queryClient.invalidateQueries({ queryKey: ['userPreferences'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.auth.preferences });
         },
     });
 
+    const checkPermissions = async () => {
+        try {
+            const cam = await Camera.Camera.getCameraPermissionsAsync();
+            setCameraPermissionGranted(cam.granted);
+
+            const loc = await Location.getForegroundPermissionsAsync();
+            setLocationPermissionGranted(loc.granted);
+
+            const notif = await Notifications.getPermissionsAsync();
+            setNotificationsPermissionGranted(notif.granted);
+        } catch {
+            // Ignore errors in background check
+        }
+    };
+
     useEffect(() => {
         initSettings();
+
+        // Listen for foregrounding to refresh permissions if changed in system settings
+        const subscription = AppState.addEventListener('change', (nextAppState: any) => {
+            if (nextAppState === 'active') {
+                checkPermissions();
+            }
+        });
+
+        return () => subscription.remove();
     }, []);
 
     // Sync initial preferences from server when fetched
@@ -142,16 +170,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     const initSettings = async () => {
         const devId = await getDeviceId();
         setDeviceId(devId);
-
-        // Check Permissions
-        const cam = await Camera.Camera.getCameraPermissionsAsync();
-        setCameraPermissionGranted(cam.granted);
-
-        const loc = await Location.getForegroundPermissionsAsync();
-        setLocationPermissionGranted(loc.granted);
-
-        const notif = await Notifications.getPermissionsAsync();
-        setNotificationsPermissionGranted(notif.granted);
+        await checkPermissions();
     };
 
     const handleToggleDarkMode = (val: boolean) => {
@@ -173,10 +192,48 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
     const handleToggleNotifications = async (val: boolean) => {
         if (val) {
-            const res = await Notifications.requestPermissionsAsync();
-            setNotificationsPermissionGranted(res.granted);
+            const currentPerm = await Notifications.getPermissionsAsync();
+            let granted = currentPerm.granted;
+
+            if (!granted) {
+                const res = await Notifications.requestPermissionsAsync();
+                granted = res.granted;
+                setNotificationsPermissionGranted(granted);
+            }
+
+            if (!granted) {
+                // User clicked "Don't Allow" or OS denied: keep toggle strictly OFF
+                setNotificationsPermissionGranted(false);
+                updatePrefMutation.mutate({ notifications_enabled: false });
+
+                Alert.alert(
+                    t('permission_required', 'Permission Required'),
+                    t(
+                        'notifications_permission_denied_hint',
+                        'Notification permission is disabled. Please enable notifications in device settings to receive alerts.'
+                    ),
+                    [
+                        { text: t('cancel', 'Cancel'), style: 'cancel' },
+                        {
+                            text: t('open_settings', 'Open Settings'),
+                            onPress: () => {
+                                if (Platform.OS === 'ios') {
+                                    Linking.openURL('app-settings:');
+                                } else {
+                                    Linking.openSettings();
+                                }
+                            },
+                        },
+                    ]
+                );
+                return;
+            }
+
+            setNotificationsPermissionGranted(true);
+            updatePrefMutation.mutate({ notifications_enabled: true });
+        } else {
+            updatePrefMutation.mutate({ notifications_enabled: false });
         }
-        updatePrefMutation.mutate({ notifications_enabled: val });
     };
 
     const handleRequestCamera = async () => {
@@ -192,9 +249,39 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     };
 
     const handleRequestNotifications = async () => {
-        const res = await Notifications.requestPermissionsAsync();
-        setNotificationsPermissionGranted(res.granted);
-        updatePrefMutation.mutate({ notifications_enabled: res.granted });
+        const currentPerm = await Notifications.getPermissionsAsync();
+        let granted = currentPerm.granted;
+
+        if (!granted) {
+            const res = await Notifications.requestPermissionsAsync();
+            granted = res.granted;
+        }
+
+        setNotificationsPermissionGranted(granted);
+        updatePrefMutation.mutate({ notifications_enabled: granted });
+
+        if (!granted) {
+            Alert.alert(
+                t('permission_required', 'Permission Required'),
+                t(
+                    'notifications_permission_denied_hint',
+                    'Notification permission is disabled. Please enable notifications in device settings to receive alerts.'
+                ),
+                [
+                    { text: t('cancel', 'Cancel'), style: 'cancel' },
+                    {
+                        text: t('open_settings', 'Open Settings'),
+                        onPress: () => {
+                            if (Platform.OS === 'ios') {
+                                Linking.openURL('app-settings:');
+                            } else {
+                                Linking.openSettings();
+                            }
+                        },
+                    },
+                ]
+            );
+        }
     };
 
     const handleClearStorageCache = () => {
@@ -405,7 +492,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                             </View>
                         </View>
                         <Switch
-                            value={prefs?.notifications_enabled ?? notificationsPermissionGranted}
+                            value={notificationsPermissionGranted && Boolean(prefs?.notifications_enabled ?? true)}
                             onValueChange={handleToggleNotifications}
                             trackColor={{ false: theme.colors.border, true: primaryColor }}
                         />
@@ -666,7 +753,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     card: {
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg,
-        padding: theme.spacing.md,
+        padding: theme.spacing.cardPadding,
         marginBottom: theme.spacing.lg,
         borderWidth: 1,
         borderColor: theme.colors.border,

@@ -40,6 +40,7 @@ import { AppShell } from '../../components/common/AppShell';
 import { HeaderIconButton } from '../../components/common/AppHeader';
 import { EmptyState } from '../../components/common/EmptyState';
 import { calendarApi } from '../../api/calendar';
+import { queryKeys } from '../../api/queryKeys';
 import { MonthCalendarGrid } from '../../components/calendar/MonthCalendarGrid';
 
 import { useTranslation } from '../../context/LanguageContext';
@@ -60,7 +61,7 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
 
     // Query Calendar Data
     const { data, isLoading, isRefetching, refetch } = useQuery({
-        queryKey: ['calendarData', yearNumber, monthNumber],
+        queryKey: queryKeys.calendar.month(yearNumber, monthNumber),
         queryFn: () => calendarApi.getCalendarData(monthNumber, yearNumber),
         staleTime: 5 * 60 * 1000,
     });
@@ -69,14 +70,14 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
     useEffect(() => {
         const prev = subMonths(currentMonth, 1);
         queryClient.prefetchQuery({
-            queryKey: ['calendarData', prev.getFullYear(), prev.getMonth() + 1],
+            queryKey: queryKeys.calendar.month(prev.getFullYear(), prev.getMonth() + 1),
             queryFn: () => calendarApi.getCalendarData(prev.getMonth() + 1, prev.getFullYear()),
             staleTime: 5 * 60 * 1000,
         });
 
         const next = addMonths(currentMonth, 1);
         queryClient.prefetchQuery({
-            queryKey: ['calendarData', next.getFullYear(), next.getMonth() + 1],
+            queryKey: queryKeys.calendar.month(next.getFullYear(), next.getMonth() + 1),
             queryFn: () => calendarApi.getCalendarData(next.getMonth() + 1, next.getFullYear()),
             staleTime: 5 * 60 * 1000,
         });
@@ -807,8 +808,8 @@ const styles = StyleSheet.create({
         marginTop: 1,
     },
     selectedDayCard: {
-        padding: 12,
-        borderRadius: 14,
+        padding: 16,
+        borderRadius: 16,
         borderWidth: 1,
         marginBottom: 12,
     },
@@ -875,7 +876,7 @@ const styles = StyleSheet.create({
         gap: 10,
     },
     shiftBanner: {
-        padding: 14,
+        padding: 16,
         borderRadius: 16,
         borderWidth: 1,
         marginBottom: 4,
@@ -908,8 +909,8 @@ const styles = StyleSheet.create({
         marginBottom: 2,
     },
     dayScheduleCard: {
-        padding: 12,
-        borderRadius: 14,
+        padding: 16,
+        borderRadius: 16,
         borderWidth: 1,
     },
     dayScheduleHeader: {
@@ -974,7 +975,7 @@ const styles = StyleSheet.create({
     },
     itemCard: {
         flexDirection: 'row',
-        padding: 12,
+        padding: 16,
         borderRadius: 16,
         borderWidth: 1,
         alignItems: 'center',

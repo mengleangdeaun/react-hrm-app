@@ -987,7 +987,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         position: 'relative',
     },
     questionPillActive: {
-        borderWidth: 2,
+        borderWidth: 1,
     },
     questionPillAnswered: {
         backgroundColor: theme.colors.surface,
@@ -1214,7 +1214,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     emptyCard: {
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg,
-        padding: theme.spacing.xxl,
+        padding: theme.spacing.cardPadding,
         alignItems: 'center',
         borderWidth: 1,
         borderColor: theme.colors.border,
@@ -1316,18 +1316,18 @@ const stylesheet = StyleSheet.create((theme) => ({
         alignItems: 'center',
         padding: theme.spacing.md,
         borderRadius: theme.borderRadius.md,
-        borderWidth: 1.2,
+        borderWidth: 1,
         borderColor: theme.colors.border,
         backgroundColor: theme.colors.surface,
     },
     optionCardSelected: {
-        borderWidth: 1.5,
+        borderWidth: 1,
     },
     optIndicator: {
         width: 28,
         height: 28,
         borderRadius: 14,
-        borderWidth: 1.5,
+        borderWidth: 1,
         borderColor: theme.colors.borderStrong,
         justifyContent: 'center',
         alignItems: 'center',

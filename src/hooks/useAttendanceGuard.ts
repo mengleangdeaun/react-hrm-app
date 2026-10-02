@@ -1,6 +1,7 @@
 import { useMemo, useCallback } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
+import { queryKeys } from '../api/queryKeys';
 
 export interface ProactiveGuardStatus {
     require_reason: boolean;
@@ -18,7 +19,7 @@ export interface ReasonPresetItem {
 
 export function useAttendanceGuard() {
     const { data: bootstrapData } = useQuery({
-        queryKey: ['dashboardBootstrap'],
+        queryKey: queryKeys.dashboard.bootstrap,
         queryFn: async () => {
             const response = await apiClient.get('/employee-app/bootstrap');
             return response.data;

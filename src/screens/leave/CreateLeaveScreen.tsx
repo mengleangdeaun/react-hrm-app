@@ -15,9 +15,11 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { leaveApi, LeaveBalance } from '../../api/leave';
+import { queryKeys } from '../../api/queryKeys';
 import { useAppTheme } from '../../context/ThemeContext';
 import { AppShell } from '../../components/common/AppShell';
 import { AppButton } from '../../components/common/AppButton';
+import { AppInput } from '../../components/common/AppInput';
 import { HeaderIconButton } from '../../components/common/AppHeader';
 import { CreateLeaveSkeleton } from '../../components/common/Skeletons';
 import { NativeDatePickerField } from '../../components/common/NativeDatePickerField';
@@ -64,7 +66,7 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
     ], [t]);
 
     const { data: balances = [], isLoading } = useQuery<LeaveBalance[]>({
-        queryKey: ['leaveBalances'],
+        queryKey: queryKeys.leave.balances,
         queryFn: async () => {
             const res = await leaveApi.getMyBalances().catch(() => null);
             if (Array.isArray(res)) return res;
@@ -319,9 +321,9 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
 
             // Cache Invalidation
             await Promise.all([
-                queryClient.invalidateQueries({ queryKey: ['leaveBalances'] }),
-                queryClient.invalidateQueries({ queryKey: ['leaveRequests'] }),
-                queryClient.invalidateQueries({ queryKey: ['dashboardBootstrap'] }),
+                queryClient.invalidateQueries({ queryKey: queryKeys.leave.balances }),
+                queryClient.invalidateQueries({ queryKey: queryKeys.leave.all }),
+                queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.bootstrap }),
             ]);
 
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -597,17 +599,14 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
                                 {reason.length} / 300
                             </Text>
                         </View>
-                        <TextInput
-                            style={[
-                                styles.input,
-                                styles.textArea,
-                                reasonTouched && !reason.trim() && styles.inputError,
-                            ]}
+                        <AppInput
                             value={reason}
                             onChangeText={(text: string) => {
-                                setReason(text);
-                                if (text.trim() && reasonTouched) {
-                                    setReasonTouched(false);
+                                if (text.length <= 300) {
+                                    setReason(text);
+                                    if (text.trim() && reasonTouched) {
+                                        setReasonTouched(false);
+                                    }
                                 }
                             }}
                             onBlur={() => {
@@ -619,13 +618,8 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
                             placeholderTextColor={theme.colors.textDisabled}
                             multiline
                             numberOfLines={4}
-                            maxLength={300}
+                            error={reasonTouched && !reason.trim() ? t('reason_required_error', 'Reason is required before submitting your application.') : undefined}
                         />
-                        {reasonTouched && !reason.trim() && (
-                            <Text style={styles.fieldErrorText}>
-                                {t('reason_required_error', 'Reason is required before submitting your application.')}
-                            </Text>
-                        )}
                     </View>
 
                     {/* 5. Document Attachment Card */}
@@ -766,15 +760,15 @@ const stylesheet = StyleSheet.create((theme) => ({
     balanceCard: {
         backgroundColor: theme.colors.surface,
         borderRadius: 16,
-        padding: 14,
+        padding: 16,
         marginRight: 12,
         width: 168,
-        borderWidth: 1.5,
+        borderWidth: 1,
         borderColor: theme.colors.border,
     },
     balanceCardSelected: {
         borderColor: theme.colors.brand,
-        borderWidth: 1.5,
+        borderWidth: 1,
         backgroundColor: theme.colors.brandSubtle,
     },
     balanceCardHeader: {
@@ -833,7 +827,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         gap: 10,
         backgroundColor: theme.colors.surfaceSubtle,
         borderRadius: 12,
-        padding: 14,
+        padding: 16,
         marginBottom: theme.spacing.md,
         borderWidth: 1,
         borderColor: theme.colors.border,

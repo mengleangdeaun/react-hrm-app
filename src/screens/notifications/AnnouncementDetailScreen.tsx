@@ -19,6 +19,7 @@ import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { apiClient } from '../../api/client';
 import { notificationApi } from '../../api/notification';
+import { queryKeys } from '../../api/queryKeys';
 import { AppText as Text } from '../../components/AppText';
 import { AppHeader } from '../../components/common/AppHeader';
 import { AppMarkdown } from '../../components/common/AppMarkdown';
@@ -85,7 +86,7 @@ export const AnnouncementDetailScreen: React.FC<{ route: any; navigation: any }>
 
     // 10-minute React Query Caching for Announcement Detail
     const { data: announcementData, isLoading: isLoadingQuery } = useQuery({
-        queryKey: ['announcementDetail', announcementId || notificationId],
+        queryKey: queryKeys.notifications.announcement(announcementId || notificationId || 'default'),
         queryFn: async () => {
             if (!announcementId) return notificationItem;
             try {
@@ -105,7 +106,7 @@ export const AnnouncementDetailScreen: React.FC<{ route: any; navigation: any }>
         // Mark as read on backend & update React Query cache if coming from notification
         if (notificationId) {
             notificationApi.markAsRead(notificationId).catch(() => null);
-            queryClient.setQueryData<any[]>(['notificationsList'], (old) =>
+            queryClient.setQueryData<any[]>(queryKeys.notifications.list, (old) =>
                 (old || []).map((n) => (n.id === notificationId ? { ...n, read_at: new Date().toISOString() } : n))
             );
         }
@@ -491,7 +492,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         flexDirection: 'row',
         alignItems: 'center',
         backgroundColor: theme.colors.surface,
-        padding: theme.spacing.md,
+        padding: theme.spacing.cardPadding,
         borderRadius: theme.borderRadius.lg,
         borderWidth: 1,
         borderColor: theme.colors.border,

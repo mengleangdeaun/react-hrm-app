@@ -16,6 +16,7 @@ import { useAttendanceGuard } from '../../hooks/useAttendanceGuard';
 import { useAuth } from '../../context/AuthContext';
 import { useAppTheme } from '../../context/ThemeContext';
 import { apiClient } from '../../api/client';
+import { queryKeys } from '../../api/queryKeys';
 import {
     QrCode,
     Calendar,
@@ -74,7 +75,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         isFetching,
         refetch,
     } = useQuery({
-        queryKey: ['dashboardBootstrap'],
+        queryKey: queryKeys.dashboard.bootstrap,
         queryFn: async () => {
             const response = await apiClient.get('/employee-app/bootstrap');
             return response.data;
@@ -207,74 +208,86 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
     const showAvatarImage = !!avatarUrl && !avatarLoadError;
 
     // ── Dynamic Quick Actions with 100% PWA parity ────────────────────────────
-    const quickActions = [
-        {
-            id: 'attendance',
-            title: t('attendance_log', 'Attendance Log'),
-            subtitle: t('past_punch_records', 'Past Punch Records'),
-            icon: History,
-            iconColor: '#10B981',
-            bgColor: 'rgba(16, 185, 129, 0.12)',
-            route: 'History',
-        },
-        {
-            id: 'activity',
-            title: t('activity_log', 'Activity Log'),
-            subtitle: t('log_daily_tasks', 'Log Daily Tasks'),
-            icon: Activity,
-            iconColor: '#F97316',
-            bgColor: 'rgba(249, 115, 22, 0.12)',
-            route: 'CreateActivity',
-        },
-        {
-            id: 'leave',
-            title: t('leave_requests', 'Leave Requests'),
-            subtitle: t('apply_and_balances', 'Apply & Balances'),
-            icon: Calendar,
-            iconColor: '#8B5CF6',
-            bgColor: 'rgba(139, 92, 246, 0.12)',
-            route: 'CreateLeave',
-        },
-        {
-            id: 'day_off',
-            title: t('day_off', 'Day Off'),
-            subtitle: t('rest_schedule', 'Rest Schedule'),
-            icon: CalendarOff,
-            iconColor: '#EF4444',
-            bgColor: 'rgba(239, 68, 68, 0.12)',
-            route: 'DayOff',
-        },
-        {
-            id: 'calendar',
-            title: t('schedule_calendar', 'Schedule Calendar'),
-            subtitle: t('shifts_and_holidays', 'Shifts & Holidays'),
-            icon: Calendar,
-            iconColor: '#0EA5E9',
-            bgColor: 'rgba(14, 165, 233, 0.12)',
-            route: 'CalendarTab',
-        },
-        {
-            id: 'quizzes',
-            title: t('quizzes', 'Quizzes'),
-            subtitle: t('training_and_tests', 'Training & Tests'),
-            icon: Award,
-            iconColor: '#6366F1',
-            bgColor: 'rgba(99, 102, 241, 0.12)',
-            route: 'QuizList',
-        },
-    ];
+    const quickActions = useMemo(() => {
+        const actions: Array<{
+            id: string;
+            title: string;
+            subtitle: string;
+            icon: any;
+            iconColor: string;
+            bgColor: string;
+            route: string;
+        }> = [
+            {
+                id: 'attendance',
+                title: t('attendance_log', 'Attendance Log'),
+                subtitle: t('past_punch_records', 'Past Punch Records'),
+                icon: History,
+                iconColor: theme.colors.status.success,
+                bgColor: theme.colors.status.successSubtle,
+                route: 'History',
+            },
+            {
+                id: 'activity',
+                title: t('activity_log', 'Activity Log'),
+                subtitle: t('log_daily_tasks', 'Log Daily Tasks'),
+                icon: Activity,
+                iconColor: theme.colors.status.warning,
+                bgColor: theme.colors.status.warningSubtle,
+                route: 'CreateActivity',
+            },
+            {
+                id: 'leave',
+                title: t('leave_requests', 'Leave Requests'),
+                subtitle: t('apply_and_balances', 'Apply & Balances'),
+                icon: Calendar,
+                iconColor: theme.colors.status.purple,
+                bgColor: theme.colors.status.purpleSubtle,
+                route: 'CreateLeave',
+            },
+            {
+                id: 'day_off',
+                title: t('day_off', 'Day Off'),
+                subtitle: t('rest_schedule', 'Rest Schedule'),
+                icon: CalendarOff,
+                iconColor: theme.colors.status.danger,
+                bgColor: theme.colors.status.dangerSubtle,
+                route: 'DayOff',
+            },
+            {
+                id: 'calendar',
+                title: t('schedule_calendar', 'Schedule Calendar'),
+                subtitle: t('shifts_and_holidays', 'Shifts & Holidays'),
+                icon: Calendar,
+                iconColor: theme.colors.status.cyan,
+                bgColor: theme.colors.status.cyanSubtle,
+                route: 'CalendarTab',
+            },
+            {
+                id: 'quizzes',
+                title: t('quizzes', 'Quizzes'),
+                subtitle: t('training_and_tests', 'Training & Tests'),
+                icon: Award,
+                iconColor: theme.colors.status.info,
+                bgColor: theme.colors.status.infoSubtle,
+                route: 'QuizList',
+            },
+        ];
 
-    if (employeeInfo?.is_top_management || (employeeInfo?.subordinates_count ?? 0) > 0) {
-        quickActions.push({
-            id: 'subordinate_notices',
-            title: t('staff_notices', 'Staff Notices'),
-            subtitle: t('subordinate_feed', 'Subordinate Feed'),
-            icon: FileText,
-            iconColor: '#D946EF',
-            bgColor: 'rgba(217, 70, 239, 0.12)',
-            route: 'SubordinateNotices',
-        });
-    }
+        if (employeeInfo?.is_top_management || (employeeInfo?.subordinates_count ?? 0) > 0) {
+            actions.push({
+                id: 'subordinate_notices',
+                title: t('staff_notices', 'Staff Notices'),
+                subtitle: t('subordinate_feed', 'Subordinate Feed'),
+                icon: FileText,
+                iconColor: theme.colors.status.pink,
+                bgColor: theme.colors.status.pinkSubtle,
+                route: 'SubordinateNotices',
+            });
+        }
+
+        return actions;
+    }, [theme, t, employeeInfo?.is_top_management, employeeInfo?.subordinates_count]);
 
     const bannerSubHeader = topBannerAnnouncement ? (
         <View style={styles.topBanner}>
@@ -289,6 +302,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                     onPress={() => navigation.navigate('AnnouncementDetail', { id: topBannerAnnouncement.id })}
                     style={styles.topBannerBtn}
                     activeOpacity={0.8}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     accessibilityRole="button"
                     accessibilityLabel="View announcement"
                 >
@@ -321,6 +335,7 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                             style={styles.avatarImage}
                             contentFit="cover"
                             cachePolicy="memory-disk"
+                            transition={200}
                             onError={() => setAvatarLoadError(true)}
                         />
                     ) : (
@@ -694,9 +709,11 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     clockCard: {
         backgroundColor: theme.colors.surface,
-        borderRadius: theme.borderRadius.lg + 4,
-        padding: theme.spacing.lg,
+        borderRadius: theme.borderRadius.lg,
+        padding: theme.spacing.cardPadding,
         marginBottom: theme.spacing.lg,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
     },
     clockHeader: {
         flexDirection: 'row',
@@ -715,10 +732,10 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textSecondary,
     },
     digitalClockText: {
-        fontSize: 28,
-        fontWeight: '900',
+        fontSize: 24,
+        fontWeight: '700',
         color: theme.colors.textPrimary,
-        letterSpacing: 1,
+        letterSpacing: 0.5,
         marginVertical: theme.spacing.xs,
         textAlign: 'center',
         alignSelf: 'center',
@@ -882,7 +899,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         minHeight: 114,
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg,
-        padding: theme.spacing.md,
+        padding: theme.spacing.cardPadding,
         marginBottom: theme.spacing.md,
         borderWidth: 1,
         borderColor: theme.colors.border,
@@ -923,7 +940,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     announcementCard: {
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg,
-        padding: theme.spacing.md,
+        padding: theme.spacing.cardPadding,
         marginBottom: theme.spacing.sm + 2,
         borderWidth: 1,
         borderColor: theme.colors.border,
@@ -954,7 +971,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     celebrationCard: {
         backgroundColor: 'rgba(236, 72, 153, 0.1)',
         borderRadius: theme.borderRadius.lg,
-        padding: theme.spacing.md,
+        padding: theme.spacing.cardPadding,
         flexDirection: 'row',
         alignItems: 'center',
         borderWidth: 1,

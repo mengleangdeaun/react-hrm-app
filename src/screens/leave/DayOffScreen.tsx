@@ -25,9 +25,12 @@ import { AppText as Text } from '../../components/AppText';
 import { useAppTheme } from '../../context/ThemeContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
 import { AppShell } from '../../components/common/AppShell';
+import { AppCard } from '../../components/common/AppCard';
 import { AppInput } from '../../components/common/AppInput';
 import { AppButton } from '../../components/common/AppButton';
+import { StatusBadge } from '../../components/common/StatusBadge';
 import { HeaderIconButton } from '../../components/common/AppHeader';
+import { queryKeys } from '../../api/queryKeys';
 import { NativeDatePickerField } from '../../components/common/NativeDatePickerField';
 import { useTranslation } from '../../context/LanguageContext';
 import {
@@ -81,7 +84,7 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
         isRefetching: isInfoRefetching,
         refetch: refetchInfo,
     } = useQuery<DayOffInfo>({
-        queryKey: ['dayOffInfo'],
+        queryKey: queryKeys.leave.dayOffInfo,
         queryFn: dayOffApi.getDayOffInfo,
     });
 
@@ -91,7 +94,7 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
         isRefetching: isRequestsRefetching,
         refetch: refetchRequests,
     } = useQuery<DayOffRequestItem[]>({
-        queryKey: ['dayOffRequests'],
+        queryKey: queryKeys.leave.dayOffRequests,
         queryFn: dayOffApi.getMyRequests,
     });
 
@@ -101,7 +104,7 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
         isRefetching: isTeamRefetching,
         refetch: refetchTeam,
     } = useQuery<DayOffRequestItem[]>({
-        queryKey: ['teamDayOffRequests'],
+        queryKey: queryKeys.leave.teamDayOffRequests,
         queryFn: dayOffApi.getTeamApprovals,
     });
 
@@ -118,8 +121,8 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
         mutationFn: (payload: SubmitDayOffPayload) => dayOffApi.submitRequest(payload),
         onSuccess: () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-            queryClient.invalidateQueries({ queryKey: ['dayOffRequests'] });
-            queryClient.invalidateQueries({ queryKey: ['dayOffInfo'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.dayOffRequests });
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.dayOffInfo });
             setShowForm(false);
             resetForm();
             Alert.alert(t('success', 'Success'), t('request_submitted_successfully', 'Day-off change request submitted successfully.'));
@@ -134,8 +137,8 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
         mutationFn: (id: number) => dayOffApi.approveRequest(id),
         onSuccess: () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-            queryClient.invalidateQueries({ queryKey: ['teamDayOffRequests'] });
-            queryClient.invalidateQueries({ queryKey: ['dayOffInfo'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.teamDayOffRequests });
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.dayOffInfo });
             closeAction();
             Alert.alert(t('approved', 'Approved'), t('request_approved', 'Request approved successfully.'));
         },
@@ -149,7 +152,7 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
         mutationFn: ({ id, reason }: { id: number; reason: string }) => dayOffApi.rejectRequest(id, reason),
         onSuccess: () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
-            queryClient.invalidateQueries({ queryKey: ['teamDayOffRequests'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.teamDayOffRequests });
             closeAction();
             Alert.alert(t('rejected', 'Rejected'), t('request_rejected', 'Request rejected successfully.'));
         },
@@ -163,7 +166,7 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
         mutationFn: (id: number) => dayOffApi.cancelRequest(id),
         onSuccess: () => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-            queryClient.invalidateQueries({ queryKey: ['dayOffRequests'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.dayOffRequests });
             closeAction();
             Alert.alert(t('cancelled', 'Cancelled'), t('request_cancelled', 'Request cancelled.'));
         },
@@ -710,23 +713,13 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
                                 const requestedDays = req.requested_days_off || [];
 
                                 return (
-                                    <View
+                                    <AppCard
                                         key={req.id}
-                                        style={[styles.historyCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+                                        style={styles.historyCard}
                                     >
                                         {/* Status Header & Timestamps */}
                                         <View style={styles.historyCardHeader}>
-                                            <View
-                                                style={[
-                                                    styles.statusPill,
-                                                    { backgroundColor: statusInfo.bg, borderColor: statusInfo.border },
-                                                ]}
-                                            >
-                                                {statusInfo.icon}
-                                                <Text style={[styles.statusPillText, { color: statusInfo.color }]}>
-                                                    {statusInfo.label}
-                                                </Text>
-                                            </View>
+                                            <StatusBadge status={req.status} label={statusInfo.label} size="sm" />
                                             <View style={styles.dateBlock}>
                                                 <Text style={[styles.dateText, { color: theme.colors.textSecondary }]}>
                                                     {formatDateDisplay(req.created_at, 'dayMonth')}
@@ -772,8 +765,8 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
                                             <View style={[styles.diffSide, { justifyContent: 'flex-end' }]}>
                                                 {req.frequency === 'specific_dates' ? (
                                                     (req.specific_dates || []).map((d) => (
-                                                        <View key={d} style={[styles.dayChipSmall, { backgroundColor: 'rgba(245, 158, 11, 0.15)', borderColor: '#F59E0B' }]}>
-                                                            <Text style={[styles.dayChipSmallText, { color: '#F59E0B' }]}>
+                                                        <View key={d} style={[styles.dayChipSmall, { backgroundColor: theme.colors.status.warningSubtle, borderColor: theme.colors.status.warningBorder }]}>
+                                                            <Text style={[styles.dayChipSmallText, { color: theme.colors.status.warning }]}>
                                                                 {formatDateDisplay(d, 'dayMonth')}
                                                             </Text>
                                                         </View>
@@ -788,8 +781,8 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
                                                             </View>
                                                         ))}
                                                         {req.frequency === 'monthly' && req.weeks_of_month && (
-                                                            <View style={[styles.dayChipSmall, { backgroundColor: '#8B5CF6', borderColor: '#8B5CF6' }]}>
-                                                                <Text style={[styles.dayChipSmallText, { color: '#FFFFFF' }]}>
+                                                            <View style={[styles.dayChipSmall, { backgroundColor: theme.colors.status.purpleSubtle, borderColor: theme.colors.status.purpleBorder }]}>
+                                                                <Text style={[styles.dayChipSmallText, { color: theme.colors.status.purple }]}>
                                                                     W:{req.weeks_of_month.join(',')}
                                                                 </Text>
                                                             </View>
@@ -810,9 +803,9 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
 
                                         {/* Rejection Note */}
                                         {Boolean(req.rejection_reason) && (
-                                            <View style={[styles.rejectionBox, { backgroundColor: 'rgba(239, 68, 68, 0.08)', borderColor: 'rgba(239, 68, 68, 0.2)' }]}>
-                                                <X color="#EF4444" size={13} />
-                                                <Text style={[styles.rejectionText, { color: '#EF4444' }]}>
+                                            <View style={[styles.rejectionBox, { backgroundColor: theme.colors.status.dangerSubtle, borderColor: theme.colors.status.dangerBorder }]}>
+                                                <X color={theme.colors.status.danger} size={13} />
+                                                <Text style={[styles.rejectionText, { color: theme.colors.status.danger }]}>
                                                     {req.rejection_reason}
                                                 </Text>
                                             </View>
@@ -820,20 +813,18 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
 
                                         {/* Cancel Pending Request Button */}
                                         {req.status === 'pending' && (
-                                            <TouchableOpacity
+                                            <AppButton
+                                                title={t('cancel_request', 'Cancel Request')}
+                                                variant="destructive"
+                                                size="sm"
                                                 onPress={() => {
                                                     setActionId(Number(req.id));
                                                     setActionMode('cancel');
                                                 }}
-                                                style={[styles.cancelRequestBtn, { borderColor: 'rgba(239, 68, 68, 0.3)' }]}
-                                                activeOpacity={0.7}
-                                            >
-                                                <Text style={styles.cancelRequestBtnText}>
-                                                    {t('cancel_request', 'Cancel Request')}
-                                                </Text>
-                                            </TouchableOpacity>
+                                                fullWidth
+                                            />
                                         )}
-                                    </View>
+                                    </AppCard>
                                 );
                             })
                         )}
@@ -1165,7 +1156,7 @@ const styles = StyleSheet.create({
     historyCard: {
         borderRadius: 16,
         borderWidth: 1,
-        padding: 14,
+        padding: 16,
         marginBottom: 12,
     },
     historyCardHeader: {
@@ -1288,9 +1279,9 @@ const styles = StyleSheet.create({
         marginTop: 4,
     },
     emptyCard: {
-        borderRadius: 18,
+        borderRadius: 16,
         borderWidth: 1,
-        padding: 28,
+        padding: 20,
         alignItems: 'center',
         justifyContent: 'center',
         gap: 8,

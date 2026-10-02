@@ -26,9 +26,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, formatDateDisplay, formatTimeDisplay } from '../../utils/dateTime';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { activityApi, ActivityItem, OFFICIAL_ACTIVITY_TYPES } from '../../api/activity';
+import { queryKeys } from '../../api/queryKeys';
 import { useAppTheme } from '../../context/ThemeContext';
 import { AppShell } from '../../components/common/AppShell';
 import { HeaderIconButton } from '../../components/common/AppHeader';
+import { AppButton } from '../../components/common/AppButton';
 import { ActivityListSkeleton } from '../../components/common/Skeletons';
 import { EmptyState } from '../../components/common/EmptyState';
 import { AppBottomSheet } from '../../components/common/AppBottomSheet';
@@ -426,7 +428,7 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
         isLoading,
         isFetching,
     } = useQuery<ActivityItem[]>({
-        queryKey: ['activities', selectedMonth, selectedCategory],
+        queryKey: queryKeys.activity.list(selectedMonth, selectedCategory),
         queryFn: async () => {
             const params: any = { month: selectedMonth };
             if (selectedCategory !== 'all') {
@@ -439,7 +441,7 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
     });
 
     const onRefresh = useCallback(async () => {
-        await queryClient.invalidateQueries({ queryKey: ['activities'] });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.activity.all });
     }, [queryClient]);
 
     const openFilterModal = () => {
@@ -792,13 +794,11 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                     ) : undefined
                 }
                 footer={
-                    <TouchableOpacity
-                        style={styles.applyFilterBtn}
+                    <AppButton
+                        title={t('apply_filter', 'Apply Filter')}
                         onPress={handleApplyFilters}
-                        activeOpacity={0.85}
-                    >
-                        <Text style={styles.applyFilterBtnText}>{t('apply_filter', 'Apply Filter')}</Text>
-                    </TouchableOpacity>
+                        size="lg"
+                    />
                 }
             >
                 {/* 1. Review Month Picker */}
@@ -1181,19 +1181,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: '#FFFFFF',
         fontWeight: '700',
     },
-    applyFilterBtn: {
-        backgroundColor: theme.colors.primary,
-        height: 48,
-        borderRadius: theme.borderRadius.md,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: 0,
-    },
-    applyFilterBtnText: {
-        color: '#FFFFFF',
-        fontSize: 14,
-        fontWeight: '700',
-    },
     tabItemTextActive: {
         color: theme.colors.primary,
         fontWeight: '800',
@@ -1344,7 +1331,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginLeft: 2,
     },
     cardBody: {
-        padding: theme.spacing.md,
+        padding: theme.spacing.cardPadding,
     },
     cardHeaderRow: {
         flexDirection: 'row',
@@ -1504,20 +1491,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontSize: 13,
         fontWeight: '600',
         flexShrink: 1,
-    },
-    applyFilterBtn: {
-        backgroundColor: theme.colors.primary,
-        height: 52,
-        borderRadius: 16,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginTop: 0,
-        width: '100%',
-    },
-    applyFilterBtnText: {
-        color: '#FFFFFF',
-        fontSize: 15,
-        fontWeight: '700',
     },
     previewModalOverlay: {
         flex: 1,

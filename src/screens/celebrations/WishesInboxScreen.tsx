@@ -15,6 +15,7 @@ import { EmptyState } from '../../components/common/EmptyState';
 import { ListSkeleton } from '../../components/common/Skeletons';
 import { useTranslation } from '../../context/LanguageContext';
 import { celebrationApi, WishItem } from '../../api/celebration';
+import { queryKeys } from '../../api/queryKeys';
 import { formatRelativeTime } from '../../utils/dateTime';
 
 export const WishesInboxScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -29,12 +30,12 @@ export const WishesInboxScreen: React.FC<{ navigation: any }> = ({ navigation })
         isFetching,
         refetch,
     } = useQuery<WishItem[]>({
-        queryKey: ['myWishes'],
+        queryKey: queryKeys.celebrations.myWishes,
         queryFn: celebrationApi.getMyWishes,
     });
 
     const handleRefresh = async () => {
-        await queryClient.invalidateQueries({ queryKey: ['myWishes'] });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.celebrations.myWishes });
         refetch();
     };
 

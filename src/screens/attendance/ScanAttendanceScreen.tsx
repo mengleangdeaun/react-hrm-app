@@ -7,6 +7,8 @@ import {
     ActivityIndicator,
     Modal,
     BackHandler,
+    Linking,
+    AppState,
 } from 'react-native';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -26,6 +28,7 @@ import {
     X,
 } from 'lucide-react-native';
 import { attendanceApi, AttendanceClockInResponse } from '../../api/attendance';
+import { queryKeys } from '../../api/queryKeys';
 import { syncQueue } from '../../offline/syncQueue';
 import { useAppTheme } from '../../context/ThemeContext';
 import { AppText } from '../../components/AppText';
@@ -33,6 +36,7 @@ import { extractBranchQrPayload, BranchQrParseResult } from '../../utils/qrPaylo
 import { getDeviceId } from '../../utils/device';
 import { AttendanceReasonModal } from '../../components/attendance/AttendanceReasonModal';
 import { AppBottomSheet } from '../../components/common/AppBottomSheet';
+import { AppButton } from '../../components/common/AppButton';
 import { useTranslation } from '../../context/LanguageContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
 import { ModernScannerCanvas } from '../../components/scanner/ModernScannerCanvas';
@@ -277,6 +281,17 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
         };
     }, [startLocationAcquisition]);
 
+    // Auto-refresh permissions when returning from device settings
+    useEffect(() => {
+        const subscription = AppState.addEventListener('change', (nextAppState: any) => {
+            if (nextAppState === 'active') {
+                requestCameraPermission();
+                locationPromiseRef.current = startLocationAcquisition();
+            }
+        });
+        return () => subscription.remove();
+    }, [requestCameraPermission, startLocationAcquisition]);
+
     const resetScanState = () => {
         isProcessingRef.current = false;
         isSuccessRef.current = false;
@@ -410,9 +425,9 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
             setScanned(true);
 
             // Fire-and-forget cache invalidation in background (never block success screen)
-            queryClient.invalidateQueries({ queryKey: ['dashboardBootstrap'] });
-            queryClient.invalidateQueries({ queryKey: ['attendanceHistory'] });
-            queryClient.invalidateQueries({ queryKey: ['shiftToday'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.bootstrap });
+            queryClient.invalidateQueries({ queryKey: queryKeys.attendance.all });
+            queryClient.invalidateQueries({ queryKey: queryKeys.attendance.todayShift });
         } catch (error: any) {
             isProcessingRef.current = false;
             await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
@@ -525,6 +540,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
 
     // Permission Screen: Camera Explicitly Denied
     if (cameraPermission && !cameraPermission.granted) {
+        const canAskAgain = cameraPermission.canAskAgain !== false;
         return (
             <SafeAreaView {...({ style: [styles.centerContainer, { backgroundColor: theme.colors.background }] } as any)}>
                 <View style={styles.permIconCircle}>
@@ -532,15 +548,24 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
                 </View>
                 <AppText style={[styles.permTitle, { color: theme.colors.textPrimary }]}>{t('camera_permission_required', 'Camera Permission Required')}</AppText>
                 <AppText style={[styles.permDesc, { color: theme.colors.textSecondary }]}>
-                    {t('camera_perm_desc_attendance', 'Camera access is required to scan physical branch QR codes for attendance.')}
+                    {t('camera_perm_desc_attendance', 'Camera access is required to scan physical branch QR codes for attendance. If previously denied, please enable camera access in Settings.')}
                 </AppText>
-                <TouchableOpacity
-                    style={[styles.permButton, { backgroundColor: theme.colors.brand }]}
-                    onPress={requestCameraPermission}
-                    activeOpacity={0.85}
-                >
-                    <AppText style={styles.permBtnText}>{t('enable_camera', 'Enable Camera')}</AppText>
-                </TouchableOpacity>
+                <View style={{ width: '100%', gap: 12, paddingHorizontal: 24 }}>
+                    <AppButton
+                        title={t('open_settings', 'Open Settings')}
+                        onPress={() => Linking.openSettings()}
+                        variant="primary"
+                        size="lg"
+                    />
+                    {canAskAgain && (
+                        <AppButton
+                            title={t('try_again', 'Try Again')}
+                            onPress={requestCameraPermission}
+                            variant="secondary"
+                            size="md"
+                        />
+                    )}
+                </View>
             </SafeAreaView>
         );
     }
@@ -554,17 +579,24 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
                 </View>
                 <AppText style={[styles.permTitle, { color: theme.colors.textPrimary }]}>{t('gps_location_required', 'GPS Location Required')}</AppText>
                 <AppText style={[styles.permDesc, { color: theme.colors.textSecondary }]}>
-                    {t('gps_location_desc', 'High-accuracy GPS location is required to verify physical branch presence.')}
+                    {t('gps_location_desc', 'High-accuracy GPS location is required to verify physical branch presence. If previously denied, please enable location access in Settings.')}
                 </AppText>
-                <TouchableOpacity
-                    style={[styles.permButton, { backgroundColor: '#EF4444' }]}
-                    onPress={() => {
-                        locationPromiseRef.current = startLocationAcquisition();
-                    }}
-                    activeOpacity={0.85}
-                >
-                    <AppText style={styles.permBtnText}>{t('grant_location_access', 'Grant Location Access')}</AppText>
-                </TouchableOpacity>
+                <View style={{ width: '100%', gap: 12, paddingHorizontal: 24 }}>
+                    <AppButton
+                        title={t('open_settings', 'Open Settings')}
+                        onPress={() => Linking.openSettings()}
+                        variant="primary"
+                        size="lg"
+                    />
+                    <AppButton
+                        title={t('try_again', 'Try Again')}
+                        onPress={() => {
+                            locationPromiseRef.current = startLocationAcquisition();
+                        }}
+                        variant="secondary"
+                        size="md"
+                    />
+                </View>
             </SafeAreaView>
         );
     }

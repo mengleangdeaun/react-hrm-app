@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { isToday, isYesterday, isThisWeek, isSameMonth, subMonths, parseISO, isValid, formatRelativeTime } from '../../utils/dateTime';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notificationApi, NotificationItem, CelebrantItem } from '../../api/notification';
+import { queryKeys } from '../../api/queryKeys';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { AppText as Text } from '../../components/AppText';
@@ -150,7 +151,7 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
 
     // 10-minute React Query Caching for Notifications
     const { data: notifications = [], isLoading: isLoadingNotifs, isFetching: isFetchingNotifs } = useQuery<NotificationItem[]>({
-        queryKey: ['notificationsList'],
+        queryKey: queryKeys.notifications.list,
         queryFn: async () => {
             const notifRes = await notificationApi.getNotifications();
             const list = Array.isArray(notifRes) ? notifRes : Array.isArray(notifRes?.data) ? notifRes.data : [];
@@ -161,7 +162,7 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
 
     // 10-minute React Query Caching for Team Celebrations
     const { data: celebrations = [] } = useQuery<CelebrantItem[]>({
-        queryKey: ['celebrationsList'],
+        queryKey: queryKeys.notifications.celebrations,
         queryFn: async () => {
             const celebRes = await notificationApi.getCelebrations();
             return Array.isArray(celebRes) ? celebRes : [];
@@ -173,21 +174,21 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
     const markAllReadMutation = useMutation({
         mutationFn: () => notificationApi.markAllAsRead(),
         onMutate: async () => {
-            await queryClient.cancelQueries({ queryKey: ['notificationsList'] });
-            const previous = queryClient.getQueryData<NotificationItem[]>(['notificationsList']);
+            await queryClient.cancelQueries({ queryKey: queryKeys.notifications.list });
+            const previous = queryClient.getQueryData<NotificationItem[]>(queryKeys.notifications.list);
             const nowIso = new Date().toISOString();
-            queryClient.setQueryData<NotificationItem[]>(['notificationsList'], (old) =>
+            queryClient.setQueryData<NotificationItem[]>(queryKeys.notifications.list, (old) =>
                 (old || []).map((n) => ({ ...n, read_at: n.read_at || nowIso }))
             );
             return { previous };
         },
         onError: (_err, _vars, context) => {
             if (context?.previous) {
-                queryClient.setQueryData(['notificationsList'], context.previous);
+                queryClient.setQueryData(queryKeys.notifications.list, context.previous);
             }
         },
         onSettled: () => {
-            queryClient.invalidateQueries({ queryKey: ['notificationsList'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list });
         },
     });
 
@@ -195,20 +196,20 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
     const deleteMutation = useMutation({
         mutationFn: (id: string | number) => notificationApi.deleteNotification(id),
         onMutate: async (id) => {
-            await queryClient.cancelQueries({ queryKey: ['notificationsList'] });
-            const previous = queryClient.getQueryData<NotificationItem[]>(['notificationsList']);
-            queryClient.setQueryData<NotificationItem[]>(['notificationsList'], (old) =>
+            await queryClient.cancelQueries({ queryKey: queryKeys.notifications.list });
+            const previous = queryClient.getQueryData<NotificationItem[]>(queryKeys.notifications.list);
+            queryClient.setQueryData<NotificationItem[]>(queryKeys.notifications.list, (old) =>
                 (old || []).filter((n) => n.id !== id)
             );
             return { previous };
         },
         onError: (_err, _vars, context) => {
             if (context?.previous) {
-                queryClient.setQueryData(['notificationsList'], context.previous);
+                queryClient.setQueryData(queryKeys.notifications.list, context.previous);
             }
         },
         onSettled: () => {
-            queryClient.invalidateQueries({ queryKey: ['notificationsList'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list });
         },
     });
 
@@ -216,26 +217,26 @@ export const NotificationListScreen: React.FC<{ navigation: any }> = ({ navigati
     const deleteAllMutation = useMutation({
         mutationFn: () => notificationApi.deleteAllNotifications(),
         onMutate: async () => {
-            await queryClient.cancelQueries({ queryKey: ['notificationsList'] });
-            const previous = queryClient.getQueryData<NotificationItem[]>(['notificationsList']);
-            queryClient.setQueryData<NotificationItem[]>(['notificationsList'], []);
+            await queryClient.cancelQueries({ queryKey: queryKeys.notifications.list });
+            const previous = queryClient.getQueryData<NotificationItem[]>(queryKeys.notifications.list);
+            queryClient.setQueryData<NotificationItem[]>(queryKeys.notifications.list, []);
             return { previous };
         },
         onError: (_err, _vars, context) => {
             if (context?.previous) {
-                queryClient.setQueryData(['notificationsList'], context.previous);
+                queryClient.setQueryData(queryKeys.notifications.list, context.previous);
             }
         },
         onSettled: () => {
-            queryClient.invalidateQueries({ queryKey: ['notificationsList'] });
+            queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list });
         },
     });
 
     const onRefresh = async () => {
         setRefreshing(true);
         await Promise.all([
-            queryClient.invalidateQueries({ queryKey: ['notificationsList'] }),
-            queryClient.invalidateQueries({ queryKey: ['celebrationsList'] }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.notifications.list }),
+            queryClient.invalidateQueries({ queryKey: queryKeys.notifications.celebrations }),
         ]);
         setRefreshing(false);
     };
@@ -655,12 +656,11 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     card: {
         backgroundColor: theme.colors.surface,
-        borderRadius: 16,
+        borderRadius: theme.borderRadius.lg,
         marginBottom: 10,
         borderWidth: 1,
         borderColor: theme.colors.border,
-        paddingVertical: 14,
-        paddingHorizontal: 14,
+        padding: theme.spacing.cardPadding,
     },
     unreadCard: {
         borderColor: 'rgba(223, 0, 0, 0.28)',

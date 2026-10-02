@@ -31,6 +31,8 @@ import { useAuth } from '../../context/AuthContext';
 import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
 import { AppText } from '../../components/AppText';
+import { AppButton } from '../../components/common/AppButton';
+import { AppInput } from '../../components/common/AppInput';
 import { ENV } from '../../config/env';
 
 export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
@@ -116,7 +118,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     };
 
     return (
-        <SafeAreaView edges={['top', 'left', 'right']} style={[styles.safeArea, { backgroundColor: theme.colors.background }]}>
+        <SafeAreaView edges={['top', 'left', 'right']} {...({ style: [styles.safeArea, { backgroundColor: theme.colors.background }] } as any)}>
             <StatusBar
                 barStyle={isDark ? 'light-content' : 'dark-content'}
                 backgroundColor={theme.colors.background}
@@ -226,64 +228,38 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                         ]}
                     >
                         {/* Employee Email Input */}
-                        <View style={styles.inputGroup}>
-                            <AppText variant="caption" weight="medium" style={{ color: theme.colors.textSecondary, marginBottom: 6 }}>
-                                {t('employee_email', 'Employee Email')}
-                            </AppText>
-                            <View
-                                style={[
-                                    styles.inputWrapper,
-                                    {
-                                        backgroundColor: theme.colors.background,
-                                        borderColor: theme.colors.border,
-                                    },
-                                ]}
-                            >
-                                <Mail color={theme.colors.textSecondary} size={18} style={styles.inputIcon} />
-                                <TextInput
-                                    style={[styles.input, { color: theme.colors.textPrimary }]}
-                                    placeholder={t('employee_email', 'Employee Email')}
-                                    placeholderTextColor={theme.colors.textSecondary}
-                                    value={email}
-                                    onChangeText={setEmail}
-                                    onFocus={() => handleInputFocus(100)}
-                                    keyboardType="email-address"
-                                    autoCapitalize="none"
-                                    autoCorrect={false}
-                                />
-                            </View>
-                        </View>
+                        <AppInput
+                            label={t('employee_email', 'Employee Email')}
+                            value={email}
+                            onChangeText={setEmail}
+                            placeholder={t('employee_email', 'Employee Email')}
+                            placeholderTextColor={theme.colors.textSecondary}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            icon={<Mail color={theme.colors.textSecondary} size={18} />}
+                            containerStyle={{ marginBottom: 16 }}
+                            onFocus={() => handleInputFocus(100)}
+                        />
 
                         {/* Password Input */}
-                        <View style={styles.inputGroup}>
-                            <AppText variant="caption" weight="medium" style={{ color: theme.colors.textSecondary, marginBottom: 6 }}>
-                                {t('password', 'Password')}
-                            </AppText>
-                            <View
-                                style={[
-                                    styles.inputWrapper,
-                                    {
-                                        backgroundColor: theme.colors.background,
-                                        borderColor: theme.colors.border,
-                                    },
-                                ]}
-                            >
-                                <Lock color={theme.colors.textSecondary} size={18} style={styles.inputIcon} />
-                                <TextInput
-                                    style={[styles.input, { color: theme.colors.textPrimary }]}
-                                    placeholder={t('password', 'Password')}
-                                    placeholderTextColor={theme.colors.textSecondary}
-                                    value={password}
-                                    onChangeText={setPassword}
-                                    onFocus={() => handleInputFocus(180)}
-                                    secureTextEntry={!showPassword}
-                                    autoCapitalize="none"
-                                />
+                        <AppInput
+                            label={t('password', 'Password')}
+                            value={password}
+                            onChangeText={setPassword}
+                            placeholder={t('password', 'Password')}
+                            placeholderTextColor={theme.colors.textSecondary}
+                            secureTextEntry={!showPassword}
+                            autoCapitalize="none"
+                            autoCorrect={false}
+                            icon={<Lock color={theme.colors.textSecondary} size={18} />}
+                            rightAction={
                                 <TouchableOpacity
                                     onPress={() => setShowPassword(!showPassword)}
-                                    style={styles.eyeButton}
                                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                                     activeOpacity={0.7}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={showPassword ? t('hide_password', 'Hide Password') : t('show_password', 'Show Password')}
                                 >
                                     {showPassword ? (
                                         <EyeOff color={theme.colors.textSecondary} size={18} />
@@ -291,30 +267,21 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                                         <Eye color={theme.colors.textSecondary} size={18} />
                                     )}
                                 </TouchableOpacity>
-                            </View>
-                        </View>
+                            }
+                            containerStyle={{ marginBottom: 20 }}
+                            onFocus={() => handleInputFocus(180)}
+                        />
 
                         {/* Submit Button */}
-                        <TouchableOpacity
-                            style={[
-                                styles.submitButton,
-                                { backgroundColor: theme.colors.primary },
-                            ]}
+                        <AppButton
+                            title={t('sign_in', 'Sign In')}
+                            icon={<LogIn color="#FFFFFF" size={18} />}
                             onPress={() => handleLogin(false)}
+                            loading={isLoading}
                             disabled={isLoading}
-                            activeOpacity={0.85}
-                        >
-                            {isLoading ? (
-                                <ActivityIndicator color="#FFFFFF" />
-                            ) : (
-                                <View style={styles.submitContent}>
-                                    <LogIn color="#FFFFFF" size={18} />
-                                    <AppText style={styles.submitText} weight="bold">
-                                        {t('sign_in', 'Sign In')}
-                                    </AppText>
-                                </View>
-                            )}
-                        </TouchableOpacity>
+                            size="lg"
+                            variant="primary"
+                        />
 
                         {/* Quick Access Action Buttons */}
                         <View style={styles.quickAccessRow}>
@@ -441,7 +408,7 @@ const styles = StyleSheet.create({
     },
     card: {
         borderRadius: 16,
-        padding: 20,
+        padding: 16,
         borderWidth: 1,
         gap: 16,
     },

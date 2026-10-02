@@ -16,6 +16,10 @@ import { useTranslation } from '../../context/LanguageContext';
 import { AppText as Text } from '../../components/AppText';
 import { QuizListSkeleton } from '../../components/common/Skeletons';
 import { EmptyState } from '../../components/common/EmptyState';
+import { AppCard } from '../../components/common/AppCard';
+import { AppButton } from '../../components/common/AppButton';
+import { StatusBadge } from '../../components/common/StatusBadge';
+import { queryKeys } from '../../api/queryKeys';
 import {
     Award,
     Clock,
@@ -49,7 +53,7 @@ export const QuizListScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
     // 10-minute React Query Caching for Quizzes
     const { data: quizzes = [], isLoading, isFetching } = useQuery<QuizItem[]>({
-        queryKey: ['quizzesList'],
+        queryKey: queryKeys.quizzes.list,
         queryFn: async () => {
             const res = await quizApi.getAssignedQuizzes().catch(() => null);
             const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
@@ -60,7 +64,7 @@ export const QuizListScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
     const onRefresh = async () => {
         setRefreshing(true);
-        await queryClient.invalidateQueries({ queryKey: ['quizzesList'] });
+        await queryClient.invalidateQueries({ queryKey: queryKeys.quizzes.all });
         setRefreshing(false);
     };
 
@@ -117,7 +121,7 @@ export const QuizListScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                     activeQuizzes.map((item) => {
                         const durationMins = item.quiz?.duration ? Math.round(item.quiz.duration / 60) : null;
                         return (
-                            <View key={item.id} style={styles.card}>
+                            <AppCard key={item.id} style={styles.card}>
                                 <View style={styles.cardHeader}>
                                     <View style={styles.iconBgPrimary}>
                                         <Book color={primaryColor} size={20} />
@@ -143,17 +147,14 @@ export const QuizListScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                                     </View>
                                 </View>
 
-                                <TouchableOpacity
-                                    style={[styles.primaryActionBtn, { backgroundColor: primaryColor }]}
-                                    activeOpacity={0.85}
+                                <AppButton
+                                    title={t('start_assessment', 'Start Assessment')}
                                     onPress={() => navigation.navigate('TakeQuiz', { quizId: item.quiz?.id || item.id, token: item.token })}
-                                >
-                                    <Text style={styles.primaryActionBtnText}>
-                                        {t('start_assessment', 'Start Assessment')}
-                                    </Text>
-                                    <ChevronRight color="#FFFFFF" size={16} />
-                                </TouchableOpacity>
-                            </View>
+                                    icon={<ChevronRight color="#FFFFFF" size={16} />}
+                                    iconPosition="right"
+                                    fullWidth
+                                />
+                            </AppCard>
                         );
                     })
                 )
@@ -176,10 +177,10 @@ export const QuizListScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                         const dateStr = formatQuizDate(item.completed_at || item.created_at);
 
                         return (
-                            <View key={item.id} style={styles.card}>
+                            <AppCard key={item.id} style={styles.card}>
                                 <View style={styles.cardHeader}>
                                     <View style={styles.iconBgIndigo}>
-                                        <Award color="#8B5CF6" size={20} />
+                                        <Award color={theme.colors.status.purple} size={20} />
                                     </View>
                                     <View style={styles.headerTextGroup}>
                                         <Text style={styles.cardTitle} numberOfLines={1}>
@@ -188,21 +189,11 @@ export const QuizListScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                                         <Text style={styles.cardDate}>{dateStr}</Text>
                                     </View>
 
-                                    <View
-                                        style={[
-                                            styles.badgePill,
-                                            isPassed ? styles.badgePassed : styles.badgeFailed,
-                                        ]}
-                                    >
-                                        <Text
-                                            style={[
-                                                styles.badgePillText,
-                                                isPassed ? styles.badgePassedText : styles.badgeFailedText,
-                                            ]}
-                                        >
-                                            {isPassed ? t('passed', 'Passed') : t('failed', 'Failed')}
-                                        </Text>
-                                    </View>
+                                    <StatusBadge
+                                        status={isPassed ? 'approved' : 'rejected'}
+                                        label={isPassed ? t('passed', 'Passed') : t('failed', 'Failed')}
+                                        size="sm"
+                                    />
                                 </View>
 
                                 {/* Score Box */}
@@ -218,17 +209,15 @@ export const QuizListScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                                     </Text>
                                 </View>
 
-                                <TouchableOpacity
-                                    style={styles.outlineActionBtn}
-                                    activeOpacity={0.85}
+                                <AppButton
+                                    title={t('view_feedback', 'View Feedback')}
+                                    variant="secondary"
                                     onPress={() => navigation.navigate('QuizResult', { token: item.token, quizData: item })}
-                                >
-                                    <Text style={styles.outlineActionBtnText}>
-                                        {t('view_feedback', 'View Feedback')}
-                                    </Text>
-                                    <ChevronRight color={theme.colors.textPrimary} size={16} />
-                                </TouchableOpacity>
-                            </View>
+                                    icon={<ChevronRight color={theme.colors.textPrimary} size={16} />}
+                                    iconPosition="right"
+                                    fullWidth
+                                />
+                            </AppCard>
                         );
                     })
                 )
@@ -307,7 +296,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     emptyCard: {
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg,
-        padding: theme.spacing.xl,
+        padding: theme.spacing.cardPadding,
         alignItems: 'center',
         borderWidth: 1,
         borderColor: theme.colors.border,
@@ -328,7 +317,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     card: {
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg,
-        padding: theme.spacing.md,
+        padding: theme.spacing.cardPadding,
         marginBottom: theme.spacing.md,
         borderWidth: 1,
         borderColor: theme.colors.border,
@@ -352,11 +341,11 @@ const stylesheet = StyleSheet.create((theme) => ({
         width: 40,
         height: 40,
         borderRadius: theme.borderRadius.md,
-        backgroundColor: 'rgba(139, 92, 246, 0.1)',
+        backgroundColor: theme.colors.status.purpleSubtle,
         justifyContent: 'center',
         alignItems: 'center',
         borderWidth: 1,
-        borderColor: 'rgba(139, 92, 246, 0.2)',
+        borderColor: theme.colors.status.purpleBorder,
     },
     headerTextGroup: {
         flex: 1,

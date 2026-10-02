@@ -1210,5 +1210,8 @@
     "your_message": "Your Message",
     "your_rest_schedule": "Your Rest Schedule",
     "your_voice_matters": "Your Voice Matters",
-    "your_wish_message": "Your Wish Message"
+    "your_wish_message": "Your Wish Message",
+    "syncing_pending_actions": "Syncing {{count}} offline update(s)...",
+    "offline_with_pending": "Offline Mode • {{count}} pending sync",
+    "offline_cached_mode": "Offline Mode • Working from cached data"
 }

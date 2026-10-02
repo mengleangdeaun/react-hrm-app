@@ -687,6 +687,7 @@
     "notif_leave_request_title": "សំណើច្បាប់ឈប់សម្រាកថ្មី",
     "notification": "ជូនដំណឹង",
     "notifications": "ការជូនដំណឹង",
+    "notifications_permission_denied_hint": "ការអនុញ្ញាតជូនដំណឹងត្រូវបានបិទ។ សូមបើកការជូនដំណឹងនៅក្នុងការកំណត់ទូរស័ព្ទរបស់អ្នក ដើម្បីទទួលបានដំណឹង។",
     "nov": "វិច្ឆិកា",
     "occurs_on_weeks": "កើតឡើងនៅសប្តាហ៍",
     "oct": "តុលា",
@@ -718,6 +719,7 @@
     "ongoing": "បន្តរហូត",
     "open_camera_instantly": "បើកកាមេរ៉ាភ្លាមៗ",
     "open_my_wishes": "បើកមើលសារជូនពរ",
+    "open_settings": "បើកការកំណត់",
     "optimizing_image": "កំពុងបង្កើនប្រសិទ្ធភាពរូបភាព...",
     "optimizing_photo_count": "កំពុងបង្កើនប្រសិទ្ធភាពរូបភាព {{curr}} នៃ {{total}}...",
     "optimizing_photos": "កំពុងផ្ទៀងផ្ទាត់ការបង្រួមរូបភាព...",
@@ -1210,5 +1212,8 @@
     "your_message": "សាររបស់អ្នក",
     "your_rest_schedule": "កាលវិភាគដេអូសរបស់អ្នក",
     "your_voice_matters": "មតិរបស់អ្នកពិតជាមានតម្លៃ",
-    "your_wish_message": "សារជូនពររបស់អ្នក"
+    "your_wish_message": "សារជូនពររបស់អ្នក",
+    "syncing_pending_actions": "កំពុងធ្វើសមកាលកម្មទិន្នន័យក្រៅបណ្ដាញ {{count}}...",
+    "offline_with_pending": "របៀបក្រៅបណ្ដាញ • រង់ចាំសមកាលកម្ម {{count}}",
+    "offline_cached_mode": "របៀបក្រៅបណ្ដាញ • កំពុងដំណើរការជាមួយទិន្នន័យក្នុងឧបករណ៍"
 }

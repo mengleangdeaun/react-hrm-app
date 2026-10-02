@@ -236,7 +236,7 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
     const bottomSafePadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 12) + (Platform.OS === 'ios' ? 12 : 16);
 
     return (
-        <SafeAreaView edges={['top']} style={[styles.container, { backgroundColor: theme.colors.background }]}>
+        <SafeAreaView edges={['top']} {...({ style: [styles.container, { backgroundColor: theme.colors.background }] } as any)}>
             <StatusBar
                 barStyle={isDark ? 'light-content' : 'dark-content'}
                 backgroundColor={theme.colors.background}

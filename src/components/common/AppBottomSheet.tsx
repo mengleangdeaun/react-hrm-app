@@ -6,12 +6,13 @@ import {
     Animated,
     PanResponder,
     useWindowDimensions,
-    KeyboardAvoidingView,
     Platform,
     StyleSheet,
     BackHandler,
     ScrollView,
     ActivityIndicator,
+    Keyboard,
+    EmitterSubscription,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
@@ -34,6 +35,7 @@ export interface AppBottomSheetProps {
     containerStyle?: any;
     contentContainerStyle?: any;
     footer?: React.ReactNode;
+    scrollViewRef?: React.RefObject<any>;
     // Built-in standard buttons matching OnboardingScreen aesthetics
     primaryButtonTitle?: string;
     onPrimaryButtonPress?: () => void;
@@ -59,6 +61,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
     containerStyle,
     contentContainerStyle,
     footer,
+    scrollViewRef,
     primaryButtonTitle,
     onPrimaryButtonPress,
     primaryButtonLoading = false,
@@ -74,31 +77,83 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
     const insets = useSafeAreaInsets();
 
     const [modalVisible, setModalVisible] = useState(visible);
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
+    const keyboardOffsetAnim = useRef(new Animated.Value(0)).current;
+
     const backdropAnim = useRef(new Animated.Value(0)).current;
     const sheetAnim = useRef(new Animated.Value(screenHeight)).current;
     const panY = useRef(new Animated.Value(0)).current;
+    const internalScrollRef = useRef<any>(null);
 
     const isDismissing = useRef(false);
+
+    // Cross-platform keyboard listeners
+    useEffect(() => {
+        if (!avoidKeyboard) return;
+
+        const onKeyboardShow = (e: any) => {
+            const h = e?.endCoordinates?.height || 0;
+            setKeyboardHeight(h);
+            Animated.timing(keyboardOffsetAnim, {
+                toValue: h,
+                duration: Platform.OS === 'ios' ? (e?.duration || 250) : 180,
+                useNativeDriver: false,
+            }).start();
+        };
+
+        const onKeyboardHide = (e: any) => {
+            setKeyboardHeight(0);
+            Animated.timing(keyboardOffsetAnim, {
+                toValue: 0,
+                duration: Platform.OS === 'ios' ? (e?.duration || 200) : 180,
+                useNativeDriver: false,
+            }).start();
+        };
+
+        const subscriptions: any[] = [];
+        if (Platform.OS === 'ios') {
+            subscriptions.push(
+                Keyboard.addListener('keyboardWillShow', onKeyboardShow),
+                Keyboard.addListener('keyboardWillHide', onKeyboardHide)
+            );
+        } else {
+            subscriptions.push(
+                Keyboard.addListener('keyboardDidShow', onKeyboardShow),
+                Keyboard.addListener('keyboardDidHide', onKeyboardHide)
+            );
+        }
+
+        return () => {
+            subscriptions.forEach((sub) => sub.remove());
+        };
+    }, [avoidKeyboard, keyboardOffsetAnim]);
 
     const handleDismiss = () => {
         if (isDismissing.current) return;
         isDismissing.current = true;
+        Keyboard.dismiss();
 
         Animated.parallel([
             Animated.timing(backdropAnim, {
                 toValue: 0,
                 duration: 220,
-                useNativeDriver: true,
+                useNativeDriver: false,
             }),
             Animated.timing(sheetAnim, {
                 toValue: screenHeight,
                 duration: 260,
-                useNativeDriver: true,
+                useNativeDriver: false,
+            }),
+            Animated.timing(keyboardOffsetAnim, {
+                toValue: 0,
+                duration: 220,
+                useNativeDriver: false,
             }),
         ]).start(() => {
             setModalVisible(false);
             isDismissing.current = false;
             panY.setValue(0);
+            setKeyboardHeight(0);
             onClose();
         });
     };
@@ -108,20 +163,24 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
             isDismissing.current = false;
             setModalVisible(true);
             panY.setValue(0);
+            keyboardOffsetAnim.setValue(0);
+            setKeyboardHeight(0);
+            backdropAnim.setValue(0);
+            sheetAnim.setValue(screenHeight);
             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
 
             Animated.parallel([
                 Animated.timing(backdropAnim, {
                     toValue: 1,
                     duration: 240,
-                    useNativeDriver: true,
+                    useNativeDriver: false,
                 }),
                 Animated.spring(sheetAnim, {
                     toValue: 0,
                     damping: 24,
                     stiffness: 220,
                     mass: 0.8,
-                    useNativeDriver: true,
+                    useNativeDriver: false,
                 }),
             ]).start();
         } else if (modalVisible) {
@@ -140,13 +199,16 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
 
     const panResponder = useRef(
         PanResponder.create({
-            // Don't claim the gesture on touch-start — let the ScrollView get first shot
-            onStartShouldSetPanResponder: () => false,
+            onStartShouldSetPanResponder: () => true,
             onStartShouldSetPanResponderCapture: () => false,
-            // Only claim a clear downward swipe that isn't a horizontal scroll
+            // Only claim a downward swipe that isn't a horizontal scroll
             onMoveShouldSetPanResponder: (_: any, gestureState: any) =>
-                gestureState.dy > 8 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
+                gestureState.dy > 4 && Math.abs(gestureState.dy) > Math.abs(gestureState.dx),
             onMoveShouldSetPanResponderCapture: () => false,
+            onPanResponderGrant: () => {
+                Keyboard.dismiss();
+                panY.stopAnimation();
+            },
             onPanResponderMove: (_: any, gestureState: any) => {
                 if (gestureState.dy > 0) {
                     panY.setValue(gestureState.dy);
@@ -155,28 +217,45 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                 }
             },
             onPanResponderRelease: (_: any, gestureState: any) => {
-                if (gestureState.dy > 120 || gestureState.vy > 0.6) {
+                if (gestureState.dy > 70 || gestureState.vy > 0.4) {
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     handleDismiss();
                 } else {
                     Animated.spring(panY, {
                         toValue: 0,
-                        damping: 20,
-                        stiffness: 250,
-                        useNativeDriver: true,
+                        damping: 24,
+                        stiffness: 260,
+                        useNativeDriver: false,
                     }).start();
                 }
+            },
+            onPanResponderTerminate: () => {
+                Animated.spring(panY, {
+                    toValue: 0,
+                    damping: 24,
+                    stiffness: 260,
+                    useNativeDriver: false,
+                }).start();
             },
         })
     ).current;
 
-    if (!modalVisible) return null;
+    const shouldRender = visible || modalVisible;
+    if (!shouldRender) return null;
 
     const translateY = Animated.add(sheetAnim, panY);
-    const maxSheetHeight = screenHeight * maxHeightPercent;
 
-    // Exact safe clearance matching OnboardingScreen comfort
+    // Dynamically constrain maxSheetHeight when keyboard is visible so the sheet never clips off top of screen
+    const maxSheetHeight = keyboardHeight > 0
+        ? Math.max(200, screenHeight - keyboardHeight - insets.top - (Platform.OS === 'ios' ? 24 : 32))
+        : screenHeight * maxHeightPercent;
+
+    // Exact safe clearance matching OnboardingScreen comfort when keyboard is closed,
+    // and compact clearance above keyboard when keyboard is open
     const bottomSafeMargin = Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 12) + (Platform.OS === 'ios' ? 12 : 16);
+    const activeBottomMargin = keyboardHeight > 0
+        ? (Platform.OS === 'ios' ? 8 : 6)
+        : bottomSafeMargin;
 
     const renderSheetBody = () => (
         <Animated.View
@@ -191,61 +270,65 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                 containerStyle,
             ]}
         >
-            {/* Drag Handle Bar */}
-            <View {...panResponder.panHandlers} style={styles.dragHandleArea}>
-                <View
-                    style={[
-                        styles.dragHandleBar,
-                        {
-                            backgroundColor: isDark
-                                ? 'rgba(255, 255, 255, 0.28)'
-                                : 'rgba(0, 0, 0, 0.18)',
-                        },
-                    ]}
-                />
-            </View>
-
-            {/* Header Bar */}
-            {(title || headerRight || showCloseButton) && (
-                <View style={[styles.headerRow, { borderBottomColor: theme.colors.border }]}>
-                    <View style={styles.titleWrapper}>
-                        {title && (
-                            <Text style={[styles.titleText, { color: theme.colors.textPrimary }]}>
-                                {title}
-                            </Text>
-                        )}
-                        {subtitle && (
-                            <Text style={[styles.subtitleText, { color: theme.colors.textSecondary }]}>
-                                {subtitle}
-                            </Text>
-                        )}
-                    </View>
-
-                    <View style={styles.headerRightActions}>
-                        {headerRight}
-                        {showCloseButton && (
-                            <TouchableOpacity
-                                style={[styles.closeButton, { backgroundColor: theme.colors.surfaceSubtle }]}
-                                onPress={handleDismiss}
-                                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                                activeOpacity={0.7}
-                                accessibilityLabel="Close sheet"
-                                accessibilityRole="button"
-                            >
-                                <X color={theme.colors.textSecondary} size={18} />
-                            </TouchableOpacity>
-                        )}
-                    </View>
+            {/* Top Draggable Area (Handle + Header) */}
+            <View {...panResponder.panHandlers}>
+                {/* Drag Handle Bar */}
+                <View style={styles.dragHandleArea}>
+                    <View
+                        style={[
+                            styles.dragHandleBar,
+                            {
+                                backgroundColor: isDark
+                                    ? 'rgba(255, 255, 255, 0.28)'
+                                    : 'rgba(0, 0, 0, 0.18)',
+                            },
+                        ]}
+                    />
                 </View>
-            )}
+
+                {/* Header Bar */}
+                {(title || headerRight || showCloseButton) && (
+                    <View style={[styles.headerRow, { borderBottomColor: theme.colors.border }]}>
+                        <View style={styles.titleWrapper}>
+                            {title && (
+                                <Text style={[styles.titleText, { color: theme.colors.textPrimary }]}>
+                                    {title}
+                                </Text>
+                            )}
+                            {subtitle && (
+                                <Text style={[styles.subtitleText, { color: theme.colors.textSecondary }]}>
+                                    {subtitle}
+                                </Text>
+                            )}
+                        </View>
+
+                        <View style={styles.headerRightActions}>
+                            {headerRight}
+                            {showCloseButton && (
+                                <TouchableOpacity
+                                    style={[styles.closeButton, { backgroundColor: theme.colors.surfaceSubtle }]}
+                                    onPress={handleDismiss}
+                                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                                    activeOpacity={0.7}
+                                    accessibilityLabel="Close sheet"
+                                    accessibilityRole="button"
+                                >
+                                    <X color={theme.colors.textSecondary} size={18} />
+                                </TouchableOpacity>
+                            )}
+                        </View>
+                    </View>
+                )}
+            </View>
 
             {/* Sheet Content */}
             {scrollable ? (
                 <ScrollView
+                    ref={scrollViewRef || internalScrollRef}
                     style={styles.scrollContent}
                     contentContainerStyle={[
                         styles.scrollContentContainer,
-                        { paddingBottom: (footer || primaryButtonTitle) ? 16 : bottomSafeMargin },
+                        { paddingBottom: (footer || primaryButtonTitle) ? 16 : activeBottomMargin },
                         contentContainerStyle,
                     ]}
                     showsVerticalScrollIndicator={false}
@@ -260,7 +343,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                 <View
                     style={[
                         styles.fixedContent,
-                        { paddingBottom: (footer || primaryButtonTitle) ? 16 : bottomSafeMargin },
+                        { paddingBottom: (footer || primaryButtonTitle) ? 16 : activeBottomMargin },
                         contentContainerStyle,
                     ]}
                 >
@@ -275,7 +358,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                         styles.footerContainer,
                         {
                             borderTopColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)',
-                            paddingBottom: bottomSafeMargin,
+                            paddingBottom: activeBottomMargin,
                         },
                     ]}
                 >
@@ -349,7 +432,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
 
     return (
         <Modal
-            visible={modalVisible}
+            visible={shouldRender}
             transparent
             statusBarTranslucent
             animationType="none"
@@ -367,16 +450,14 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                     />
                 </Animated.View>
 
-                {avoidKeyboard ? (
-                    <KeyboardAvoidingView
-                        style={styles.keyboardContainer}
-                        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                    >
-                        {renderSheetBody()}
-                    </KeyboardAvoidingView>
-                ) : (
-                    renderSheetBody()
-                )}
+                <Animated.View
+                    style={[
+                        styles.keyboardContainer,
+                        avoidKeyboard && { paddingBottom: keyboardOffsetAnim },
+                    ]}
+                >
+                    {renderSheetBody()}
+                </Animated.View>
             </View>
         </Modal>
     );
@@ -385,15 +466,21 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
 const styles = StyleSheet.create({
     modalOverlay: {
         flex: 1,
+        width: '100%',
+        height: '100%',
         justifyContent: 'flex-end',
     },
     backdrop: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0, 0, 0, 0.55)',
+        width: '100%',
+        height: '100%',
+        backgroundColor: 'rgba(0, 0, 0, 0.60)',
+        zIndex: 1,
     },
     keyboardContainer: {
         width: '100%',
         justifyContent: 'flex-end',
+        zIndex: 2,
     },
     sheetContainer: {
         width: '100%',
