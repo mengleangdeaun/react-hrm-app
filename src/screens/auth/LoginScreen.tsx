@@ -1,17 +1,16 @@
 import React, { useState, useRef } from 'react';
 import {
     View,
-    TextInput,
     TouchableOpacity,
-    ActivityIndicator,
     Alert,
     KeyboardAvoidingView,
     Platform,
     ScrollView,
-    Image,
     StatusBar,
     StyleSheet,
 } from 'react-native';
+import { Image } from 'expo-image';
+import * as Haptics from 'expo-haptics';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useUnistyles } from 'react-native-unistyles';
 import {
@@ -48,13 +47,22 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const [showPassword, setShowPassword] = useState(false);
 
     const toggleLanguage = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         setLocale(locale === 'en' ? 'kh' : 'en');
     };
 
-    const handleInputFocus = (offsetY: number = 120) => {
-        setTimeout(() => {
-            scrollViewRef.current?.scrollTo({ y: offsetY, animated: true });
-        }, 100);
+    const handleThemeToggle = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        toggleTheme();
+    };
+
+    const handleBack = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        if (navigation.canGoBack()) {
+            navigation.goBack();
+        } else {
+            navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
+        }
     };
 
     const handleLogin = async (forceOption: any = false) => {
@@ -108,6 +116,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     };
 
     const handleBiometricAuth = async () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         const success = await loginWithBiometrics();
         if (!success) {
             Alert.alert(
@@ -115,6 +124,11 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 t('biometric_failed', 'Biometric authentication failed or credentials not saved.')
             );
         }
+    };
+
+    const handleQrLogin = () => {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        navigation.navigate('QrLogin');
     };
 
     return (
@@ -134,14 +148,10 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                             borderColor: theme.colors.border,
                         },
                     ]}
-                    onPress={() => {
-                        if (navigation.canGoBack()) {
-                            navigation.goBack();
-                        } else {
-                            navigation.reset({ index: 0, routes: [{ name: 'Welcome' }] });
-                        }
-                    }}
+                    onPress={handleBack}
                     activeOpacity={0.7}
+                    accessibilityRole="button"
+                    accessibilityLabel="Go back"
                 >
                     <ArrowLeft size={18} color={theme.colors.textPrimary} />
                 </TouchableOpacity>
@@ -157,8 +167,10 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                         ]}
                         onPress={toggleLanguage}
                         activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel="Change language"
                     >
-                        <Globe size={16} color={theme.colors.textPrimary} />
+                        <Globe size={15} color={theme.colors.textPrimary} />
                         <AppText style={[styles.utilityButtonText, { color: theme.colors.textPrimary }]}>
                             {locale === 'en' ? 'ភាសាខ្មែរ' : 'English'}
                         </AppText>
@@ -172,8 +184,10 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                                 borderColor: theme.colors.border,
                             },
                         ]}
-                        onPress={toggleTheme}
+                        onPress={handleThemeToggle}
                         activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel="Toggle theme"
                     >
                         {isDark ? (
                             <Sun size={18} color="#FBBF24" />
@@ -186,7 +200,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
             <KeyboardAvoidingView
                 style={styles.keyboardContainer}
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
                 keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 10 : 0}
             >
                 <ScrollView
@@ -199,16 +213,43 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 >
                     {/* ── Hero / Branding Section ─────────────────────────────── */}
                     <View style={styles.brandContainer}>
-                        <View style={styles.logoContainer}>
+                        <View
+                            style={[
+                                styles.logoContainer,
+                                {
+                                    backgroundColor: theme.colors.surface,
+                                    borderColor: theme.colors.border,
+                                },
+                            ]}
+                        >
                             <Image
                                 source={require('../../../assets/icon.png')}
                                 style={styles.logoImage}
-                                resizeMode="contain"
+                                contentFit="contain"
+                                transition={200}
                             />
                         </View>
-                        <AppText style={[styles.brandTitle, { color: theme.colors.textPrimary }]}>
-                            {ENV.APP_NAME || 'SCCG Mobile App'}
-                        </AppText>
+
+                        <View
+                            style={[
+                                styles.brandBadge,
+                                {
+                                    backgroundColor: isDark
+                                        ? 'rgba(223, 0, 0, 0.15)'
+                                        : 'rgba(223, 0, 0, 0.08)',
+                                },
+                            ]}
+                        >
+                            <AppText
+                                style={[
+                                    styles.brandTitle,
+                                    { color: theme.colors.brand },
+                                ]}
+                            >
+                                {ENV.APP_NAME || 'SCCG HRM'}
+                            </AppText>
+                        </View>
+
                         <AppText style={[styles.welcomeTitle, { color: theme.colors.textPrimary }]}>
                             {t('welcome_back', 'Welcome Back')}
                         </AppText>
@@ -238,8 +279,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                             autoCapitalize="none"
                             autoCorrect={false}
                             icon={<Mail color={theme.colors.textSecondary} size={18} />}
-                            containerStyle={{ marginBottom: 16 }}
-                            onFocus={() => handleInputFocus(100)}
+                            containerStyle={styles.inputSpacing}
                         />
 
                         {/* Password Input */}
@@ -255,7 +295,10 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                             icon={<Lock color={theme.colors.textSecondary} size={18} />}
                             rightAction={
                                 <TouchableOpacity
-                                    onPress={() => setShowPassword(!showPassword)}
+                                    onPress={() => {
+                                        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                                        setShowPassword(!showPassword);
+                                    }}
                                     hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                                     activeOpacity={0.7}
                                     accessibilityRole="button"
@@ -268,8 +311,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                                     )}
                                 </TouchableOpacity>
                             }
-                            containerStyle={{ marginBottom: 20 }}
-                            onFocus={() => handleInputFocus(180)}
+                            containerStyle={styles.passwordSpacing}
                         />
 
                         {/* Submit Button */}
@@ -283,20 +325,42 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                             variant="primary"
                         />
 
+                        {/* Visual Divider */}
+                        <View style={styles.dividerRow}>
+                            <View style={[styles.dividerLine, { backgroundColor: theme.colors.border }]} />
+                            <AppText variant="caption" color="secondary" style={styles.dividerText}>
+                                {t('or_continue_with', 'or continue with')}
+                            </AppText>
+                            <View style={[styles.dividerLine, { backgroundColor: theme.colors.border }]} />
+                        </View>
+
                         {/* Quick Access Action Buttons */}
                         <View style={styles.quickAccessRow}>
                             <TouchableOpacity
                                 style={[
                                     styles.quickActionButton,
                                     {
-                                        backgroundColor: isDark ? '#252525ff' : '#F8FAFC',
+                                        backgroundColor: theme.colors.surfaceSubtle,
                                         borderColor: theme.colors.border,
                                     },
                                 ]}
-                                onPress={() => navigation.navigate('QrLogin')}
+                                onPress={handleQrLogin}
                                 activeOpacity={0.75}
+                                accessibilityRole="button"
+                                accessibilityLabel={t('scan_qr_login', 'Scan QR Code')}
                             >
-                                <QrCode color={theme.colors.primary} size={18} />
+                                <View
+                                    style={[
+                                        styles.quickActionIconWrap,
+                                        {
+                                            backgroundColor: isDark
+                                                ? 'rgba(223, 0, 0, 0.16)'
+                                                : 'rgba(223, 0, 0, 0.08)',
+                                        },
+                                    ]}
+                                >
+                                    <QrCode color={theme.colors.brand} size={17} />
+                                </View>
                                 <AppText style={[styles.quickActionText, { color: theme.colors.textPrimary }]}>
                                     {t('scan_qr_login', 'Scan QR Code')}
                                 </AppText>
@@ -307,14 +371,27 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                                     style={[
                                         styles.quickActionButton,
                                         {
-                                            backgroundColor: isDark ? '#252525ff' : '#F8FAFC',
+                                            backgroundColor: theme.colors.surfaceSubtle,
                                             borderColor: theme.colors.border,
                                         },
                                     ]}
                                     onPress={handleBiometricAuth}
                                     activeOpacity={0.75}
+                                    accessibilityRole="button"
+                                    accessibilityLabel={t('biometrics', 'Biometrics')}
                                 >
-                                    <Fingerprint color="#10B981" size={18} />
+                                    <View
+                                        style={[
+                                            styles.quickActionIconWrap,
+                                            {
+                                                backgroundColor: isDark
+                                                    ? 'rgba(16, 185, 129, 0.16)'
+                                                    : 'rgba(16, 185, 129, 0.08)',
+                                            },
+                                        ]}
+                                    >
+                                        <Fingerprint color="#10B981" size={17} />
+                                    </View>
                                     <AppText style={[styles.quickActionText, { color: theme.colors.textPrimary }]}>
                                         {t('biometrics', 'Biometrics')}
                                     </AppText>
@@ -353,13 +430,13 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         paddingHorizontal: 12,
-        paddingVertical: 8,
+        paddingVertical: 7,
         borderRadius: 20,
         borderWidth: 1,
         gap: 6,
     },
     utilityButtonText: {
-        fontSize: 13,
+        fontSize: 12.5,
         fontWeight: '600',
     },
     iconButton: {
@@ -372,105 +449,127 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         flexGrow: 1,
-        paddingHorizontal: 24,
-        paddingTop: 8,
-        paddingBottom: 48,
+        paddingHorizontal: 20,
+        paddingTop: 6,
+        paddingBottom: 40,
     },
     brandContainer: {
         alignItems: 'center',
-        marginVertical: 20,
+        marginTop: 8,
+        marginBottom: 20,
     },
     logoContainer: {
+        width: 82,
+        height: 82,
+        borderRadius: 24,
         alignItems: 'center',
         justifyContent: 'center',
         marginBottom: 12,
+        borderWidth: 1,
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000000',
+                shadowOffset: { width: 0, height: 6 },
+                shadowOpacity: 0.08,
+                shadowRadius: 12,
+            },
+            android: {
+                elevation: 4,
+            },
+        }),
     },
     logoImage: {
-        width: 76,
-        height: 76,
-        borderRadius: 20,
+        width: 70,
+        height: 70,
+        borderRadius: 18,
+    },
+    brandBadge: {
+        paddingHorizontal: 10,
+        paddingVertical: 3,
+        borderRadius: 12,
+        marginBottom: 8,
     },
     brandTitle: {
-        fontSize: 17,
+        fontSize: 12,
         fontWeight: '800',
-        letterSpacing: -0.3,
-        marginBottom: 4,
+        letterSpacing: 0.6,
+        textTransform: 'uppercase',
     },
     welcomeTitle: {
-        fontSize: 22,
+        fontSize: 24,
         fontWeight: '800',
         textAlign: 'center',
+        letterSpacing: -0.4,
         marginBottom: 4,
     },
     welcomeSubtitle: {
-        fontSize: 13,
+        fontSize: 13.5,
         textAlign: 'center',
+        fontWeight: '500',
     },
     card: {
-        borderRadius: 16,
-        padding: 16,
+        borderRadius: 22,
+        padding: 18,
         borderWidth: 1,
-        gap: 16,
+        gap: 12,
+        ...Platform.select({
+            ios: {
+                shadowColor: '#000000',
+                shadowOffset: { width: 0, height: 8 },
+                shadowOpacity: 0.06,
+                shadowRadius: 16,
+            },
+            android: {
+                elevation: 3,
+            },
+        }),
     },
-    inputGroup: {
-        width: '100%',
+    inputSpacing: {
+        marginBottom: 2,
     },
-    inputWrapper: {
+    passwordSpacing: {
+        marginBottom: 6,
+    },
+    dividerRow: {
         flexDirection: 'row',
         alignItems: 'center',
-        borderRadius: 14,
-        paddingHorizontal: 14,
-        minHeight: 50,
-        borderWidth: 1,
+        gap: 12,
+        marginVertical: 4,
     },
-    inputIcon: {
-        marginRight: 10,
-    },
-    input: {
+    dividerLine: {
         flex: 1,
-        fontSize: 15,
-        paddingVertical: 10,
+        height: StyleSheet.hairlineWidth,
     },
-    eyeButton: {
-        padding: 4,
-    },
-    submitButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        minHeight: 50,
-        paddingVertical: 12,
-        borderRadius: 14,
-        marginTop: 4,
-    },
-    submitContent: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    submitText: {
-        color: '#FFFFFF',
-        fontSize: 16,
+    dividerText: {
+        fontSize: 12,
+        fontWeight: '500',
     },
     quickAccessRow: {
         flexDirection: 'row',
         gap: 10,
-        marginTop: 4,
+        marginTop: 2,
     },
     quickActionButton: {
         flex: 1,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: 46,
+        minHeight: 48,
         paddingVertical: 10,
         paddingHorizontal: 12,
-        borderRadius: 12,
-        borderWidth: 0,
+        borderRadius: 14,
+        borderWidth: 1,
         gap: 8,
     },
+    quickActionIconWrap: {
+        width: 28,
+        height: 28,
+        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     quickActionText: {
-        fontSize: 13,
+        fontSize: 12.5,
         fontWeight: '600',
     },
-});
+});

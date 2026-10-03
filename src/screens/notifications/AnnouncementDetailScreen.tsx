@@ -322,29 +322,34 @@ export const AnnouncementDetailScreen: React.FC<{ route: any; navigation: any }>
             )}
 
             {/* Fullscreen Image Preview Modal */}
-            {previewImageUrl && (
-                <Modal
-                    visible={!!previewImageUrl}
-                    transparent={true}
-                    animationType="fade"
-                    onRequestClose={() => setPreviewImageUrl(null)}
-                >
-                    <View style={styles.imageModalOverlay}>
-                        <TouchableOpacity
-                            style={[styles.imageModalCloseBtn, { top: Math.max(40, insets.top + 10) }]}
-                            onPress={() => setPreviewImageUrl(null)}
-                            activeOpacity={0.8}
-                        >
-                            <X color="#FFFFFF" size={24} />
-                        </TouchableOpacity>
+            <Modal
+                visible={Boolean(previewImageUrl)}
+                transparent={true}
+                animationType="fade"
+                onRequestClose={() => setPreviewImageUrl(null)}
+            >
+                <View style={styles.imageModalOverlay}>
+                    <TouchableOpacity
+                        style={StyleSheet.absoluteFill}
+                        activeOpacity={1}
+                        onPress={() => setPreviewImageUrl(null)}
+                    />
+                    <TouchableOpacity
+                        style={[styles.imageModalCloseBtn, { top: Math.max(40, insets.top + 10) }]}
+                        onPress={() => setPreviewImageUrl(null)}
+                        activeOpacity={0.8}
+                    >
+                        <X color="#FFFFFF" size={24} />
+                    </TouchableOpacity>
+                    {previewImageUrl && (
                         <Image
                             source={{ uri: previewImageUrl }}
                             style={{ width: screenWidth, height: '80%' }}
                             resizeMode="contain"
                         />
-                    </View>
-                </Modal>
-            )}
+                    )}
+                </View>
+            </Modal>
         </AppShell>
     );
 };

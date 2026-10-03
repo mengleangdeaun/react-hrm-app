@@ -229,7 +229,8 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginHorizontal: theme.spacing.screenGutter,
         marginBottom: theme.spacing.md,
         borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderColor: (theme.colors as any).borderSubtle || theme.colors.border,
+        ...theme.shadows.xs,
     },
     cardHeader: {
         flexDirection: 'row',
@@ -333,8 +334,8 @@ const stylesheet = StyleSheet.create((theme) => ({
         alignItems: 'center',
         paddingTop: theme.spacing.xs + 4,
         marginTop: theme.spacing.xs,
-        borderTopWidth: 1,
-        borderTopColor: theme.colors.border,
+        borderTopWidth: StyleSheet.hairlineWidth,
+        borderTopColor: (theme.colors as any).divider || theme.colors.border,
     },
     appliedDateText: {
         fontSize: 11,

@@ -91,16 +91,18 @@ const AppTextComponent: React.FC<AppTextProps> = ({
     }
 
     const flattenedStyle: any = Array.isArray(style) ? StyleSheet.flatten(style) : (style || {});
-    const finalFontSize = flattenedStyle.fontSize || scaledFontSize;
+    const finalFontSize = flattenedStyle.fontSize
+        ? Math.round(flattenedStyle.fontSize * (fontSizeScale || 1))
+        : scaledFontSize;
 
     // 5. Unified Line Height: Rock-solid stability between English and Khmer
     let computedLineHeight: number;
     if (flattenedStyle.lineHeight) {
-        computedLineHeight = flattenedStyle.lineHeight;
+        computedLineHeight = Math.round(flattenedStyle.lineHeight * (fontSizeScale || 1));
     } else if (flattenedStyle.fontSize) {
         computedLineHeight = Math.max(
-            Math.round(flattenedStyle.fontSize * 1.4),
-            flattenedStyle.fontSize + 6
+            Math.round(finalFontSize * 1.4),
+            finalFontSize + 6
         );
     } else {
         computedLineHeight = scaledLineHeight;

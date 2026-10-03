@@ -32,12 +32,14 @@ export const AppCard: React.FC<AppCardProps> = ({
     const cardStyles = useMemo(() => {
         let backgroundColor: string = theme.colors.surface;
         const borderWidth = noBorder ? 0 : 1;
-        const borderColor: string = noBorder ? 'transparent' : theme.colors.border;
+        let borderColor: string = noBorder ? 'transparent' : theme.colors.border;
 
         if (variant === 'subtle') {
             backgroundColor = theme.colors.surfaceSubtle;
+            borderColor = noBorder ? 'transparent' : (theme.colors as any).borderSubtle || theme.colors.border;
         } else if (variant === 'elevated') {
             backgroundColor = theme.colors.surface;
+            borderColor = noBorder ? 'transparent' : (theme.colors as any).borderSubtle || theme.colors.border;
         }
 
         return [

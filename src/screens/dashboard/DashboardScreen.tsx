@@ -669,8 +669,8 @@ const stylesheet = StyleSheet.create((theme) => ({
         width: 48,
         height: 48,
         borderRadius: theme.borderRadius.full,
-        borderWidth: 2,
-        borderColor: theme.colors.primary,
+        borderWidth: 1.5,
+        borderColor: (theme.colors as any).borderSubtle || theme.colors.border,
     },
     avatarFallback: {
         width: 48,
@@ -785,8 +785,8 @@ const stylesheet = StyleSheet.create((theme) => ({
         height: 26,
         borderRadius: 13,
         backgroundColor: theme.colors.surface,
-        borderWidth: 2,
-        borderColor: theme.colors.border,
+        borderWidth: 1.5,
+        borderColor: (theme.colors as any).borderSubtle || theme.colors.border,
         justifyContent: 'center',
         alignItems: 'center',
         marginBottom: 6,
@@ -799,7 +799,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     nodeCircleCurrent: {
         borderColor: theme.colors.primary,
         backgroundColor: theme.colors.surfaceSubtle,
-        borderWidth: 2,
+        borderWidth: 1.5,
     },
     nodeDot: {
         width: 6,
@@ -902,7 +902,8 @@ const stylesheet = StyleSheet.create((theme) => ({
         padding: theme.spacing.cardPadding,
         marginBottom: theme.spacing.md,
         borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderColor: (theme.colors as any).borderSubtle || theme.colors.border,
+        ...theme.shadows.xs,
     },
     tileIconContainer: {
         width: 44,

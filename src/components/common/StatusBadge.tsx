@@ -50,10 +50,10 @@ export const StatusBadge: React.FC<StatusBadgeProps> = ({
         completed: { bg: theme.colors.status.successSubtle, text: theme.colors.status.success, defaultLabel: 'COMPLETED' },
         passed: { bg: theme.colors.status.successSubtle, text: theme.colors.status.success, defaultLabel: 'PASSED' },
 
-        pending: { bg: theme.colors.status.warningSubtle, text: theme.colors.status.warning, defaultLabel: 'PENDING' },
-        warning: { bg: theme.colors.status.warningSubtle, text: theme.colors.status.warning, defaultLabel: 'WARNING' },
-        holiday: { bg: theme.colors.status.warningSubtle, text: theme.colors.status.warning, defaultLabel: 'HOLIDAY' },
-        late: { bg: theme.colors.status.warningSubtle, text: theme.colors.status.warning, defaultLabel: 'LATE' },
+        pending: { bg: theme.colors.status.warningSubtle, text: isDark ? theme.colors.status.warning : '#B45309', defaultLabel: 'PENDING' },
+        warning: { bg: theme.colors.status.warningSubtle, text: isDark ? theme.colors.status.warning : '#B45309', defaultLabel: 'WARNING' },
+        holiday: { bg: theme.colors.status.warningSubtle, text: isDark ? theme.colors.status.warning : '#B45309', defaultLabel: 'HOLIDAY' },
+        late: { bg: theme.colors.status.warningSubtle, text: isDark ? theme.colors.status.warning : '#B45309', defaultLabel: 'LATE' },
 
         rejected: { bg: theme.colors.status.dangerSubtle, text: theme.colors.status.danger, defaultLabel: 'REJECTED' },
         cancelled: { bg: theme.colors.status.dangerSubtle, text: theme.colors.status.danger, defaultLabel: 'CANCELLED' },

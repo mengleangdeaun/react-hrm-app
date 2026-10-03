@@ -69,8 +69,8 @@ export const AppButton: React.FC<AppButtonProps> = ({
     } else if (variant === 'outline') {
         backgroundColor = 'transparent';
         textColor = theme.colors.textPrimary;
-        borderWidth = 1.5;
-        borderColor = theme.colors.border;
+        borderWidth = 1;
+        borderColor = (theme.colors as any).borderStrong || theme.colors.border;
     } else if (variant === 'ghost') {
         backgroundColor = 'transparent';
         textColor = theme.colors.brand;

@@ -167,33 +167,30 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         data: historyLogs = [],
         isLoading,
         isFetching,
+        isError,
+        error,
         refetch,
     } = useQuery<HistoryRecord[]>({
         queryKey: queryKeys.attendance.history(selectedMonth, selectedQuickFilter),
         queryFn: async () => {
-            try {
-                const params: any = {};
-                if (selectedMonth) params.month = selectedMonth;
+            const params: any = {};
+            if (selectedMonth) params.month = selectedMonth;
 
-                const categoryObj = AUDIT_CATEGORIES.find((c) => c.id === selectedQuickFilter);
-                if (categoryObj && (categoryObj as any).key && (categoryObj as any).value) {
-                    params[(categoryObj as any).key] = (categoryObj as any).value;
-                }
-
-                const data = await attendanceApi.getHistory(params);
-                const records: HistoryRecord[] = Array.isArray(data)
-                    ? data
-                    : Array.isArray(data?.records)
-                    ? data.records
-                    : Array.isArray(data?.data)
-                    ? data.data
-                    : [];
-
-                return records;
-            } catch (error) {
-                console.warn('Failed to fetch attendance history:', error);
-                return [];
+            const categoryObj = AUDIT_CATEGORIES.find((c) => c.id === selectedQuickFilter);
+            if (categoryObj && (categoryObj as any).key && (categoryObj as any).value) {
+                params[(categoryObj as any).key] = (categoryObj as any).value;
             }
+
+            const data = await attendanceApi.getHistory(params);
+            const records: HistoryRecord[] = Array.isArray(data)
+                ? data
+                : Array.isArray(data?.records)
+                ? data.records
+                : Array.isArray(data?.data)
+                ? data.data
+                : [];
+
+            return records;
         },
         staleTime: 1000 * 60 * 5, // 5 minutes cache
     });
@@ -321,6 +318,20 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
     const emptyStateComponent = isLoading ? (
         <AttendanceHistorySkeleton />
+    ) : isError ? (
+        <View style={styles.emptyContainer}>
+            <EmptyState
+                icon={<AlertTriangle color={theme.colors.status.danger} size={36} />}
+                title={t('failed_to_load_history', 'Failed to Load History')}
+                description={
+                    error instanceof Error
+                        ? error.message
+                        : t('network_error_retry', 'Please check your connection and try again.')
+                }
+                actionTitle={t('retry', 'Retry')}
+                onAction={() => refetch()}
+            />
+        </View>
     ) : (
         <View style={styles.emptyContainer}>
             <EmptyState

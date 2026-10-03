@@ -6,6 +6,7 @@ import {
     Animated,
     PanResponder,
     useWindowDimensions,
+    Dimensions,
     Platform,
     StyleSheet,
     BackHandler,
@@ -20,6 +21,8 @@ import { X } from 'lucide-react-native';
 import { AppText as Text } from '../AppText';
 import { useAppTheme } from '../../context/ThemeContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
+
+export const BottomSheetContext = React.createContext<boolean>(false);
 
 export interface AppBottomSheetProps {
     visible: boolean;
@@ -71,7 +74,8 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
     secondaryButtonTitle,
     onSecondaryButtonPress,
 }) => {
-    const { height: screenHeight } = useWindowDimensions();
+    const { height: windowHeight } = useWindowDimensions();
+    const screenHeight = Dimensions.get('screen').height || windowHeight;
     const { isDark } = useAppTheme();
     const theme = isDark ? darkTheme : lightTheme;
     const insets = useSafeAreaInsets();
@@ -136,17 +140,17 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
         Animated.parallel([
             Animated.timing(backdropAnim, {
                 toValue: 0,
-                duration: 220,
-                useNativeDriver: false,
+                duration: 200,
+                useNativeDriver: true,
             }),
             Animated.timing(sheetAnim, {
                 toValue: screenHeight,
-                duration: 260,
-                useNativeDriver: false,
+                duration: 240,
+                useNativeDriver: true,
             }),
             Animated.timing(keyboardOffsetAnim, {
                 toValue: 0,
-                duration: 220,
+                duration: 200,
                 useNativeDriver: false,
             }),
         ]).start(() => {
@@ -173,14 +177,14 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                 Animated.timing(backdropAnim, {
                     toValue: 1,
                     duration: 240,
-                    useNativeDriver: false,
+                    useNativeDriver: true,
                 }),
                 Animated.spring(sheetAnim, {
                     toValue: 0,
                     damping: 24,
                     stiffness: 220,
                     mass: 0.8,
-                    useNativeDriver: false,
+                    useNativeDriver: true,
                 }),
             ]).start();
         } else if (modalVisible) {
@@ -225,7 +229,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                         toValue: 0,
                         damping: 24,
                         stiffness: 260,
-                        useNativeDriver: false,
+                        useNativeDriver: true,
                     }).start();
                 }
             },
@@ -234,7 +238,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                     toValue: 0,
                     damping: 24,
                     stiffness: 260,
-                    useNativeDriver: false,
+                    useNativeDriver: true,
                 }).start();
             },
         })
@@ -244,6 +248,14 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
     if (!shouldRender) return null;
 
     const translateY = Animated.add(sheetAnim, panY);
+
+    // Coupled backdrop opacity that reacts in real-time to both entrance fade and downward gesture dragging
+    const panBackdropOpacity = panY.interpolate({
+        inputRange: [0, 240],
+        outputRange: [1, 0.3],
+        extrapolate: 'clamp',
+    });
+    const effectiveBackdropOpacity = Animated.multiply(backdropAnim, panBackdropOpacity);
 
     // Dynamically constrain maxSheetHeight when keyboard is visible so the sheet never clips off top of screen
     const maxSheetHeight = keyboardHeight > 0
@@ -270,163 +282,167 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                 containerStyle,
             ]}
         >
-            {/* Top Draggable Area (Handle + Header) */}
-            <View {...panResponder.panHandlers}>
-                {/* Drag Handle Bar */}
-                <View style={styles.dragHandleArea}>
-                    <View
-                        style={[
-                            styles.dragHandleBar,
-                            {
-                                backgroundColor: isDark
-                                    ? 'rgba(255, 255, 255, 0.28)'
-                                    : 'rgba(0, 0, 0, 0.18)',
-                            },
-                        ]}
-                    />
-                </View>
-
-                {/* Header Bar */}
-                {(title || headerRight || showCloseButton) && (
-                    <View style={[styles.headerRow, { borderBottomColor: theme.colors.border }]}>
-                        <View style={styles.titleWrapper}>
-                            {title && (
-                                <Text style={[styles.titleText, { color: theme.colors.textPrimary }]}>
-                                    {title}
-                                </Text>
-                            )}
-                            {subtitle && (
-                                <Text style={[styles.subtitleText, { color: theme.colors.textSecondary }]}>
-                                    {subtitle}
-                                </Text>
-                            )}
-                        </View>
-
-                        <View style={styles.headerRightActions}>
-                            {headerRight}
-                            {showCloseButton && (
-                                <TouchableOpacity
-                                    style={[styles.closeButton, { backgroundColor: theme.colors.surfaceSubtle }]}
-                                    onPress={handleDismiss}
-                                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                                    activeOpacity={0.7}
-                                    accessibilityLabel="Close sheet"
-                                    accessibilityRole="button"
-                                >
-                                    <X color={theme.colors.textSecondary} size={18} />
-                                </TouchableOpacity>
-                            )}
-                        </View>
+            <View style={styles.sheetInnerWrapper}>
+                {/* Top Draggable Area (Handle + Header) */}
+                <View style={styles.headerContainer} {...panResponder.panHandlers}>
+                    {/* Drag Handle Bar */}
+                    <View style={styles.dragHandleArea}>
+                        <View
+                            style={[
+                                styles.dragHandleBar,
+                                {
+                                    backgroundColor: isDark
+                                        ? 'rgba(255, 255, 255, 0.28)'
+                                        : 'rgba(0, 0, 0, 0.18)',
+                                },
+                            ]}
+                        />
                     </View>
-                )}
-            </View>
 
-            {/* Sheet Content */}
-            {scrollable ? (
-                <ScrollView
-                    ref={scrollViewRef || internalScrollRef}
-                    style={styles.scrollContent}
-                    contentContainerStyle={[
-                        styles.scrollContentContainer,
-                        { paddingBottom: (footer || primaryButtonTitle) ? 16 : activeBottomMargin },
-                        contentContainerStyle,
-                    ]}
-                    showsVerticalScrollIndicator={false}
-                    keyboardShouldPersistTaps="handled"
-                    keyboardDismissMode="on-drag"
-                    bounces={false}
-                    nestedScrollEnabled
-                >
-                    {children}
-                </ScrollView>
-            ) : (
-                <View
-                    style={[
-                        styles.fixedContent,
-                        { paddingBottom: (footer || primaryButtonTitle) ? 16 : activeBottomMargin },
-                        contentContainerStyle,
-                    ]}
-                >
-                    {children}
-                </View>
-            )}
-
-            {/* Sticky Bottom Footer with Extra Navigator Clearance */}
-            {(footer || primaryButtonTitle) && (
-                <View
-                    style={[
-                        styles.footerContainer,
-                        {
-                            borderTopColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)',
-                            paddingBottom: activeBottomMargin,
-                        },
-                    ]}
-                >
-                    {footer ? (
-                        footer
-                    ) : (
-                        <View style={styles.actionButtonGroup}>
-                            <TouchableOpacity
-                                style={[
-                                    styles.sheetPrimaryButton,
-                                    {
-                                        backgroundColor: primaryButtonVariant === 'destructive'
-                                            ? theme.colors.status.danger
-                                            : primaryButtonVariant === 'secondary'
-                                            ? theme.colors.surfaceSubtle
-                                            : theme.colors.primary,
-                                    },
-                                    (primaryButtonDisabled || primaryButtonLoading) && styles.sheetButtonDisabled,
-                                ]}
-                                onPress={onPrimaryButtonPress}
-                                disabled={primaryButtonDisabled || primaryButtonLoading}
-                                activeOpacity={0.85}
-                            >
-                                {primaryButtonLoading ? (
-                                    <ActivityIndicator
-                                        color={primaryButtonVariant === 'secondary' ? theme.colors.textPrimary : '#FFFFFF'}
-                                        size="small"
-                                    />
-                                ) : (
-                                    <View style={styles.buttonInnerRow}>
-                                        {primaryButtonIcon && <View style={styles.buttonIconWrapper}>{primaryButtonIcon}</View>}
-                                        <Text
-                                            style={[
-                                                styles.sheetPrimaryButtonText,
-                                                {
-                                                    color: primaryButtonVariant === 'secondary'
-                                                        ? theme.colors.textPrimary
-                                                        : '#FFFFFF',
-                                                },
-                                            ]}
-                                        >
-                                            {primaryButtonTitle}
-                                        </Text>
-                                    </View>
-                                )}
-                            </TouchableOpacity>
-
-                            {secondaryButtonTitle && onSecondaryButtonPress && (
-                                <TouchableOpacity
-                                    style={[
-                                        styles.sheetSecondaryButton,
-                                        {
-                                            backgroundColor: theme.colors.surfaceSubtle,
-                                            borderColor: theme.colors.border,
-                                        },
-                                    ]}
-                                    onPress={onSecondaryButtonPress}
-                                    activeOpacity={0.75}
-                                >
-                                    <Text style={[styles.sheetSecondaryButtonText, { color: theme.colors.textPrimary }]}>
-                                        {secondaryButtonTitle}
+                    {/* Header Bar */}
+                    {(title || headerRight || showCloseButton) && (
+                        <View style={[styles.headerRow, { borderBottomColor: theme.colors.border }]}>
+                            <View style={styles.titleWrapper}>
+                                {title && (
+                                    <Text style={[styles.titleText, { color: theme.colors.textPrimary }]}>
+                                        {title}
                                     </Text>
-                                </TouchableOpacity>
-                            )}
+                                )}
+                                {subtitle && (
+                                    <Text style={[styles.subtitleText, { color: theme.colors.textSecondary }]}>
+                                        {subtitle}
+                                    </Text>
+                                )}
+                            </View>
+
+                            <View style={styles.headerRightActions}>
+                                {headerRight}
+                                {showCloseButton && (
+                                    <TouchableOpacity
+                                        style={[styles.closeButton, { backgroundColor: theme.colors.surfaceSubtle }]}
+                                        onPress={handleDismiss}
+                                        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                                        activeOpacity={0.7}
+                                        accessibilityLabel="Close sheet"
+                                        accessibilityRole="button"
+                                    >
+                                        <X color={theme.colors.textSecondary} size={18} />
+                                    </TouchableOpacity>
+                                )}
+                            </View>
                         </View>
                     )}
                 </View>
-            )}
+
+                {/* Sheet Content */}
+                <BottomSheetContext.Provider value={true}>
+                    {scrollable ? (
+                        <ScrollView
+                            ref={scrollViewRef || internalScrollRef}
+                            style={styles.scrollContent}
+                            contentContainerStyle={[
+                                styles.scrollContentContainer,
+                                { paddingBottom: (footer || primaryButtonTitle) ? 16 : activeBottomMargin },
+                                contentContainerStyle,
+                            ]}
+                            showsVerticalScrollIndicator={Platform.OS === 'web'}
+                            keyboardShouldPersistTaps="handled"
+                            keyboardDismissMode="on-drag"
+                            bounces={false}
+                            nestedScrollEnabled
+                        >
+                            {children}
+                        </ScrollView>
+                    ) : (
+                        <View
+                            style={[
+                                styles.fixedContent,
+                                { paddingBottom: (footer || primaryButtonTitle) ? 16 : activeBottomMargin },
+                                contentContainerStyle,
+                            ]}
+                        >
+                            {children}
+                        </View>
+                    )}
+                </BottomSheetContext.Provider>
+
+                {/* Sticky Bottom Footer with Extra Navigator Clearance */}
+                {(footer || primaryButtonTitle) && (
+                    <View
+                        style={[
+                            styles.footerContainer,
+                            {
+                                borderTopColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)',
+                                paddingBottom: activeBottomMargin,
+                            },
+                        ]}
+                    >
+                        {footer ? (
+                            footer
+                        ) : (
+                            <View style={styles.actionButtonGroup}>
+                                <TouchableOpacity
+                                    style={[
+                                        styles.sheetPrimaryButton,
+                                        {
+                                            backgroundColor: primaryButtonVariant === 'destructive'
+                                                ? theme.colors.status.danger
+                                                : primaryButtonVariant === 'secondary'
+                                                ? theme.colors.surfaceSubtle
+                                                : theme.colors.primary,
+                                        },
+                                        (primaryButtonDisabled || primaryButtonLoading) && styles.sheetButtonDisabled,
+                                    ]}
+                                    onPress={onPrimaryButtonPress}
+                                    disabled={primaryButtonDisabled || primaryButtonLoading}
+                                    activeOpacity={0.85}
+                                >
+                                    {primaryButtonLoading ? (
+                                        <ActivityIndicator
+                                            color={primaryButtonVariant === 'secondary' ? theme.colors.textPrimary : '#FFFFFF'}
+                                            size="small"
+                                        />
+                                    ) : (
+                                        <View style={styles.buttonInnerRow}>
+                                            {primaryButtonIcon && <View style={styles.buttonIconWrapper}>{primaryButtonIcon}</View>}
+                                            <Text
+                                                style={[
+                                                    styles.sheetPrimaryButtonText,
+                                                    {
+                                                        color: primaryButtonVariant === 'secondary'
+                                                            ? theme.colors.textPrimary
+                                                            : '#FFFFFF',
+                                                    },
+                                                ]}
+                                            >
+                                                {primaryButtonTitle}
+                                            </Text>
+                                        </View>
+                                    )}
+                                </TouchableOpacity>
+
+                                {secondaryButtonTitle && onSecondaryButtonPress && (
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.sheetSecondaryButton,
+                                            {
+                                                backgroundColor: theme.colors.surfaceSubtle,
+                                                borderColor: theme.colors.border,
+                                            },
+                                        ]}
+                                        onPress={onSecondaryButtonPress}
+                                        activeOpacity={0.75}
+                                    >
+                                        <Text style={[styles.sheetSecondaryButtonText, { color: theme.colors.textPrimary }]}>
+                                            {secondaryButtonTitle}
+                                        </Text>
+                                    </TouchableOpacity>
+                                )}
+                            </View>
+                        )}
+                    </View>
+                )}
+            </View>
         </Animated.View>
     );
 
@@ -437,10 +453,11 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
             statusBarTranslucent
             animationType="none"
             onRequestClose={handleDismiss}
+            accessibilityViewIsModal={true}
         >
             <View style={styles.modalOverlay}>
-                {/* Backdrop Fade */}
-                <Animated.View style={[styles.backdrop, { opacity: backdropAnim }]}>
+                {/* Backdrop Fade with real-time gesture coupling */}
+                <Animated.View style={[styles.backdrop, { opacity: effectiveBackdropOpacity }]}>
                     <TouchableOpacity
                         style={StyleSheet.absoluteFill}
                         activeOpacity={1}
@@ -469,21 +486,25 @@ const styles = StyleSheet.create({
         width: '100%',
         height: '100%',
         justifyContent: 'flex-end',
+        backgroundColor: 'transparent',
     },
     backdrop: {
         ...StyleSheet.absoluteFillObject,
-        width: '100%',
-        height: '100%',
         backgroundColor: 'rgba(0, 0, 0, 0.60)',
         zIndex: 1,
     },
     keyboardContainer: {
         width: '100%',
+        maxHeight: '100%',
+        flexShrink: 1,
         justifyContent: 'flex-end',
         zIndex: 2,
     },
     sheetContainer: {
         width: '100%',
+        maxWidth: 640,
+        alignSelf: 'center',
+        flexShrink: 1,
         borderTopLeftRadius: 28,
         borderTopRightRadius: 28,
         borderTopWidth: 1,
@@ -491,10 +512,20 @@ const styles = StyleSheet.create({
         borderRightWidth: StyleSheet.hairlineWidth,
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: -6 },
-        shadowOpacity: 0.2,
+        shadowOpacity: 0.18,
         shadowRadius: 16,
         elevation: 24,
+    },
+    sheetInnerWrapper: {
+        width: '100%',
+        maxHeight: '100%',
+        flexShrink: 1,
+        borderTopLeftRadius: 28,
+        borderTopRightRadius: 28,
         overflow: 'hidden',
+    },
+    headerContainer: {
+        flexShrink: 0,
     },
     dragHandleArea: {
         width: '100%',
@@ -543,6 +574,13 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         flexShrink: 1,
+        minHeight: 0,
+        ...Platform.select({
+            web: {
+                overflowY: 'auto' as any,
+                overscrollBehavior: 'contain' as any,
+            },
+        }),
     },
     scrollContentContainer: {
         paddingHorizontal: 20,
@@ -557,6 +595,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingTop: 12,
         borderTopWidth: StyleSheet.hairlineWidth,
+        flexShrink: 0,
     },
     actionButtonGroup: {
         width: '100%',

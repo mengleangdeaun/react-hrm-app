@@ -152,7 +152,7 @@ export const AppShell: React.FC<AppShellProps> = ({
 
             {subHeader && <View style={styles.subHeaderContainer}>{subHeader}</View>}
 
-            {keyboardAvoiding ? (
+            {keyboardAvoiding && !scrollable ? (
                 <KeyboardAvoidingView
                     style={styles.keyboardAvoidingContainer}
                     behavior={Platform.OS === 'ios' ? 'padding' : undefined}

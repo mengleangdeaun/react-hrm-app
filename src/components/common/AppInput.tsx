@@ -90,6 +90,7 @@ export const AppInput: React.FC<AppInputProps> = ({
                             : isFocused
                             ? theme.colors.brand
                             : theme.colors.border,
+                        borderWidth: isFocused ? 1.5 : 1,
                         minHeight: inputHeight,
                         alignItems: multiline ? 'flex-start' : 'center',
                         paddingVertical: multiline ? 10 : 6,
@@ -160,7 +161,7 @@ const styles = StyleSheet.create({
     inputWrapper: {
         flexDirection: 'row',
         borderRadius: 12,
-        borderWidth: 1.5,
+        borderWidth: 1,
         paddingHorizontal: 12,
     },
     iconContainer: {

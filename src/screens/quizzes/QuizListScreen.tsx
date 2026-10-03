@@ -28,6 +28,7 @@ import {
     Book,
     CheckCheck,
     HelpCircle,
+    AlertTriangle,
 } from 'lucide-react-native';
 
 const QUIZ_TABS = [
@@ -52,10 +53,17 @@ export const QuizListScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     const [refreshing, setRefreshing] = useState<boolean>(false);
 
     // 10-minute React Query Caching for Quizzes
-    const { data: quizzes = [], isLoading, isFetching } = useQuery<QuizItem[]>({
+    const {
+        data: quizzes = [],
+        isLoading,
+        isFetching,
+        isError,
+        error,
+        refetch,
+    } = useQuery<QuizItem[]>({
         queryKey: queryKeys.quizzes.list,
         queryFn: async () => {
-            const res = await quizApi.getAssignedQuizzes().catch(() => null);
+            const res = await quizApi.getAssignedQuizzes();
             const list = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
             return list;
         },
@@ -110,6 +118,18 @@ export const QuizListScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         >
             {isLoading ? (
                 <QuizListSkeleton />
+            ) : isError ? (
+                <EmptyState
+                    icon={<AlertTriangle color={theme.colors.status.danger} size={36} />}
+                    title={t('failed_to_load_quizzes', 'Failed to Load Assessments')}
+                    description={
+                        error instanceof Error
+                            ? error.message
+                            : t('network_error_retry', 'Please check your connection and try again.')
+                    }
+                    actionTitle={t('retry', 'Retry')}
+                    onAction={() => refetch()}
+                />
             ) : activeTab === 'active' ? (
                 activeQuizzes.length === 0 ? (
                     <EmptyState

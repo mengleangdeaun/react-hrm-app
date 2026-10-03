@@ -91,11 +91,13 @@ const stylesheet = StyleSheet.create((theme) => ({
         padding: theme.spacing.cardPadding,
         width: 168,
         borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderColor: (theme.colors as any).borderSubtle || theme.colors.border,
+        ...theme.shadows.xs,
     },
     balanceCardSelected: {
         borderColor: theme.colors.primary,
         backgroundColor: theme.colors.surface,
+        ...theme.shadows.sm,
     },
     balanceCardTop: {
         flexDirection: 'row',

@@ -15,10 +15,11 @@ export const lightTheme = {
     background: '#F8F9FA',
     surface: '#FFFFFF',
     surfaceSubtle: '#F1F3F5',
-    surfaceSecondary: '#F1F3F5',
-    border: '#E9ECEF',
-    borderStrong: '#CED4DA',
-    divider: '#E9ECEF',
+    surfaceSecondary: '#E9ECEF',
+    border: 'rgba(0, 0, 0, 0.07)',
+    borderSubtle: 'rgba(0, 0, 0, 0.04)',
+    borderStrong: 'rgba(0, 0, 0, 0.14)',
+    divider: 'rgba(0, 0, 0, 0.06)',
 
     // 3. Neutral Typography
     textPrimary: '#111827',
@@ -137,11 +138,12 @@ export const darkTheme = {
     // 2. Surfaces & Backgrounds
     background: '#121212',
     surface: '#1E1E1E',
-    surfaceSubtle: '#2A2A2A',
-    surfaceSecondary: '#2A2A2A',
-    border: '#2E2E2E',
-    borderStrong: '#404040',
-    divider: '#2E2E2E',
+    surfaceSubtle: '#262626',
+    surfaceSecondary: '#2E2E2E',
+    border: 'rgba(255, 255, 255, 0.08)',
+    borderSubtle: 'rgba(255, 255, 255, 0.04)',
+    borderStrong: 'rgba(255, 255, 255, 0.16)',
+    divider: 'rgba(255, 255, 255, 0.06)',
 
     // 3. Neutral Typography
     textPrimary: '#F9FAFB',

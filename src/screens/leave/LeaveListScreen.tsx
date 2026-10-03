@@ -27,6 +27,7 @@ import {
     Search,
     X,
     Filter,
+    AlertTriangle,
 } from 'lucide-react-native';
 import { useTranslation } from '../../context/LanguageContext';
 import {
@@ -95,12 +96,14 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         data: leaveRequests = [],
         isLoading,
         isFetching,
+        isError,
+        error,
         refetch,
     } = useQuery<LeaveRequest[]>({
         queryKey: queryKeys.leave.requests(activeTab),
         queryFn: async () => {
             if (activeTab === 'my_requests') {
-                const reqRes = await leaveApi.getLeaveRequests().catch(() => null);
+                const reqRes = await leaveApi.getLeaveRequests();
                 return Array.isArray(reqRes?.data)
                     ? reqRes.data
                     : Array.isArray(reqRes?.requests)
@@ -534,6 +537,24 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
             return <LeaveListSkeleton />;
         }
 
+        if (isError) {
+            return (
+                <View style={styles.emptyContainer}>
+                    <EmptyState
+                        icon={<AlertTriangle color={theme.colors.status.danger} size={36} />}
+                        title={t('failed_to_load_leaves', 'Failed to Load Requests')}
+                        description={
+                            error instanceof Error
+                                ? error.message
+                                : t('network_error_retry', 'Please check your connection and try again.')
+                        }
+                        actionTitle={t('retry', 'Retry')}
+                        onAction={() => refetch()}
+                    />
+                </View>
+            );
+        }
+
         const isFiltered = statusFilter !== 'all' || selectedLeaveTypeId !== null || searchQuery.trim().length > 0;
 
         if (isFiltered) {
@@ -577,7 +598,7 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 />
             </View>
         );
-    }, [isLoading, statusFilter, selectedLeaveTypeId, searchQuery, activeTab, styles, theme, t, navigation]);
+    }, [isLoading, isError, error, refetch, statusFilter, selectedLeaveTypeId, searchQuery, activeTab, styles, theme, t, navigation]);
 
     return (
         <AppShell
@@ -672,8 +693,8 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     tabBtnActive: {
         backgroundColor: theme.colors.surface,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderWidth: 0,
+        ...theme.shadows.xs,
     },
     tabBtnRow: {
         flexDirection: 'row',
@@ -742,9 +763,9 @@ const stylesheet = StyleSheet.create((theme) => ({
     searchBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: theme.colors.surface,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
+        backgroundColor: theme.colors.surfaceSubtle,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: (theme.colors as any).borderSubtle || theme.colors.border,
         borderRadius: theme.borderRadius.md,
         paddingHorizontal: theme.spacing.md,
         height: 42,
@@ -768,9 +789,9 @@ const stylesheet = StyleSheet.create((theme) => ({
     statusChip: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: theme.colors.surface,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
+        backgroundColor: theme.colors.surfaceSubtle,
+        borderWidth: StyleSheet.hairlineWidth,
+        borderColor: (theme.colors as any).borderSubtle || theme.colors.border,
         paddingHorizontal: theme.spacing.md,
         paddingVertical: 6,
         borderRadius: theme.borderRadius.full,
