@@ -53,9 +53,10 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     const styles = stylesheet;
     const queryClient = useQueryClient();
     const [avatarLoadError, setAvatarLoadError] = useState(false);
+    const [refreshing, setRefreshing] = useState(false);
 
     // Query with 10-minute cache & robust response unwrapping
-    const { data: profileData, isFetching, refetch } = useQuery<ProfileData>({
+    const { data: profileData, refetch } = useQuery<ProfileData>({
         queryKey: queryKeys.auth.profile,
         queryFn: async () => {
             const res = await profileApi.getProfile();
@@ -151,8 +152,13 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
 
     const handleRefresh = async () => {
         setAvatarLoadError(false);
-        await queryClient.invalidateQueries({ queryKey: queryKeys.auth.profile });
-        refetch();
+        setRefreshing(true);
+        try {
+            await queryClient.invalidateQueries({ queryKey: queryKeys.auth.profile });
+            await refetch();
+        } finally {
+            setRefreshing(false);
+        }
     };
 
     const headerRight = (
@@ -179,7 +185,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
         <AppShell
             title={t('my_profile', 'My Profile')}
             headerRight={headerRight}
-            refreshing={isFetching}
+            refreshing={refreshing}
             onRefresh={handleRefresh}
             hasTabBar={true}
         >
@@ -407,8 +413,8 @@ const stylesheet = StyleSheet.create((theme) => ({
         padding: theme.spacing.lg,
         alignItems: 'center',
         marginBottom: theme.spacing.lg,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderWidth: 0.5,
+        borderColor: (theme.colors as any).borderSubtle || theme.colors.border,
     },
     avatarWrapper: {
         position: 'relative',
@@ -498,8 +504,8 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: theme.borderRadius.lg,
         padding: theme.spacing.cardPadding,
         marginBottom: theme.spacing.lg,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderWidth: 0.5,
+        borderColor: (theme.colors as any).borderSubtle || theme.colors.border,
     },
     infoRow: {
         flexDirection: 'row',
@@ -513,8 +519,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         backgroundColor: theme.colors.surfaceSubtle,
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderWidth: 0,
     },
     infoTextGroup: {
         flex: 1,
@@ -541,8 +546,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         justifyContent: 'center',
         alignItems: 'center',
         backgroundColor: theme.colors.status.dangerSubtle,
-        borderWidth: 1,
-        borderColor: theme.colors.status.dangerBorder,
+        borderWidth: 0,
         minHeight: 48,
         paddingVertical: 12,
         borderRadius: theme.borderRadius.lg,

@@ -658,8 +658,8 @@ const stylesheet = StyleSheet.create((theme) => ({
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg,
         marginBottom: 10,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderColor: (theme.colors as any).borderSubtle || theme.colors.border,
+        borderWidth: 0.5,
         padding: theme.spacing.cardPadding,
     },
     unreadCard: {
@@ -681,7 +681,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: 11,
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 1,
     },
     dateUnderIcon: {
         fontSize: 9.5,

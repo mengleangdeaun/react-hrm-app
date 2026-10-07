@@ -242,7 +242,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             let storedToken = await storage.getItem(AUTH_TOKEN_KEY);
             let storedUserJson = await storage.getItem(USER_DATA_KEY);
 
-            // If session was cleared/logged out, recover from hardware-backed secure storage
+            // If session was cleared, attempt hardware-backed secure storage recovery
             if (!storedToken || !storedUserJson) {
                 const bioDataRaw = await secureStorage.getItem(BIOMETRIC_CREDENTIAL_KEY);
                 if (bioDataRaw) {
@@ -271,11 +271,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
     };
 
-    const logout = async (clearBiometrics: boolean = false) => {
+    const logout = async (clearBiometrics: boolean = true) => {
         setIsLoading(true);
         try {
-            // 1. Notify backend to revoke session token (fire and forget)
-            apiClient.post('/attendance/logout').catch(() => {});
+            // 1. Notify backend to revoke session token (attempt employee-app then attendance prefix)
+            apiClient.post('/employee-app/logout')
+                .catch(() => apiClient.post('/attendance/logout'))
+                .catch(() => {});
 
             // 2. Clear query caches (memory + disk) and offline mutation queue to prevent data bleed
             const cleanupTasks: Promise<any>[] = [

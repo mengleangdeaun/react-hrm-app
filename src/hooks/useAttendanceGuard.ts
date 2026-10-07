@@ -1,4 +1,4 @@
-import { useMemo, useCallback } from 'react';
+import { useMemo, useCallback, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { queryKeys } from '../api/queryKeys';
@@ -151,7 +151,16 @@ export function useAttendanceGuard() {
         return { require_reason: false, type: null, minutes: 0 };
     }, [shift, shiftPhase, checkResults, isSplitShift, policy]);
 
-    const proactiveStatus = useMemo(() => evaluateGuard(new Date()), [evaluateGuard]);
+    // Active 30-second clock ticker ensures proactive warnings transition dynamically in real-time
+    const [clockTick, setClockTick] = useState<Date>(() => new Date());
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setClockTick(new Date());
+        }, 30000);
+        return () => clearInterval(timer);
+    }, []);
+
+    const proactiveStatus = useMemo(() => evaluateGuard(clockTick), [evaluateGuard, clockTick]);
 
     return {
         proactiveStatus,

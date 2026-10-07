@@ -82,10 +82,12 @@ export const leaveApi = {
     },
 
     /**
-     * Fetch leave requests history for employee
+     * Fetch leave requests history for employee (supports page & per_page)
      */
-    getLeaveRequests: async () => {
-        const response = await apiClient.get('/employee-app/leave-requests');
+    getLeaveRequests: async (params?: { page?: number; per_page?: number }) => {
+        const response = await apiClient.get('/employee-app/leave-requests', {
+            params: { per_page: 50, ...params },
+        });
         return response.data;
     },
 
@@ -148,10 +150,12 @@ export const leaveApi = {
     },
 
     /**
-     * Fetch subordinate leave requests pending manager review
+     * Fetch subordinate leave requests pending manager review (supports page & per_page)
      */
-    getManagerApprovals: async () => {
-        const response = await apiClient.get('/employee-app/leave-requests/approvals');
+    getManagerApprovals: async (params?: { page?: number; per_page?: number }) => {
+        const response = await apiClient.get('/employee-app/leave-requests/approvals', {
+            params: { per_page: 50, ...params },
+        });
         return response.data;
     },
 

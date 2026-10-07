@@ -90,14 +90,12 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: theme.borderRadius.lg,
         padding: theme.spacing.cardPadding,
         width: 168,
-        borderWidth: 1,
+        borderWidth: 0.5,
         borderColor: (theme.colors as any).borderSubtle || theme.colors.border,
-        ...theme.shadows.xs,
     },
     balanceCardSelected: {
         borderColor: theme.colors.primary,
         backgroundColor: theme.colors.surface,
-        ...theme.shadows.sm,
     },
     balanceCardTop: {
         flexDirection: 'row',

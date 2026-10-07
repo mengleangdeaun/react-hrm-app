@@ -238,8 +238,8 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: theme.borderRadius.lg,
         padding: theme.spacing.md,
         marginBottom: theme.spacing.md,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderWidth: 0.5,
+        borderColor: (theme.colors as any).borderSubtle || theme.colors.border,
     },
     detailHeroTop: {
         flexDirection: 'row',
@@ -252,8 +252,9 @@ const stylesheet = StyleSheet.create((theme) => ({
         paddingHorizontal: theme.spacing.sm + 2,
         paddingVertical: 4,
         borderRadius: theme.borderRadius.full,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderWidth: 0.5,
+        borderColor: (theme.colors as any).borderSubtle || theme.colors.border,
+
     },
     detailDaysHeroText: {
         fontSize: 12,
@@ -448,8 +449,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         backgroundColor: theme.colors.status.dangerSubtle,
         paddingVertical: 12,
         borderRadius: theme.borderRadius.md,
-        borderWidth: 1,
-        borderColor: theme.colors.status.dangerBorder,
+        borderWidth: 0,
         gap: 6,
     },
     detailCancelBtnText: {

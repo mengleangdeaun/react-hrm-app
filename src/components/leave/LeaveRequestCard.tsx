@@ -228,9 +228,8 @@ const stylesheet = StyleSheet.create((theme) => ({
         padding: theme.spacing.cardPadding,
         marginHorizontal: theme.spacing.screenGutter,
         marginBottom: theme.spacing.md,
-        borderWidth: 1,
+        borderWidth: 0.5,
         borderColor: (theme.colors as any).borderSubtle || theme.colors.border,
-        ...theme.shadows.xs,
     },
     cardHeader: {
         flexDirection: 'row',

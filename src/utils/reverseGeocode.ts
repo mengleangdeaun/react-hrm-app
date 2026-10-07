@@ -17,52 +17,8 @@ export async function reverseGeocodeLocation(
         return 'Workplace Location';
     }
 
-    // 1. Primary: OpenStreetMap Nominatim (Proven in PWA Employee App)
-    try {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 4000);
-
-        const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=en,km`;
-        const res = await fetch(url, {
-            signal: controller.signal,
-            headers: {
-                'User-Agent': 'EmployeeApp/1.0 (React-HRM-Mobile)',
-                Accept: 'application/json',
-            },
-        });
-        clearTimeout(timeoutId);
-
-        if (res.ok) {
-            const data = await res.json();
-            const addr = data.address || {};
-
-            // Prioritize street/road, village/suburb, district/khan, city
-            const street = addr.road || addr.pedestrian || addr.street;
-            const sub = addr.hamlet || addr.village || addr.suburb || addr.neighbourhood;
-            const district = addr.town || addr.city_district || addr.district;
-            const city = addr.city || addr.state || addr.county;
-
-            const parts = [street, sub, district, city].filter(Boolean);
-
-            if (parts.length > 0) {
-                // Return top 2-3 most specific location components
-                return parts.slice(0, 3).join(', ');
-            }
-
-            if (data.name) {
-                return data.name;
-            }
-
-            if (data.display_name) {
-                const chunks = data.display_name.split(',').map((s: string) => s.trim());
-                return chunks.slice(0, 3).join(', ');
-            }
-        }
-    } catch (e) {
-        // Network timeout, rate limit, or offline - proceed to native fallback
-    }
-
-    // 2. Secondary: Expo Native Geocoder (Google Play Services / iOS CLGeocoder)
+    // 1. Primary: Expo Native Geocoder (Apple CoreLocation / Google Play Services)
+    // Runs on-device, fully cached by OS, zero external rate-limiting or quota risk
     try {
         const results = await Location.reverseGeocodeAsync({ latitude, longitude });
         if (Array.isArray(results) && results.length > 0) {
@@ -81,8 +37,51 @@ export async function reverseGeocodeLocation(
                 return parts.slice(0, 3).join(', ');
             }
         }
-    } catch (e) {
-        // Native geocoder unavailable
+    } catch {
+        // Native geocoder unavailable or no internet for OS provider - try fallback
+    }
+
+    // 2. Secondary Fallback: OpenStreetMap Nominatim with strict safety timeout
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+
+        const url = `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json&accept-language=en,km`;
+        const res = await fetch(url, {
+            signal: controller.signal,
+            headers: {
+                'User-Agent': 'SCCG-HRMS-Mobile/1.0',
+                Accept: 'application/json',
+            },
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+            const data = await res.json();
+            const addr = data.address || {};
+
+            const street = addr.road || addr.pedestrian || addr.street;
+            const sub = addr.hamlet || addr.village || addr.suburb || addr.neighbourhood;
+            const district = addr.town || addr.city_district || addr.district;
+            const city = addr.city || addr.state || addr.county;
+
+            const parts = [street, sub, district, city].filter(Boolean);
+
+            if (parts.length > 0) {
+                return parts.slice(0, 3).join(', ');
+            }
+
+            if (data.name) {
+                return data.name;
+            }
+
+            if (data.display_name) {
+                const chunks = data.display_name.split(',').map((s: string) => s.trim());
+                return chunks.slice(0, 3).join(', ');
+            }
+        }
+    } catch {
+        // Fallback network unavailable
     }
 
     // 3. Fallback: Friendly non-coordinate placeholder

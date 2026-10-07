@@ -116,7 +116,8 @@ class SyncQueueManager {
 
             const remaining: SyncOperation[] = [];
 
-            for (const op of queue) {
+            for (let i = 0; i < queue.length; i++) {
+                const op = queue[i];
                 try {
                     await apiClient.request({
                         url: op.endpoint,
@@ -129,13 +130,25 @@ class SyncQueueManager {
                     // Successfully synced; do not re-enqueue
                 } catch (err: any) {
                     const status = err?.response?.status;
-                    // If client-error 4xx (unrecoverable except 429), discard to prevent poison pills
+
+                    // CRITICAL GUARD: If 401 Unauthorized, token expired while offline.
+                    // DO NOT discard the punch! Keep this operation and all remaining operations,
+                    // pause the queue processor, and alert the auth system to re-authenticate.
+                    if (status === 401) {
+                        console.warn(`[SyncQueue] Halting sync queue drain: token expired (401). Preserving operation ${op.id}`);
+                        // Push current op and all subsequent unattempted ops back into remaining
+                        remaining.push(op, ...queue.slice(i + 1));
+                        break;
+                    }
+
+                    // If non-recoverable client-error 4xx (e.g. 400, 422 validation, except 429 rate-limit),
+                    // discard to prevent poison pills from blocking the entire pipeline
                     if (status && status >= 400 && status < 500 && status !== 429) {
-                        console.warn(`[SyncQueue] Discarding operation ${op.id} due to 4xx status:`, status);
+                        console.warn(`[SyncQueue] Discarding operation ${op.id} due to non-recoverable 4xx status:`, status);
                         continue;
                     }
 
-                    // Network error or 5xx server error -> retry with exponential backoff
+                    // Network error, 429 rate limit, or 5xx server error -> retry with exponential backoff
                     const nextRetry = op.retryCount + 1;
                     if (nextRetry <= MAX_RETRIES) {
                         remaining.push({
@@ -143,6 +156,8 @@ class SyncQueueManager {
                             retryCount: nextRetry,
                             lastAttempt: new Date().toISOString(),
                         });
+                        // Add controlled delay before processing the next item to prevent network flooding
+                        await new Promise((resolve) => setTimeout(resolve, Math.min(1000 * Math.pow(2, op.retryCount), 5000)));
                     } else {
                         console.warn(`[SyncQueue] Dropping operation ${op.id} after ${MAX_RETRIES} failed attempts`);
                     }

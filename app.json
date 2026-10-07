@@ -3,6 +3,7 @@
     "name": "SCCG App",
     "slug": "hrms-app",
     "version": "1.0.0",
+    "scheme": "sccghrms",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "automatic",
@@ -37,9 +38,7 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "READ_MEDIA_IMAGES",
-        "READ_EXTERNAL_STORAGE",
         "USE_BIOMETRIC",
-        "USE_FINGERPRINT",
         "VIBRATE"
       ]
     },
@@ -49,6 +48,18 @@
     "plugins": [
       "expo-secure-store",
       "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow SCCG App to use your camera to scan attendance QR codes and capture workplace activity photos."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow SCCG App to verify your workplace location during attendance check-ins and activity logs."
+        }
+      ],
       [
         "expo-image-picker",
         {

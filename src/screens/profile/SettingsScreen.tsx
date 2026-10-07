@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
     ScrollView,
@@ -83,8 +83,11 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     // Feedback Sheet State
     const [feedbackModalVisible, setFeedbackModalVisible] = useState<boolean>(false);
 
+    // Pull-to-refresh state (isolated from background mutations to eliminate screen jump/flicker)
+    const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+
     // React Query: Fetch Preferences
-    const { data: prefs, isFetching: isFetchingPrefs } = useQuery<UserPreferences>({
+    const { data: prefs } = useQuery<UserPreferences>({
         queryKey: queryKeys.auth.preferences,
         queryFn: async () => {
             const res = await profileApi.getPreferences();
@@ -103,7 +106,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         staleTime: 1000 * 60 * 30,
     });
 
-    // Update Preferences Mutation
+    // Update Preferences Mutation with deterministic cache update (no invalidation churn)
     const updatePrefMutation = useMutation({
         mutationFn: (newPrefs: Partial<UserPreferences>) =>
             profileApi.updatePreferences({ ...(prefs || {}), ...newPrefs }),
@@ -116,31 +119,50 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
             }));
             return { previousPrefs };
         },
+        onSuccess: (res) => {
+            const updated = res?.preferences || res?.data || res;
+            if (updated && typeof updated === 'object') {
+                queryClient.setQueryData(queryKeys.auth.preferences, (old: any) => ({
+                    ...(old || {}),
+                    ...updated,
+                }));
+            }
+        },
         onError: (_err, _newPrefs, context) => {
             if (context?.previousPrefs) {
                 queryClient.setQueryData(queryKeys.auth.preferences, context.previousPrefs);
             }
             Alert.alert(t('error', 'Error'), t('sync_failed', 'Failed to sync preferences. Please try again.'));
         },
-        onSettled: () => {
-            queryClient.invalidateQueries({ queryKey: queryKeys.auth.preferences });
-        },
     });
 
-    const checkPermissions = async () => {
+    const checkPermissions = useCallback(async () => {
         try {
             const cam = await Camera.Camera.getCameraPermissionsAsync();
-            setCameraPermissionGranted(cam.granted);
+            setCameraPermissionGranted((prev) => (prev !== cam.granted ? cam.granted : prev));
 
             const loc = await Location.getForegroundPermissionsAsync();
-            setLocationPermissionGranted(loc.granted);
+            setLocationPermissionGranted((prev) => (prev !== loc.granted ? loc.granted : prev));
 
             const notif = await Notifications.getPermissionsAsync();
-            setNotificationsPermissionGranted(notif.granted);
+            setNotificationsPermissionGranted((prev) => (prev !== notif.granted ? notif.granted : prev));
         } catch {
             // Ignore errors in background check
         }
-    };
+    }, []);
+
+    const handleRefresh = useCallback(async () => {
+        setIsRefreshing(true);
+        try {
+            await Promise.all([
+                queryClient.invalidateQueries({ queryKey: queryKeys.auth.preferences }),
+                queryClient.invalidateQueries({ queryKey: queryKeys.auth.pwaInfo }),
+                checkPermissions(),
+            ]);
+        } finally {
+            setIsRefreshing(false);
+        }
+    }, [queryClient, checkPermissions]);
 
     useEffect(() => {
         initSettings();
@@ -153,7 +175,7 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         });
 
         return () => subscription.remove();
-    }, []);
+    }, [checkPermissions]);
 
     // Sync initial preferences from server when fetched
     useEffect(() => {
@@ -192,13 +214,18 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
     const handleToggleNotifications = async (val: boolean) => {
         if (val) {
+            // If already granted, toggle immediately without async delay to prevent switch bounce
+            if (notificationsPermissionGranted) {
+                updatePrefMutation.mutate({ notifications_enabled: true });
+                return;
+            }
+
             const currentPerm = await Notifications.getPermissionsAsync();
             let granted = currentPerm.granted;
 
             if (!granted) {
                 const res = await Notifications.requestPermissionsAsync();
                 granted = res.granted;
-                setNotificationsPermissionGranted(granted);
             }
 
             if (!granted) {
@@ -310,14 +337,14 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
     const currentLanguage = locale;
     const currentFontSize = fontSizeId;
-    const isDarkModeActive = prefs?.dark_mode !== undefined ? prefs.dark_mode : isDark;
+    const isDarkModeActive = isDark;
 
     return (
         <AppShell
             title={t('settings', 'App Settings')}
             onBack={() => navigation.goBack()}
-            refreshing={isFetchingPrefs}
-            onRefresh={() => queryClient.invalidateQueries({ queryKey: ['userPreferences'] })}
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
         >
                 {/* 1. Appearance & Customization Section */}
                 <Text style={styles.sectionHeaderTitle}>{t('appearance_theme', 'Appearance & Theme')}</Text>
@@ -755,8 +782,8 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: theme.borderRadius.lg,
         padding: theme.spacing.cardPadding,
         marginBottom: theme.spacing.lg,
-        borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderWidth: 0.5,
+        borderColor: (theme.colors as any).borderSubtle || theme.colors.border,
     },
     row: {
         flexDirection: 'row',
@@ -781,8 +808,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         backgroundColor: theme.colors.surfaceSubtle,
         justifyContent: 'center',
         alignItems: 'center',
-        borderWidth: 1,
-        borderColor: theme.colors.border,
+        borderWidth: 0,
     },
     textFlex: {
         flex: 1,
