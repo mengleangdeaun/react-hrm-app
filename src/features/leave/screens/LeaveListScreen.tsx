@@ -13,13 +13,15 @@ import * as Haptics from 'expo-haptics';
 import { AppText as Text } from '../../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, onlineManager } from '@tanstack/react-query';
 import { AppShell } from '../../../components/common/AppShell';
 import { HeaderIconButton } from '../../../components/common/AppHeader';
 import { LeaveListSkeleton } from '../../../components/common/Skeletons';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { leaveApi, LeaveBalance, LeaveRequest } from '../../../api/leave';
 import { queryKeys } from '../../../api/queryKeys';
+import { syncQueue } from '../../../offline/syncQueue';
+import { isNetworkError } from '../../../api/client';
 import {
     Plus,
     CheckCircle2,
@@ -185,17 +187,52 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         const message = t('cancel_leave_confirm', 'Are you sure you want to cancel this pending leave application?');
 
         const executeCancel = async () => {
-            try {
-                await leaveApi.cancelLeaveRequest(id);
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-                setDetailItem(null);
-                refetch();
-                queryClient.invalidateQueries({ queryKey: queryKeys.leave.all });
-                Alert.alert(t('cancelled', 'Cancelled'), t('leave_cancelled_desc', 'Leave application cancelled successfully.'));
-            } catch (err: any) {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
-                Alert.alert(t('error', 'Error'), err?.message || t('fail_cancel_leave', 'Failed to cancel leave request.'));
+            const isDeviceOnline = onlineManager.isOnline();
+            let isOfflineFallback = !isDeviceOnline;
+
+            if (isDeviceOnline) {
+                try {
+                    await leaveApi.cancelLeaveRequest(id);
+                } catch (networkErr: any) {
+                    if (isNetworkError(networkErr)) {
+                        isOfflineFallback = true;
+                    } else {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+                        Alert.alert(t('error', 'Error'), networkErr?.message || t('fail_cancel_leave', 'Failed to cancel leave request.'));
+                        return;
+                    }
+                }
             }
+
+            if (isOfflineFallback) {
+                await syncQueue.enqueue(
+                    'leave_cancel',
+                    `/employee-app/leave-requests/${id}/cancel`,
+                    'PUT',
+                    undefined,
+                    { description: `Cancel Leave Application #${id}` }
+                );
+
+                // Optimistically mark as cancelled in local query cache
+                queryClient.setQueryData(queryKeys.leave.requests('my_requests'), (old: any) => {
+                    if (!Array.isArray(old)) return old;
+                    return old.map((item: LeaveRequest) => (item.id === id ? { ...item, status: 'cancelled' } : item));
+                });
+
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+                setDetailItem(null);
+                Alert.alert(
+                    t('saved_offline', 'Saved Offline'),
+                    t('cancel_saved_offline_desc', 'Leave cancellation saved offline • Will sync automatically once connected.')
+                );
+                return;
+            }
+
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+            setDetailItem(null);
+            refetch();
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.all });
+            Alert.alert(t('cancelled', 'Cancelled'), t('leave_cancelled_desc', 'Leave application cancelled successfully.'));
         };
 
         if (Platform.OS === 'web') {
@@ -225,18 +262,56 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         const message = t('approve_leave_confirm', 'Are you sure you want to approve this leave request?');
 
         const executeApprove = async () => {
-            try {
-                await leaveApi.approveLeaveRequest(id);
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-                setDetailItem(null);
-                refetch();
-                queryClient.invalidateQueries({ queryKey: queryKeys.leave.approvals });
-                queryClient.invalidateQueries({ queryKey: queryKeys.leave.balances });
-                Alert.alert(t('approved', 'Approved'), t('leave_approved_desc', 'Leave request approved successfully.'));
-            } catch (err: any) {
-                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
-                Alert.alert(t('error', 'Error'), err?.message || t('fail_approve_leave', 'Failed to approve leave request.'));
+            const isDeviceOnline = onlineManager.isOnline();
+            let isOfflineFallback = !isDeviceOnline;
+
+            if (isDeviceOnline) {
+                try {
+                    await leaveApi.approveLeaveRequest(id);
+                } catch (networkErr: any) {
+                    if (isNetworkError(networkErr)) {
+                        isOfflineFallback = true;
+                    } else {
+                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+                        Alert.alert(t('error', 'Error'), networkErr?.message || t('fail_approve_leave', 'Failed to approve leave request.'));
+                        return;
+                    }
+                }
             }
+
+            if (isOfflineFallback) {
+                await syncQueue.enqueue(
+                    'leave_approve',
+                    `/employee-app/leave-requests/${id}/approve`,
+                    'PUT',
+                    undefined,
+                    { description: `Approve Leave Request #${id}` }
+                );
+
+                // Optimistically mark as approved
+                const updateStatus = (list: any) =>
+                    Array.isArray(list)
+                        ? list.map((item: LeaveRequest) => (item.id === id ? { ...item, status: 'approved' } : item))
+                        : list;
+
+                queryClient.setQueryData(queryKeys.leave.requests('approvals'), updateStatus);
+                queryClient.setQueryData(queryKeys.leave.approvals, updateStatus);
+
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+                setDetailItem(null);
+                Alert.alert(
+                    t('saved_offline', 'Saved Offline'),
+                    t('approve_saved_offline_desc', 'Leave approval saved offline • Will sync automatically once connected.')
+                );
+                return;
+            }
+
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+            setDetailItem(null);
+            refetch();
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.approvals });
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.balances });
+            Alert.alert(t('approved', 'Approved'), t('leave_approved_desc', 'Leave request approved successfully.'));
         };
 
         if (Platform.OS === 'web') {
@@ -270,7 +345,52 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
 
         setIsSubmittingReject(true);
         try {
-            await leaveApi.rejectLeaveRequest(rejectingItem.id, rejectionReason);
+            const isDeviceOnline = onlineManager.isOnline();
+            let isOfflineFallback = !isDeviceOnline;
+
+            if (isDeviceOnline) {
+                try {
+                    await leaveApi.rejectLeaveRequest(rejectingItem.id, rejectionReason);
+                } catch (networkErr: any) {
+                    if (isNetworkError(networkErr)) {
+                        isOfflineFallback = true;
+                    } else {
+                        throw networkErr;
+                    }
+                }
+            }
+
+            if (isOfflineFallback) {
+                await syncQueue.enqueue(
+                    'leave_reject',
+                    `/employee-app/leave-requests/${rejectingItem.id}/reject`,
+                    'PUT',
+                    { rejection_reason: rejectionReason },
+                    { description: `Reject Leave Request #${rejectingItem.id}` }
+                );
+
+                const updateReject = (list: any) =>
+                    Array.isArray(list)
+                        ? list.map((item: LeaveRequest) =>
+                              item.id === rejectingItem.id
+                                  ? { ...item, status: 'rejected', rejection_reason: rejectionReason }
+                                  : item
+                          )
+                        : list;
+
+                queryClient.setQueryData(queryKeys.leave.requests('approvals'), updateReject);
+                queryClient.setQueryData(queryKeys.leave.approvals, updateReject);
+
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+                setRejectingItem(null);
+                setRejectionReason('');
+                Alert.alert(
+                    t('saved_offline', 'Saved Offline'),
+                    t('reject_saved_offline_desc', 'Leave rejection saved offline • Will sync automatically once connected.')
+                );
+                return;
+            }
+
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
             setRejectingItem(null);
             setRejectionReason('');

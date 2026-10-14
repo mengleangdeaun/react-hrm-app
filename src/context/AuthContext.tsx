@@ -27,7 +27,7 @@ interface AuthContextType {
     loginWithBiometrics: () => Promise<boolean>;
     completeOnboarding: () => Promise<void>;
     resetOnboardingState: () => Promise<void>;
-    logout: (clearBiometrics?: boolean) => Promise<void>;
+    logout: (clearBiometrics?: boolean, clearOfflineQueue?: boolean) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -108,6 +108,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         setToken(newToken);
         setUser(newUser);
+
+        // Instantly drain any pending offline sync operations on fresh authentication
+        syncQueue.processQueue().catch((e) => console.warn('[AuthContext] Error draining queue post-login:', e));
     };
 
     const parseUserResponse = (rawData: any, fallbackEmail?: string): { newToken: string; newUser: User } => {
@@ -265,13 +268,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             if (storedToken && storedUserJson) {
                 setToken(storedToken);
                 setUser(JSON.parse(storedUserJson));
+                syncQueue.processQueue().catch((e) => console.warn('[AuthContext] Error draining queue post-biometrics:', e));
                 return true;
             }
         }
         return false;
     };
 
-    const logout = async (clearBiometrics: boolean = true) => {
+    const logout = async (clearBiometrics: boolean = true, clearOfflineQueue: boolean = false) => {
         setIsLoading(true);
         try {
             // 1. Notify backend to revoke session token (attempt employee-app then attendance prefix)
@@ -279,13 +283,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 .catch(() => apiClient.post('/attendance/logout'))
                 .catch(() => {});
 
-            // 2. Clear query caches (memory + disk) and offline mutation queue to prevent data bleed
+            // 2. Clear query caches (memory + disk). Offline mutation queue is preserved by default
+            // to ensure un-synced punches and records are never lost on sign-out.
             const cleanupTasks: Promise<any>[] = [
                 clearOfflineQueryCache(),
-                syncQueue.clear(),
                 storage.removeItem(AUTH_TOKEN_KEY),
                 storage.removeItem(USER_DATA_KEY),
             ];
+
+            if (clearOfflineQueue) {
+                cleanupTasks.push(syncQueue.clear());
+            }
 
             if (clearBiometrics) {
                 cleanupTasks.push(secureStorage.removeItem(BIOMETRIC_CREDENTIAL_KEY));

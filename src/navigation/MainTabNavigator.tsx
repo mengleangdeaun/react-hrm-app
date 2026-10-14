@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, TouchableOpacity, StyleSheet, Platform } from 'react-native';
+import { View, TouchableOpacity, Platform } from 'react-native';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { AppText as Text } from '../components/AppText';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -19,8 +20,6 @@ import {
     CheckCircle2,
 } from 'lucide-react-native';
 
-import { useAppTheme } from '../context/ThemeContext';
-import { lightTheme, darkTheme } from '../styles/theme';
 import { useAttendanceGuard } from '../hooks/useAttendanceGuard';
 import { useTranslation } from '../context/LanguageContext';
 import { apiClient } from '../api/client';
@@ -143,10 +142,10 @@ const TAB_CONFIGS: Record<string, { key: string; fallback: string; icon: any; is
 
 function CustomTabBar({ state, descriptors, navigation }: any) {
     const insets = useSafeAreaInsets();
-    const { isDark } = useAppTheme();
+    const { theme } = useUnistyles();
+    const styles = stylesheet;
     const { t } = useTranslation();
     const { shiftPhase, isSplitShift } = useAttendanceGuard();
-    const theme = isDark ? darkTheme : lightTheme;
 
     // Fetch unread count for badge parity
     const { data: bootstrapData } = useQuery({
@@ -162,8 +161,6 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
         ? (bootstrapData?.notifications?.unread_count ?? bootstrapData?.unread_notifications_count)
         : 0;
 
-    const backgroundColor = theme.colors.surface;
-    const borderTopColor = isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)';
     const activeColor = theme.colors.brand;
     const inactiveColor = theme.colors.textSecondary;
 
@@ -197,8 +194,6 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
             style={[
                 styles.tabBarContainer,
                 {
-                    backgroundColor,
-                    borderTopColor,
                     height: containerHeight,
                     paddingBottom: bottomPadding,
                 },
@@ -312,7 +307,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                                 strokeWidth={isFocused ? 2.3 : 1.8}
                             />
                             {showBadge && (
-                                <View style={[styles.badge, { borderColor: backgroundColor }]}>
+                                <View style={styles.badge}>
                                     <Text style={styles.badgeText}>
                                         {unreadCount > 9 ? '9+' : unreadCount}
                                     </Text>
@@ -356,10 +351,12 @@ export function MainTabNavigator() {
     );
 }
 
-const styles = StyleSheet.create({
+const stylesheet = StyleSheet.create((theme) => ({
     tabBarContainer: {
         flexDirection: 'row',
-        borderTopWidth: StyleSheet.hairlineWidth,
+        backgroundColor: theme.colors.surface,
+        borderTopWidth: 1,
+        borderTopColor: theme.colors.border,
         alignItems: 'center',
         ...Platform.select({
             ios: {
@@ -398,6 +395,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 3,
         borderWidth: 1.5,
+        borderColor: theme.colors.surface,
     },
     badgeText: {
         color: '#FFFFFF',
@@ -438,4 +436,4 @@ const styles = StyleSheet.create({
         marginTop: 4,
         includeFontPadding: false,
     },
-});
+}));

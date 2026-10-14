@@ -1,7 +1,6 @@
-import React, { useMemo } from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
-import { useAppTheme } from '../../context/ThemeContext';
-import { lightTheme, darkTheme } from '../../styles/theme';
+import React from 'react';
+import { View, TouchableOpacity } from 'react-native';
+import { StyleSheet } from 'react-native-unistyles';
 
 export interface AppCardProps {
     children: React.ReactNode;
@@ -26,35 +25,17 @@ export const AppCard: React.FC<AppCardProps> = ({
     accessibilityLabel,
     accessibilityHint,
 }) => {
-    const { isDark } = useAppTheme();
-    const theme = isDark ? darkTheme : lightTheme;
+    const styles = stylesheet;
+    const variantStyle = styles[`variant_${variant}`] || styles.variant_surface;
 
-    const cardStyles = useMemo(() => {
-        let backgroundColor: string = theme.colors.surface;
-        const borderWidth = noBorder ? 0 : 1;
-        let borderColor: string = noBorder ? 'transparent' : theme.colors.border;
-
-        if (variant === 'subtle') {
-            backgroundColor = theme.colors.surfaceSubtle;
-            borderColor = noBorder ? 'transparent' : (theme.colors as any).borderSubtle || theme.colors.border;
-        } else if (variant === 'elevated') {
-            backgroundColor = theme.colors.surface;
-            borderColor = noBorder ? 'transparent' : (theme.colors as any).borderSubtle || theme.colors.border;
-        }
-
-        return [
-            styles.card,
-            variant === 'elevated' && styles.cardElevated,
-            {
-                backgroundColor,
-                borderWidth,
-                borderColor,
-                padding: padding !== undefined ? padding : theme.spacing.cardPadding,
-                borderRadius: borderRadius !== undefined ? borderRadius : theme.borderRadius.lg,
-            },
-            style,
-        ];
-    }, [variant, noBorder, theme, padding, borderRadius, style]);
+    const cardStyles = [
+        styles.card,
+        variantStyle,
+        noBorder && styles.noBorder,
+        padding !== undefined && { padding },
+        borderRadius !== undefined && { borderRadius },
+        style,
+    ];
 
     if (onPress) {
         return (
@@ -74,16 +55,36 @@ export const AppCard: React.FC<AppCardProps> = ({
     return <View style={cardStyles}>{children}</View>;
 };
 
-const styles = StyleSheet.create({
+const stylesheet = StyleSheet.create((theme) => ({
     card: {
         width: '100%',
+        backgroundColor: theme.colors.surface,
+        borderColor: theme.colors.border,
+        borderWidth: 1,
+        padding: theme.spacing.cardPadding,
+        borderRadius: theme.borderRadius.lg,
     },
-    cardElevated: {
+    variant_surface: {
+        backgroundColor: theme.colors.surface,
+        borderColor: theme.colors.border,
+    },
+    variant_subtle: {
+        backgroundColor: theme.colors.surfaceSubtle,
+        borderColor: (theme.colors as any).borderSubtle || theme.colors.border,
+    },
+    variant_elevated: {
+        backgroundColor: theme.colors.surface,
+        borderColor: (theme.colors as any).borderSubtle || theme.colors.border,
         shadowColor: '#000000',
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.04,
         shadowRadius: 8,
         elevation: 2,
     },
-});
+    noBorder: {
+        borderWidth: 0,
+        borderColor: 'transparent',
+    },
+}));
+
 

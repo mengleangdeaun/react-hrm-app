@@ -3,14 +3,12 @@ import {
     View,
     ScrollView,
     StatusBar,
-    StyleSheet,
     RefreshControl,
     KeyboardAvoidingView,
     Platform,
 } from 'react-native';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAppTheme } from '../../context/ThemeContext';
-import { lightTheme, darkTheme } from '../../styles/theme';
 import { OfflineBanner } from './OfflineBanner';
 import { AppHeader } from './AppHeader';
 
@@ -62,8 +60,8 @@ export const AppShell: React.FC<AppShellProps> = ({
     keyboardVerticalOffset,
 }) => {
     const insets = useSafeAreaInsets();
-    const { isDark } = useAppTheme();
-    const theme = isDark ? darkTheme : lightTheme;
+    const { theme } = useUnistyles();
+    const styles = stylesheet;
 
     const hasHeader = showHeader && (title || onBack || onClose || headerRight);
     const topInset = includeTopInset ? insets.top : 0;
@@ -73,6 +71,8 @@ export const AppShell: React.FC<AppShellProps> = ({
     const verticalOffset = keyboardVerticalOffset !== undefined ? keyboardVerticalOffset : defaultOffset;
 
     const footerBottomPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 12) + (Platform.OS === 'ios' ? 12 : 16);
+
+    const isDark = theme.colors.background === '#121212';
 
     const renderContent = () => {
         if (scrollable) {
@@ -120,8 +120,6 @@ export const AppShell: React.FC<AppShellProps> = ({
                     style={[
                         styles.fixedFooter,
                         {
-                            backgroundColor: theme.colors.background,
-                            borderTopColor: theme.colors.border,
                             paddingBottom: footerBottomPadding,
                         },
                     ]}
@@ -133,7 +131,7 @@ export const AppShell: React.FC<AppShellProps> = ({
     );
 
     return (
-        <View style={[styles.safeArea, { paddingTop: topInset, backgroundColor: theme.colors.background }, style]}>
+        <View style={[styles.safeArea, { paddingTop: topInset }, style]}>
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
 
             <OfflineBanner />
@@ -167,9 +165,10 @@ export const AppShell: React.FC<AppShellProps> = ({
     );
 };
 
-const styles = StyleSheet.create({
+const stylesheet = StyleSheet.create((theme) => ({
     safeArea: {
         flex: 1,
+        backgroundColor: theme.colors.background,
     },
     headerWrapper: {
         position: 'relative',
@@ -185,7 +184,7 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         flexGrow: 1,
-        paddingHorizontal: 16,
+        paddingHorizontal: theme.spacing.screenGutter,
         paddingTop: 12,
         paddingBottom: 24,
     },
@@ -193,9 +192,12 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     fixedFooter: {
+        backgroundColor: theme.colors.background,
         borderTopWidth: 1,
+        borderTopColor: theme.colors.border,
         paddingHorizontal: 16,
         paddingTop: 12,
         width: '100%',
     },
-});
+}));
+

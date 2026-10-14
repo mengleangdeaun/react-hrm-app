@@ -234,7 +234,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         paddingBottom: theme.spacing.lg,
     },
     detailHeroCard: {
-        backgroundColor: theme.colors.surfaceSubtle,
+        backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.lg,
         padding: theme.spacing.md,
         marginBottom: theme.spacing.md,

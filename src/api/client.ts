@@ -71,3 +71,11 @@ apiClient.interceptors.response.use(
         return Promise.reject(error);
     }
 );
+
+export function isNetworkError(error: any): boolean {
+    if (!error) return false;
+    if (error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK') return true;
+    if (error.message === 'Network Error' || error.message?.toLowerCase().includes('timeout') || error.message?.toLowerCase().includes('network')) return true;
+    if (!error.response && error.request) return true;
+    return false;
+}

@@ -39,6 +39,7 @@ export interface AppBottomSheetProps {
     contentContainerStyle?: any;
     footer?: React.ReactNode;
     scrollViewRef?: React.RefObject<any>;
+    backdropColor?: string;
     // Built-in standard buttons matching OnboardingScreen aesthetics
     primaryButtonTitle?: string;
     onPrimaryButtonPress?: () => void;
@@ -65,6 +66,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
     contentContainerStyle,
     footer,
     scrollViewRef,
+    backdropColor,
     primaryButtonTitle,
     onPrimaryButtonPress,
     primaryButtonLoading = false,
@@ -79,6 +81,9 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
     const { isDark } = useAppTheme();
     const theme = isDark ? darkTheme : lightTheme;
     const insets = useSafeAreaInsets();
+
+    const defaultBackdropColor = isDark ? 'rgba(0, 0, 0, 0.72)' : 'rgba(0, 0, 0, 0.55)';
+    const resolvedBackdropColor = backdropColor || defaultBackdropColor;
 
     const [modalVisible, setModalVisible] = useState(visible);
     const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -216,6 +221,9 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
             onPanResponderMove: (_: any, gestureState: any) => {
                 if (gestureState.dy > 0) {
                     panY.setValue(gestureState.dy);
+                    // Dynamically attenuate backdrop opacity during downward drag
+                    const progress = Math.max(0, 1 - gestureState.dy / 300);
+                    backdropAnim.setValue(progress);
                 } else {
                     panY.setValue(gestureState.dy * 0.15);
                 }
@@ -225,21 +233,35 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                     handleDismiss();
                 } else {
+                    Animated.parallel([
+                        Animated.spring(panY, {
+                            toValue: 0,
+                            damping: 24,
+                            stiffness: 260,
+                            useNativeDriver: true,
+                        }),
+                        Animated.timing(backdropAnim, {
+                            toValue: 1,
+                            duration: 180,
+                            useNativeDriver: true,
+                        }),
+                    ]).start();
+                }
+            },
+            onPanResponderTerminate: () => {
+                Animated.parallel([
                     Animated.spring(panY, {
                         toValue: 0,
                         damping: 24,
                         stiffness: 260,
                         useNativeDriver: true,
-                    }).start();
-                }
-            },
-            onPanResponderTerminate: () => {
-                Animated.spring(panY, {
-                    toValue: 0,
-                    damping: 24,
-                    stiffness: 260,
-                    useNativeDriver: true,
-                }).start();
+                    }),
+                    Animated.timing(backdropAnim, {
+                        toValue: 1,
+                        duration: 180,
+                        useNativeDriver: true,
+                    }),
+                ]).start();
             },
         })
     ).current;
@@ -249,13 +271,12 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
 
     const translateY = Animated.add(sheetAnim, panY);
 
-    // Coupled backdrop opacity that reacts in real-time to both entrance fade and downward gesture dragging
-    const panBackdropOpacity = panY.interpolate({
-        inputRange: [0, 240],
-        outputRange: [1, 0.3],
+    // Guaranteed native-driven opacity for flawless Android and iOS backdrop rendering
+    const backdropOpacity = backdropAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0, 1],
         extrapolate: 'clamp',
     });
-    const effectiveBackdropOpacity = Animated.multiply(backdropAnim, panBackdropOpacity);
 
     // Dynamically constrain maxSheetHeight when keyboard is visible so the sheet never clips off top of screen
     const maxSheetHeight = keyboardHeight > 0
@@ -456,8 +477,16 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
             accessibilityViewIsModal={true}
         >
             <View style={styles.modalOverlay}>
-                {/* Backdrop Fade with real-time gesture coupling */}
-                <Animated.View style={[styles.backdrop, { opacity: effectiveBackdropOpacity }]}>
+                {/* Backdrop Fade with direct native-driven opacity */}
+                <Animated.View
+                    style={[
+                        styles.backdrop,
+                        {
+                            opacity: backdropOpacity,
+                            backgroundColor: resolvedBackdropColor,
+                        },
+                    ]}
+                >
                     <TouchableOpacity
                         style={StyleSheet.absoluteFill}
                         activeOpacity={1}
@@ -489,8 +518,13 @@ const styles = StyleSheet.create({
         backgroundColor: 'transparent',
     },
     backdrop: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0, 0, 0, 0.60)',
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100%',
+        height: '100%',
         zIndex: 1,
     },
     keyboardContainer: {

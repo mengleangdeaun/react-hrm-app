@@ -2,10 +2,8 @@ import React, { useState } from 'react';
 import {
     View,
     TextInput,
-    StyleSheet,
 } from 'react-native';
-import { useAppTheme } from '../../context/ThemeContext';
-import { lightTheme, darkTheme } from '../../styles/theme';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { AppText } from '../AppText';
 import { resolveFontFamily, hasKhmerText } from '../../styles/typography';
 
@@ -58,8 +56,8 @@ export const AppInput: React.FC<AppInputProps> = ({
     onFocus,
     onBlur,
 }) => {
-    const { isDark } = useAppTheme();
-    const theme = isDark ? darkTheme : lightTheme;
+    const { theme } = useUnistyles();
+    const styles = stylesheet;
     const [isFocused, setIsFocused] = useState(false);
 
     const hasError = !!error;
@@ -83,14 +81,9 @@ export const AppInput: React.FC<AppInputProps> = ({
             <View
                 style={[
                     styles.inputWrapper,
+                    hasError && styles.inputWrapperError,
+                    isFocused && !hasError && styles.inputWrapperFocused,
                     {
-                        backgroundColor: theme.colors.surface,
-                        borderColor: hasError
-                            ? theme.colors.status.danger
-                            : isFocused
-                            ? theme.colors.brand
-                            : theme.colors.border,
-                        borderWidth: isFocused ? 1.5 : 1,
                         minHeight: inputHeight,
                         alignItems: multiline ? 'flex-start' : 'center',
                         paddingVertical: multiline ? 10 : 6,
@@ -103,7 +96,6 @@ export const AppInput: React.FC<AppInputProps> = ({
                     style={[
                         styles.input,
                         {
-                            color: theme.colors.textPrimary,
                             fontFamily: inputFontFamily,
                             textAlignVertical: multiline ? 'top' : 'center',
                         },
@@ -150,7 +142,7 @@ export const AppInput: React.FC<AppInputProps> = ({
     );
 };
 
-const styles = StyleSheet.create({
+const stylesheet = StyleSheet.create((theme) => ({
     container: {
         marginBottom: 14,
         width: '100%',
@@ -162,7 +154,17 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         borderRadius: 12,
         borderWidth: 1,
+        backgroundColor: theme.colors.surface,
+        borderColor: theme.colors.border,
         paddingHorizontal: 12,
+    },
+    inputWrapperFocused: {
+        borderColor: theme.colors.brand,
+        borderWidth: 1.5,
+    },
+    inputWrapperError: {
+        borderColor: theme.colors.status.danger,
+        borderWidth: 1,
     },
     iconContainer: {
         marginRight: 10,
@@ -172,6 +174,7 @@ const styles = StyleSheet.create({
     input: {
         flex: 1,
         fontSize: 14,
+        color: theme.colors.textPrimary,
         paddingVertical: 2,
     },
     rightActionContainer: {
@@ -187,4 +190,4 @@ const styles = StyleSheet.create({
         marginTop: 4,
         marginLeft: 2,
     },
-});
+}));

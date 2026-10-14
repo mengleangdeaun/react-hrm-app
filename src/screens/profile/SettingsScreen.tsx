@@ -11,6 +11,7 @@ import {
     Linking,
     AppState,
     Platform,
+    InteractionManager,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
@@ -199,7 +200,9 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         if (val !== isDark) {
             toggleTheme();
         }
-        updatePrefMutation.mutate({ dark_mode: val });
+        InteractionManager.runAfterInteractions(() => {
+            updatePrefMutation.mutate({ dark_mode: val });
+        });
     };
 
     const handleSelectLanguage = (lang: 'en' | 'kh') => {

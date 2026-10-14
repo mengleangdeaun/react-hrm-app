@@ -17,11 +17,16 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText as Text } from '../../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, onlineManager } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
 import { Image as ExpoImage } from 'expo-image';
 import * as Location from 'expo-location';
-import { activityApi, OFFICIAL_ACTIVITY_TYPES } from '../../../api/activity';
+import * as Haptics from 'expo-haptics';
+import { activityApi, OFFICIAL_ACTIVITY_TYPES, ActivityItem } from '../../../api/activity';
+import { queryKeys } from '../../../api/queryKeys';
+import { syncQueue } from '../../../offline/syncQueue';
+import { saveAttachmentToVault } from '../../../offline/attachmentVault';
+import { isNetworkError } from '../../../api/client';
 import {
     optimizeImageForUpload,
     optimizeImagesBatch,
@@ -363,19 +368,100 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                     ? location.address
                     : undefined;
 
-            await activityApi.submitActivity({
-                activity_type: selectedCategory,
-                comment,
-                latitude: location?.lat,
-                longitude: location?.lng,
-                location_name: safeLocationName,
-                attachments: optimized,
-            });
+            const isDeviceOnline = onlineManager.isOnline();
+            let isOfflineFallback = !isDeviceOnline;
 
-            await queryClient.invalidateQueries({ queryKey: ['activities'] });
+            if (isDeviceOnline) {
+                try {
+                    await activityApi.submitActivity({
+                        activity_type: selectedCategory,
+                        comment,
+                        latitude: location?.lat,
+                        longitude: location?.lng,
+                        location_name: safeLocationName,
+                        attachments: optimized,
+                    });
+                } catch (networkErr: any) {
+                    if (isNetworkError(networkErr)) {
+                        isOfflineFallback = true;
+                    } else {
+                        throw networkErr;
+                    }
+                }
+            }
 
-            // 3. Purge temp cache files
+            // Offline or Spotty Connection: Bet on Success & Queue for Durable Sync
+            if (isOfflineFallback) {
+                setSubmittingStatus(t('saving_offline', 'Saving photos to offline vault...'));
+                const vaultAttachments: any[] = [];
+                for (let i = 0; i < optimized.length; i++) {
+                    const file = optimized[i];
+                    const vFile = await saveAttachmentToVault(file.uri, file.name, file.type || 'image/jpeg');
+                    vaultAttachments.push({
+                        field: 'attachments[]',
+                        uri: vFile.vaultUri,
+                        name: vFile.filename,
+                        type: vFile.mimeType,
+                    });
+                }
+
+                await syncQueue.enqueue(
+                    'activity_log',
+                    '/employee-app/activities',
+                    'POST',
+                    {
+                        activity_type: selectedCategory,
+                        comment,
+                        latitude: location?.lat,
+                        longitude: location?.lng,
+                        location_name: safeLocationName,
+                    },
+                    {
+                        isMultipart: true,
+                        attachments: vaultAttachments,
+                        description: `Activity Log (${selectedCategory})`,
+                    }
+                );
+
+                // Optimistically prepend to activities list cache
+                const optimisticActivity: ActivityItem = {
+                    id: `temp_${Date.now()}`,
+                    activity_type: selectedCategory,
+                    comment,
+                    latitude: location?.lat,
+                    longitude: location?.lng,
+                    location_name: safeLocationName,
+                    activity_date: new Date().toISOString(),
+                    submitted_at: new Date().toISOString(),
+                    status: 'submitted',
+                    attachments: vaultAttachments.map((v) => v.uri),
+                    attachment_urls: vaultAttachments.map((v) => v.uri),
+                };
+
+                queryClient.setQueriesData({ queryKey: queryKeys.activity.all }, (old: any) => {
+                    const list = Array.isArray(old) ? old : [];
+                    return [optimisticActivity, ...list];
+                });
+
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+
+                if (Platform.OS === 'web') {
+                    window.alert(t('activity_offline_saved_msg', 'Activity Saved Offline • Will sync automatically once connected.'));
+                    navigation.replace('ActivityList');
+                } else {
+                    Alert.alert(
+                        t('saved_offline', 'Saved Offline'),
+                        t('activity_offline_saved_msg', 'Activity Saved Offline • Will sync automatically once connected.'),
+                        [{ text: t('ok', 'OK'), onPress: () => navigation.replace('ActivityList') }]
+                    );
+                }
+                return;
+            }
+
+            // Online Submission Success
+            await queryClient.invalidateQueries({ queryKey: queryKeys.activity.all });
             cleanupTempImages(optimizedToCleanup).catch(() => {});
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
 
             if (Platform.OS === 'web') {
                 window.alert(t('activity_submitted_msg', 'Activity Submitted: Your work log entry has been submitted.'));
@@ -386,6 +472,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                 ]);
             }
         } catch (error: any) {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
             Alert.alert(t('submission_error', 'Submission Error'), error?.message || t('fail_submit_activity', 'Failed to submit activity report.'));
         } finally {
             setIsSubmitting(false);

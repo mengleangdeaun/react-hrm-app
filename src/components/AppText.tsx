@@ -1,8 +1,8 @@
 import React from 'react';
-import { Text as RNText, StyleSheet, Platform } from 'react-native';
-import { useAppTheme } from '../context/ThemeContext';
+import { Text as RNText, StyleSheet as RNStyleSheet, Platform } from 'react-native';
+import { StyleSheet } from 'react-native-unistyles';
+import { useFontSize } from '../context/ThemeContext';
 import { useTranslation } from '../context/LanguageContext';
-import { lightTheme, darkTheme } from '../styles/theme';
 import {
     TYPOGRAPHY_TOKENS,
     TypographyVariant,
@@ -31,15 +31,16 @@ export type AppTextProps = React.ComponentProps<typeof RNText> & {
 const AppTextComponent: React.FC<AppTextProps> = ({
     variant = 'body',
     weight,
-    color,
+    color = 'primary',
     align,
     isKhmer: explicitIsKhmer,
     style,
     children,
     ...props
 }) => {
-    const { isDark, fontSizeScale } = useAppTheme();
-    const theme = isDark ? darkTheme : lightTheme;
+    // Only subscribe to font scale, NOT theme changes (eliminates ~150 JS re-renders per screen on theme toggle)
+    const { fontSizeScale } = useFontSize();
+    const styles = stylesheet;
 
     // Gracefully resolve active application locale without crashing if outside LanguageProvider
     let activeLocale: string | undefined;
@@ -65,40 +66,21 @@ const AppTextComponent: React.FC<AppTextProps> = ({
     const resolvedFontFamily = resolveFontFamily(resolvedWeight, isKhmer);
 
     // 3. Computed Typography Metrics
+    const effectiveScale = fontSizeScale || 1.0;
     const baseFontSize = token.fontSize;
-    const scaledFontSize = Math.round(baseFontSize * (fontSizeScale || 1));
+    const scaledFontSize = Math.round(baseFontSize * effectiveScale);
     const baseLineHeight = token.lineHeight;
-    const scaledLineHeight = Math.round(baseLineHeight * (fontSizeScale || 1));
+    const scaledLineHeight = Math.round(baseLineHeight * effectiveScale);
 
-    // 4. Color Resolution
-    let resolvedColor: string = theme.colors.textPrimary;
-    if (color === 'secondary') {
-        resolvedColor = theme.colors.textSecondary;
-    } else if (color === 'muted') {
-        resolvedColor = theme.colors.textMuted;
-    } else if (color === 'brand') {
-        resolvedColor = theme.colors.brand;
-    } else if (color === 'inverse') {
-        resolvedColor = '#FFFFFF';
-    } else if (color === 'success') {
-        resolvedColor = theme.colors.status.success;
-    } else if (color === 'warning') {
-        resolvedColor = theme.colors.status.warning;
-    } else if (color === 'error') {
-        resolvedColor = theme.colors.status.danger;
-    } else if (color === 'info') {
-        resolvedColor = theme.colors.status.info;
-    }
-
-    const flattenedStyle: any = Array.isArray(style) ? StyleSheet.flatten(style) : (style || {});
+    const flattenedStyle: any = Array.isArray(style) ? RNStyleSheet.flatten(style) : (style || {});
     const finalFontSize = flattenedStyle.fontSize
-        ? Math.round(flattenedStyle.fontSize * (fontSizeScale || 1))
+        ? Math.round(flattenedStyle.fontSize * effectiveScale)
         : scaledFontSize;
 
-    // 5. Unified Line Height: Rock-solid stability between English and Khmer
+    // 4. Unified Line Height: Rock-solid stability between English and Khmer
     let computedLineHeight: number;
     if (flattenedStyle.lineHeight) {
-        computedLineHeight = Math.round(flattenedStyle.lineHeight * (fontSizeScale || 1));
+        computedLineHeight = Math.round(flattenedStyle.lineHeight * effectiveScale);
     } else if (flattenedStyle.fontSize) {
         computedLineHeight = Math.max(
             Math.round(finalFontSize * 1.4),
@@ -108,7 +90,7 @@ const AppTextComponent: React.FC<AppTextProps> = ({
         computedLineHeight = scaledLineHeight;
     }
 
-    // 6. Letter Spacing Normalization
+    // 5. Letter Spacing Normalization
     let resolvedLetterSpacing: number | undefined;
     if (flattenedStyle.letterSpacing !== undefined) {
         resolvedLetterSpacing = flattenedStyle.letterSpacing;
@@ -118,11 +100,15 @@ const AppTextComponent: React.FC<AppTextProps> = ({
         resolvedLetterSpacing = token.letterSpacing;
     }
 
-    const computedStyle: any = {
+    // 6. Resolve Unistyles Native Color Class
+    const colorKey = (color && `color_${color}` in styles)
+        ? (styles as any)[`color_${color}`]
+        : styles.color_primary;
+
+    const computedBaseStyle: any = {
         fontFamily: flattenedStyle.fontFamily || resolvedFontFamily,
         fontSize: finalFontSize,
         lineHeight: computedLineHeight,
-        color: flattenedStyle.color || resolvedColor,
         letterSpacing: resolvedLetterSpacing,
         textAlign: align || flattenedStyle.textAlign || 'auto',
         ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
@@ -130,7 +116,7 @@ const AppTextComponent: React.FC<AppTextProps> = ({
 
     return (
         <RNText
-            style={[computedStyle, style]}
+            style={[computedBaseStyle, colorKey, style]}
             {...props}
         >
             {children}
@@ -138,4 +124,35 @@ const AppTextComponent: React.FC<AppTextProps> = ({
     );
 };
 
+const stylesheet = StyleSheet.create((theme) => ({
+    color_primary: {
+        color: theme.colors.textPrimary,
+    },
+    color_secondary: {
+        color: theme.colors.textSecondary,
+    },
+    color_muted: {
+        color: theme.colors.textMuted,
+    },
+    color_brand: {
+        color: theme.colors.brand,
+    },
+    color_inverse: {
+        color: '#FFFFFF',
+    },
+    color_success: {
+        color: theme.colors.status.success,
+    },
+    color_warning: {
+        color: theme.colors.status.warning,
+    },
+    color_error: {
+        color: theme.colors.status.danger,
+    },
+    color_info: {
+        color: theme.colors.status.info,
+    },
+}));
+
 export const AppText = React.memo(AppTextComponent);
+

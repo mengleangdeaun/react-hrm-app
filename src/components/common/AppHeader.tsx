@@ -2,13 +2,11 @@ import React from 'react';
 import {
     View,
     TouchableOpacity,
-    StyleSheet,
     Platform,
 } from 'react-native';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import * as Haptics from 'expo-haptics';
 import { ArrowLeft, X } from 'lucide-react-native';
-import { useAppTheme } from '../../context/ThemeContext';
-import { lightTheme, darkTheme } from '../../styles/theme';
 import { AppText } from '../AppText';
 
 export interface HeaderAction {
@@ -37,8 +35,7 @@ export const HeaderIconButton: React.FC<{
     style?: any;
     badge?: number | string | boolean;
 }> = ({ icon, onPress, accessibilityLabel, style, badge }) => {
-    const { isDark } = useAppTheme();
-    const theme = isDark ? darkTheme : lightTheme;
+    const styles = stylesheet;
 
     const handlePress = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -54,23 +51,11 @@ export const HeaderIconButton: React.FC<{
             accessibilityRole="button"
             accessibilityLabel={accessibilityLabel}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={[
-                styles.iconButton,
-                {
-                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(0, 0, 0, 0.04)',
-                    borderColor: isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.06)',
-                },
-                style,
-            ]}
+            style={[styles.iconButton, style]}
         >
             {icon}
             {hasBadge && (
-                <View
-                    style={[
-                        styles.badgeContainer,
-                        { borderColor: theme.colors.background },
-                    ]}
-                >
+                <View style={styles.badgeContainer}>
                     {typeof badge === 'number' || typeof badge === 'string' ? (
                         <AppText style={styles.badgeText}>
                             {typeof badge === 'number' && badge > 9 ? '9+' : badge}
@@ -95,8 +80,8 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
     titleAlign = 'left',
     showBorder = false,
 }) => {
-    const { isDark } = useAppTheme();
-    const theme = isDark ? darkTheme : lightTheme;
+    const { theme } = useUnistyles();
+    const styles = stylesheet;
 
     const hasLeftAction = !!onBack || !!onClose;
     const isCentered = titleAlign === 'center';
@@ -106,11 +91,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
         <View
             style={[
                 styles.headerContainer,
-                {
-                    backgroundColor: theme.colors.background,
-                    borderBottomColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.06)',
-                    borderBottomWidth: showBorder ? StyleSheet.hairlineWidth : 0,
-                },
+                showBorder && styles.headerBorder,
                 style,
             ]}
         >
@@ -188,7 +169,7 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
     );
 };
 
-const styles = StyleSheet.create({
+const stylesheet = StyleSheet.create((theme) => ({
     headerContainer: {
         minHeight: 52,
         flexDirection: 'row',
@@ -196,7 +177,12 @@ const styles = StyleSheet.create({
         justifyContent: 'space-between',
         paddingHorizontal: 16,
         paddingVertical: 12,
+        backgroundColor: theme.colors.background,
+        borderBottomColor: theme.colors.border,
         zIndex: 10,
+    },
+    headerBorder: {
+        borderBottomWidth: 1,
     },
     leftSlot: {
         flexDirection: 'row',
@@ -228,7 +214,9 @@ const styles = StyleSheet.create({
         width: 38,
         height: 38,
         borderRadius: 12,
-        borderWidth: StyleSheet.hairlineWidth,
+        borderWidth: 1,
+        backgroundColor: theme.colors.surfaceSubtle,
+        borderColor: theme.colors.border,
         justifyContent: 'center',
         alignItems: 'center',
         position: 'relative',
@@ -245,6 +233,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         paddingHorizontal: 3,
         borderWidth: 1.5,
+        borderColor: theme.colors.background,
         zIndex: 10,
     },
     badgeText: {
@@ -264,5 +253,6 @@ const styles = StyleSheet.create({
         width: 38,
         height: 38,
     },
-});
+}));
+
 

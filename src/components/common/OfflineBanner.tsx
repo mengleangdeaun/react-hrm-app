@@ -9,15 +9,15 @@ import { AppText as Text } from '../AppText';
 
 export const OfflineBanner: React.FC = () => {
     const { isOnline } = useNetworkStatus();
-    const { pendingCount } = useSyncQueue();
+    const { pendingCount, isSyncing } = useSyncQueue();
     const { isDark } = useAppTheme();
     const { t } = useTranslation();
 
-    if (isOnline && pendingCount === 0) {
+    if (isOnline && pendingCount === 0 && !isSyncing) {
         return null;
     }
 
-    if (isOnline && pendingCount > 0) {
+    if (isOnline && (pendingCount > 0 || isSyncing)) {
         return (
             <View style={[styles.bannerContainer, styles.bannerSyncing]}>
                 <RefreshCw color="#FFFFFF" size={13} />

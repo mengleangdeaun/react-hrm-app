@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCameraPermissions } from 'expo-camera';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, onlineManager } from '@tanstack/react-query';
 import {
     MapPin,
     Navigation as NavigationIcon,
@@ -29,6 +29,7 @@ import {
 } from 'lucide-react-native';
 import { attendanceApi, AttendanceClockInResponse } from '../../../api/attendance';
 import { queryKeys } from '../../../api/queryKeys';
+import { isNetworkError } from '../../../api/client';
 import { syncQueue } from '../../../offline/syncQueue';
 import { useAppTheme } from '../../../context/ThemeContext';
 import { AppText } from '../../../components/AppText';
@@ -42,6 +43,7 @@ import { lightTheme, darkTheme } from '../../../styles/theme';
 import { ModernScannerCanvas } from '../../../components/scanner/ModernScannerCanvas';
 import { useImageQrDecoder } from '../../../components/scanner/useImageQrDecoder';
 import { useAttendanceGuard } from '../../../hooks/useAttendanceGuard';
+import { optimisticallyUpdateAttendance } from '../utils/optimisticAttendance';
 
 export interface GpsLocation {
     coords: {
@@ -358,41 +360,53 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
             };
 
             const idempotencyKey = `punch_${qrResult.branchCode || 'branch'}_${new Date().toISOString().slice(0, 10)}_${shiftPhase}_${Date.now()}`;
-            let response: AttendanceClockInResponse;
-            try {
-                response = await attendanceApi.clockIn(punchPayload, idempotencyKey);
-            } catch (networkErr: any) {
-                // If network failure or offline, queue punch for durable background sync
-                const isOffline = !networkErr.response || networkErr.message === 'Network Error' || networkErr.code === 'ECONNABORTED';
-                if (isOffline) {
-                    await syncQueue.enqueue(
-                        'attendance_punch',
-                        '/employee-app/attendance/clock-in',
-                        'POST',
-                        punchPayload
-                    );
+            const isDeviceOnline = onlineManager.isOnline();
+            let isOfflineFallback = !isDeviceOnline;
+            let response: AttendanceClockInResponse | null = null;
 
-                    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-
-                    lastPunchTimeRef.current = Date.now();
-                    isSuccessRef.current = true;
-                    isProcessingRef.current = true;
-
-                    setPunchResult({
-                        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                        message: t('attendance_offline_saved', 'Attendance Saved Offline • Will sync automatically when connection is restored.'),
-                        action: 'warning',
-                    });
-
-                    setReasonModalVisible(false);
-                    setIsSubmitting(false);
-                    setIsSuccess(true);
-                    setScanned(true);
-                    return;
+            if (isDeviceOnline) {
+                try {
+                    response = await attendanceApi.clockIn(punchPayload, idempotencyKey);
+                } catch (networkErr: any) {
+                    if (isNetworkError(networkErr)) {
+                        isOfflineFallback = true;
+                    } else {
+                        // Propagate server business validation error (geofence, branch mismatch, etc.)
+                        throw networkErr;
+                    }
                 }
+            }
 
-                // Propagate server business error (geofence, branch mismatch, etc.)
-                throw networkErr;
+            // Offline or Spotty Connection: Bet on Success & Queue for Durable Sync
+            if (isOfflineFallback || !response) {
+                await syncQueue.enqueue(
+                    'attendance_punch',
+                    '/employee-app/attendance/clock-in',
+                    'POST',
+                    punchPayload,
+                    { description: `Attendance Punch (${shiftPhase})` }
+                );
+
+                // Instantly advance shiftPhase in React Query cache so Dashboard and Guard reflect immediately
+                optimisticallyUpdateAttendance(queryClient, shiftPhase);
+
+                await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+
+                lastPunchTimeRef.current = Date.now();
+                isSuccessRef.current = true;
+                isProcessingRef.current = true;
+
+                setPunchResult({
+                    time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                    message: t('attendance_offline_saved', 'Attendance Saved Offline • Will sync automatically when connection is restored.'),
+                    action: 'warning',
+                });
+
+                setReasonModalVisible(false);
+                setIsSubmitting(false);
+                setIsSuccess(true);
+                setScanned(true);
+                return;
             }
 
             // If the server requires a mandatory reason for late arrival or early departure
@@ -413,6 +427,9 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
             isSuccessRef.current = true;
             isProcessingRef.current = true;
 
+            // Optimistically update cache with authoritative server time
+            optimisticallyUpdateAttendance(queryClient, shiftPhase, response.time);
+
             setPunchResult({
                 time: response.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
                 message: response.message || t('attendance_success_desc', 'Attendance Recorded Successfully'),
@@ -424,7 +441,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
             setIsSuccess(true);
             setScanned(true);
 
-            // Fire-and-forget cache invalidation in background (never block success screen)
+            // Fire-and-forget background invalidation
             queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.bootstrap });
             queryClient.invalidateQueries({ queryKey: queryKeys.attendance.all });
             queryClient.invalidateQueries({ queryKey: queryKeys.attendance.todayShift });

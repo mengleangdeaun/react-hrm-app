@@ -6,8 +6,10 @@ import {
     Alert,
     ActivityIndicator,
 } from 'react-native';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, onlineManager } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
+import { syncQueue } from '../../offline/syncQueue';
+import { isNetworkError } from '../../api/client';
 import {
     Calendar,
     CalendarCheck,
@@ -118,13 +120,66 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
 
     // Mutations
     const submitMutation = useMutation({
-        mutationFn: (payload: SubmitDayOffPayload) => dayOffApi.submitRequest(payload),
-        onSuccess: () => {
+        mutationFn: async (payload: SubmitDayOffPayload) => {
+            if (!onlineManager.isOnline()) {
+                await syncQueue.enqueue(
+                    'day_off_request',
+                    '/employee-app/day-off-requests',
+                    'POST',
+                    payload,
+                    { description: 'Day-off Change Request' }
+                );
+                return { isOffline: true, payload };
+            }
+            try {
+                const res = await dayOffApi.submitRequest(payload);
+                return res;
+            } catch (err: any) {
+                if (isNetworkError(err)) {
+                    await syncQueue.enqueue(
+                        'day_off_request',
+                        '/employee-app/day-off-requests',
+                        'POST',
+                        payload,
+                        { description: 'Day-off Change Request' }
+                    );
+                    return { isOffline: true, payload };
+                }
+                throw err;
+            }
+        },
+        onSuccess: (data: any) => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-            queryClient.invalidateQueries({ queryKey: queryKeys.leave.dayOffRequests });
-            queryClient.invalidateQueries({ queryKey: queryKeys.leave.dayOffInfo });
             setShowForm(false);
             resetForm();
+
+            if (data?.isOffline && data.payload) {
+                const optimisticItem: DayOffRequestItem = {
+                    id: Date.now(),
+                    employee_id: 0,
+                    frequency: data.payload.frequency,
+                    requested_days_off: data.payload.requested_days_off,
+                    weeks_of_month: data.payload.weeks_of_month,
+                    specific_dates: data.payload.specific_dates,
+                    effective_from: data.payload.effective_from,
+                    effective_to: data.payload.effective_to,
+                    reason: data.payload.reason,
+                    status: 'pending',
+                    created_at: new Date().toISOString(),
+                };
+                queryClient.setQueryData(queryKeys.leave.dayOffRequests, (old: any) => {
+                    const list = Array.isArray(old) ? old : [];
+                    return [optimisticItem, ...list];
+                });
+                Alert.alert(
+                    t('saved_offline', 'Saved Offline'),
+                    t('day_off_offline_saved_desc', 'Day-off request saved offline • Will sync automatically once connected.')
+                );
+                return;
+            }
+
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.dayOffRequests });
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.dayOffInfo });
             Alert.alert(t('success', 'Success'), t('request_submitted_successfully', 'Day-off change request submitted successfully.'));
         },
         onError: (err: any) => {
@@ -134,12 +189,52 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
     });
 
     const approveMutation = useMutation({
-        mutationFn: (id: number) => dayOffApi.approveRequest(id),
-        onSuccess: () => {
+        mutationFn: async (id: number) => {
+            if (!onlineManager.isOnline()) {
+                await syncQueue.enqueue(
+                    'day_off_approve',
+                    `/employee-app/day-off-requests/${id}/approve`,
+                    'PUT',
+                    undefined,
+                    { description: `Approve Day-Off Request #${id}` }
+                );
+                return { isOffline: true, id };
+            }
+            try {
+                const res = await dayOffApi.approveRequest(id);
+                return res;
+            } catch (err: any) {
+                if (isNetworkError(err)) {
+                    await syncQueue.enqueue(
+                        'day_off_approve',
+                        `/employee-app/day-off-requests/${id}/approve`,
+                        'PUT',
+                        undefined,
+                        { description: `Approve Day-Off Request #${id}` }
+                    );
+                    return { isOffline: true, id };
+                }
+                throw err;
+            }
+        },
+        onSuccess: (data: any) => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+            closeAction();
+
+            if (data?.isOffline) {
+                queryClient.setQueryData(queryKeys.leave.teamDayOffRequests, (old: any) => {
+                    if (!Array.isArray(old)) return old;
+                    return old.map((item: DayOffRequestItem) => (item.id === data.id ? { ...item, status: 'approved' } : item));
+                });
+                Alert.alert(
+                    t('saved_offline', 'Saved Offline'),
+                    t('approve_offline_saved_desc', 'Approval saved offline • Will sync automatically once connected.')
+                );
+                return;
+            }
+
             queryClient.invalidateQueries({ queryKey: queryKeys.leave.teamDayOffRequests });
             queryClient.invalidateQueries({ queryKey: queryKeys.leave.dayOffInfo });
-            closeAction();
             Alert.alert(t('approved', 'Approved'), t('request_approved', 'Request approved successfully.'));
         },
         onError: (err: any) => {
@@ -149,11 +244,53 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
     });
 
     const rejectMutation = useMutation({
-        mutationFn: ({ id, reason }: { id: number; reason: string }) => dayOffApi.rejectRequest(id, reason),
-        onSuccess: () => {
+        mutationFn: async ({ id, reason }: { id: number; reason: string }) => {
+            if (!onlineManager.isOnline()) {
+                await syncQueue.enqueue(
+                    'day_off_reject',
+                    `/employee-app/day-off-requests/${id}/reject`,
+                    'PUT',
+                    { reason },
+                    { description: `Reject Day-Off Request #${id}` }
+                );
+                return { isOffline: true, id, reason };
+            }
+            try {
+                const res = await dayOffApi.rejectRequest(id, reason);
+                return res;
+            } catch (err: any) {
+                if (isNetworkError(err)) {
+                    await syncQueue.enqueue(
+                        'day_off_reject',
+                        `/employee-app/day-off-requests/${id}/reject`,
+                        'PUT',
+                        { reason },
+                        { description: `Reject Day-Off Request #${id}` }
+                    );
+                    return { isOffline: true, id, reason };
+                }
+                throw err;
+            }
+        },
+        onSuccess: (data: any) => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
-            queryClient.invalidateQueries({ queryKey: queryKeys.leave.teamDayOffRequests });
             closeAction();
+
+            if (data?.isOffline) {
+                queryClient.setQueryData(queryKeys.leave.teamDayOffRequests, (old: any) => {
+                    if (!Array.isArray(old)) return old;
+                    return old.map((item: DayOffRequestItem) =>
+                        item.id === data.id ? { ...item, status: 'rejected', rejection_reason: data.reason } : item
+                    );
+                });
+                Alert.alert(
+                    t('saved_offline', 'Saved Offline'),
+                    t('reject_offline_saved_desc', 'Rejection saved offline • Will sync automatically once connected.')
+                );
+                return;
+            }
+
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.teamDayOffRequests });
             Alert.alert(t('rejected', 'Rejected'), t('request_rejected', 'Request rejected successfully.'));
         },
         onError: (err: any) => {
@@ -163,11 +300,51 @@ export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navig
     });
 
     const cancelMutation = useMutation({
-        mutationFn: (id: number) => dayOffApi.cancelRequest(id),
-        onSuccess: () => {
+        mutationFn: async (id: number) => {
+            if (!onlineManager.isOnline()) {
+                await syncQueue.enqueue(
+                    'day_off_cancel',
+                    `/employee-app/day-off-requests/${id}/cancel`,
+                    'PUT',
+                    undefined,
+                    { description: `Cancel Day-Off Request #${id}` }
+                );
+                return { isOffline: true, id };
+            }
+            try {
+                const res = await dayOffApi.cancelRequest(id);
+                return res;
+            } catch (err: any) {
+                if (isNetworkError(err)) {
+                    await syncQueue.enqueue(
+                        'day_off_cancel',
+                        `/employee-app/day-off-requests/${id}/cancel`,
+                        'PUT',
+                        undefined,
+                        { description: `Cancel Day-Off Request #${id}` }
+                    );
+                    return { isOffline: true, id };
+                }
+                throw err;
+            }
+        },
+        onSuccess: (data: any) => {
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-            queryClient.invalidateQueries({ queryKey: queryKeys.leave.dayOffRequests });
             closeAction();
+
+            if (data?.isOffline) {
+                queryClient.setQueryData(queryKeys.leave.dayOffRequests, (old: any) => {
+                    if (!Array.isArray(old)) return old;
+                    return old.map((item: DayOffRequestItem) => (item.id === data.id ? { ...item, status: 'cancelled' } : item));
+                });
+                Alert.alert(
+                    t('saved_offline', 'Saved Offline'),
+                    t('cancel_offline_saved_desc', 'Cancellation saved offline • Will sync automatically once connected.')
+                );
+                return;
+            }
+
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.dayOffRequests });
             Alert.alert(t('cancelled', 'Cancelled'), t('request_cancelled', 'Request cancelled.'));
         },
         onError: (err: any) => {

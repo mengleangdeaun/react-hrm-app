@@ -10,13 +10,16 @@ import {
 } from 'react-native';
 import { AppText as Text } from '../../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient, onlineManager } from '@tanstack/react-query';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
 import { optimizeImageForUpload, cleanupTempImages } from '../../../utils/imageOptimizer';
-import { leaveApi, LeaveBalance } from '../../../api/leave';
+import { leaveApi, LeaveBalance, LeaveRequest } from '../../../api/leave';
 import { queryKeys } from '../../../api/queryKeys';
+import { syncQueue } from '../../../offline/syncQueue';
+import { saveAttachmentToVault } from '../../../offline/attachmentVault';
+import { isNetworkError } from '../../../api/client';
 import { useAppTheme } from '../../../context/ThemeContext';
 import { AppShell } from '../../../components/common/AppShell';
 import { AppButton } from '../../../components/common/AppButton';
@@ -334,18 +337,123 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
                   ]
                 : [];
 
-            await leaveApi.submitLeaveRequest({
-                leave_type_id: selectedLeaveTypeId,
-                duration_type: durationType,
-                start_date: startDate,
-                end_date: finalEndDate,
-                start_time: durationType === 'custom_time' ? startTime : undefined,
-                end_time: durationType === 'custom_time' ? endTime : undefined,
-                reason: reason.trim(),
-                attachments: attachmentsArr,
-            });
+            const isDeviceOnline = onlineManager.isOnline();
+            let isOfflineFallback = !isDeviceOnline;
 
-            // Cache Invalidation
+            if (isDeviceOnline) {
+                try {
+                    await leaveApi.submitLeaveRequest({
+                        leave_type_id: selectedLeaveTypeId,
+                        duration_type: durationType,
+                        start_date: startDate,
+                        end_date: finalEndDate,
+                        start_time: durationType === 'custom_time' ? startTime : undefined,
+                        end_time: durationType === 'custom_time' ? endTime : undefined,
+                        reason: reason.trim(),
+                        attachments: attachmentsArr,
+                    });
+                } catch (networkErr: any) {
+                    if (isNetworkError(networkErr)) {
+                        isOfflineFallback = true;
+                    } else {
+                        throw networkErr;
+                    }
+                }
+            }
+
+            // Offline or Spotty Connection: Bet on Success & Queue for Durable Sync
+            if (isOfflineFallback) {
+                let vaultFile: any = null;
+                if (attachment?.uri) {
+                    vaultFile = await saveAttachmentToVault(
+                        attachment.uri,
+                        attachment.name,
+                        attachment.type || 'image/jpeg'
+                    );
+                }
+
+                await syncQueue.enqueue(
+                    'leave_request',
+                    '/employee-app/leave-requests',
+                    'POST',
+                    {
+                        leave_type_id: selectedLeaveTypeId,
+                        duration_type: durationType,
+                        start_date: startDate,
+                        end_date: finalEndDate,
+                        start_time: durationType === 'custom_time' ? startTime : undefined,
+                        end_time: durationType === 'custom_time' ? endTime : undefined,
+                        reason: reason.trim(),
+                    },
+                    {
+                        isMultipart: !!vaultFile,
+                        attachments: vaultFile
+                            ? [
+                                  {
+                                      field: 'attachments[]',
+                                      uri: vaultFile.vaultUri,
+                                      name: vaultFile.filename,
+                                      type: vaultFile.mimeType,
+                                  },
+                              ]
+                            : [],
+                        description: `Leave Request (${(selectedBalance as any)?.leave_type?.name || 'Leave'})`,
+                    }
+                );
+
+                // Optimistically prepend to Leave Requests List cache ("my_requests")
+                const optimisticLeave: LeaveRequest = {
+                    id: Date.now(),
+                    leave_type_id: selectedLeaveTypeId,
+                    leave_type: (selectedBalance as any)?.leave_type || 'Leave',
+                    duration_type: durationType as any,
+                    start_date: startDate,
+                    end_date: finalEndDate,
+                    start_time: durationType === 'custom_time' ? startTime : undefined,
+                    end_time: durationType === 'custom_time' ? endTime : undefined,
+                    total_days: requestedDays,
+                    days_count: requestedDays,
+                    reason: reason.trim(),
+                    status: 'pending',
+                    created_at: new Date().toISOString(),
+                    attachments: attachment?.uri ? [attachment.uri] : [],
+                };
+
+                queryClient.setQueryData(queryKeys.leave.requests('my_requests'), (old: any) => {
+                    const list = Array.isArray(old) ? old : [];
+                    return [optimisticLeave, ...list];
+                });
+
+                // Optimistically adjust balance cache
+                queryClient.setQueryData(queryKeys.leave.balances, (old: any) => {
+                    if (!Array.isArray(old)) return old;
+                    return old.map((bal: any) => {
+                        const balTypeId = bal.leave_type_id || bal.id || bal.leave_type?.id;
+                        if (balTypeId === selectedLeaveTypeId) {
+                            const newRemaining = Math.max(0, (bal.remaining_days || 0) - requestedDays);
+                            const newUsed = (bal.used_days || 0) + requestedDays;
+                            return { ...bal, remaining_days: newRemaining, used_days: newUsed };
+                        }
+                        return bal;
+                    });
+                });
+
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+
+                if (Platform.OS === 'web') {
+                    window.alert(t('leave_offline_saved_msg', 'Leave Request Saved Offline • Will sync automatically once connected.'));
+                    navigation.replace('LeaveList');
+                } else {
+                    Alert.alert(
+                        t('saved_offline', 'Saved Offline'),
+                        t('leave_offline_saved_msg', 'Leave Request Saved Offline • Will sync automatically once connected.'),
+                        [{ text: t('ok', 'OK'), onPress: () => navigation.replace('LeaveList') }]
+                    );
+                }
+                return;
+            }
+
+            // Online Submission Success
             await Promise.all([
                 queryClient.invalidateQueries({ queryKey: queryKeys.leave.balances }),
                 queryClient.invalidateQueries({ queryKey: queryKeys.leave.all }),

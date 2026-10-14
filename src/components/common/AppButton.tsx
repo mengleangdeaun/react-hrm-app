@@ -2,12 +2,10 @@ import React from 'react';
 import {
     Pressable,
     ActivityIndicator,
-    StyleSheet,
     View,
 } from 'react-native';
+import { StyleSheet } from 'react-native-unistyles';
 import * as Haptics from 'expo-haptics';
-import { useAppTheme } from '../../context/ThemeContext';
-import { lightTheme, darkTheme } from '../../styles/theme';
 import { AppText } from '../AppText';
 
 export interface AppButtonProps {
@@ -26,6 +24,12 @@ export interface AppButtonProps {
     accessibilityLabel?: string;
 }
 
+const sizeStylesMap = {
+    sm: { minHeight: 36, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10, fontSize: 12 },
+    md: { minHeight: 44, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, fontSize: 14 },
+    lg: { minHeight: 52, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 16, fontSize: 15 },
+} as const;
+
 export const AppButton: React.FC<AppButtonProps> = ({
     title,
     onPress,
@@ -41,8 +45,7 @@ export const AppButton: React.FC<AppButtonProps> = ({
     fullWidth = true,
     accessibilityLabel,
 }) => {
-    const { isDark } = useAppTheme();
-    const theme = isDark ? darkTheme : lightTheme;
+    const styles = stylesheet;
 
     const handlePress = () => {
         if (disabled || loading) return;
@@ -52,38 +55,9 @@ export const AppButton: React.FC<AppButtonProps> = ({
         onPress();
     };
 
-    const sizeStyles = {
-        sm: { minHeight: 36, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 10, fontSize: 12 },
-        md: { minHeight: 44, paddingVertical: 10, paddingHorizontal: 16, borderRadius: 12, fontSize: 14 },
-        lg: { minHeight: 52, paddingVertical: 12, paddingHorizontal: 20, borderRadius: 16, fontSize: 15 },
-    }[size];
-
-    let backgroundColor: string = theme.colors.brand;
-    let textColor: string = '#FFFFFF';
-    let borderWidth: number = 0;
-    let borderColor: string = 'transparent';
-
-    if (variant === 'secondary') {
-        backgroundColor = theme.colors.surfaceSubtle;
-        textColor = theme.colors.textPrimary;
-    } else if (variant === 'outline') {
-        backgroundColor = 'transparent';
-        textColor = theme.colors.textPrimary;
-        borderWidth = 1;
-        borderColor = (theme.colors as any).borderStrong || theme.colors.border;
-    } else if (variant === 'ghost') {
-        backgroundColor = 'transparent';
-        textColor = theme.colors.brand;
-    } else if (variant === 'destructive') {
-        backgroundColor = theme.colors.status.danger;
-        textColor = '#FFFFFF';
-    }
-
-    if (disabled) {
-        backgroundColor = isDark ? 'rgba(255, 255, 255, 0.08)' : '#E2E8F0';
-        textColor = isDark ? 'rgba(255, 255, 255, 0.3)' : '#94A3B8';
-        borderColor = 'transparent';
-    }
+    const sizeStyles = sizeStylesMap[size] || sizeStylesMap.lg;
+    const variantStyle = disabled ? styles.disabled : (styles[`variant_${variant}`] || styles.variant_primary);
+    const textVariantStyle = disabled ? styles.text_disabled : (styles[`text_${variant}`] || styles.text_primary);
 
     return (
         <Pressable
@@ -94,14 +68,12 @@ export const AppButton: React.FC<AppButtonProps> = ({
             accessibilityState={{ disabled: disabled || loading, busy: loading }}
             style={({ pressed }: { pressed: boolean }) => [
                 styles.baseButton,
+                variantStyle,
                 {
                     minHeight: sizeStyles.minHeight,
                     paddingVertical: sizeStyles.paddingVertical,
                     paddingHorizontal: sizeStyles.paddingHorizontal,
                     borderRadius: sizeStyles.borderRadius,
-                    backgroundColor,
-                    borderWidth,
-                    borderColor,
                     width: fullWidth ? '100%' : 'auto',
                     opacity: disabled ? 0.6 : (pressed ? 0.85 : 1),
                 },
@@ -109,15 +81,15 @@ export const AppButton: React.FC<AppButtonProps> = ({
             ]}
         >
             {loading ? (
-                <ActivityIndicator color={textColor} size="small" />
+                <ActivityIndicator color={textVariantStyle.color || '#FFFFFF'} size="small" />
             ) : (
                 <View style={styles.contentRow}>
                     {icon && iconPosition === 'left' && <View style={styles.iconLeft}>{icon}</View>}
                     <AppText
                         variant="button"
                         style={[
+                            textVariantStyle,
                             {
-                                color: textColor,
                                 fontSize: sizeStyles.fontSize,
                                 flexShrink: 1,
                                 textAlign: 'center',
@@ -134,7 +106,7 @@ export const AppButton: React.FC<AppButtonProps> = ({
     );
 };
 
-const styles = StyleSheet.create({
+const stylesheet = StyleSheet.create((theme) => ({
     baseButton: {
         justifyContent: 'center',
         alignItems: 'center',
@@ -152,4 +124,48 @@ const styles = StyleSheet.create({
     iconRight: {
         marginLeft: 8,
     },
-});
+    variant_primary: {
+        backgroundColor: theme.colors.brand,
+        borderColor: 'transparent',
+    },
+    variant_secondary: {
+        backgroundColor: theme.colors.surfaceSubtle,
+        borderColor: 'transparent',
+    },
+    variant_outline: {
+        backgroundColor: 'transparent',
+        borderWidth: 1,
+        borderColor: (theme.colors as any).borderStrong || theme.colors.border,
+    },
+    variant_ghost: {
+        backgroundColor: 'transparent',
+        borderColor: 'transparent',
+    },
+    variant_destructive: {
+        backgroundColor: theme.colors.status.danger,
+        borderColor: 'transparent',
+    },
+    disabled: {
+        backgroundColor: theme.colors.disabled,
+        borderColor: 'transparent',
+    },
+    text_primary: {
+        color: '#FFFFFF',
+    },
+    text_secondary: {
+        color: theme.colors.textPrimary,
+    },
+    text_outline: {
+        color: theme.colors.textPrimary,
+    },
+    text_ghost: {
+        color: theme.colors.brand,
+    },
+    text_destructive: {
+        color: '#FFFFFF',
+    },
+    text_disabled: {
+        color: theme.colors.textDisabled,
+    },
+}));
+

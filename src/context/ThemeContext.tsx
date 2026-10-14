@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
 import { UnistylesRuntime } from 'react-native-unistyles';
 import { storage } from '../utils/storage';
 import { lightTheme, darkTheme } from '../styles/theme';
@@ -14,20 +14,24 @@ export const FONT_SCALE_MAP: Record<FontSizeScaleId, number> = {
     large: 1.15,
 };
 
-interface ThemeContextType {
+export interface FontSizeContextType {
+    fontSizeScale: number;
+    fontSizeId: FontSizeScaleId;
+    scaledSize: (baseSize: number) => number;
+    setFontScale: (sizeId: FontSizeScaleId) => Promise<void>;
+}
+
+export interface ThemeContextType extends FontSizeContextType {
     colorScheme: 'light' | 'dark';
     isDark: boolean;
     primaryColor: string;
     brandColor: string;
-    fontSizeScale: number;
-    fontSizeId: FontSizeScaleId;
-    scaledSize: (baseSize: number) => number;
     toggleTheme: () => void;
     setThemeMode: (mode: 'light' | 'dark') => void;
-    setFontScale: (sizeId: FontSizeScaleId) => Promise<void>;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+const FontSizeContext = createContext<FontSizeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(
@@ -44,8 +48,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             const savedTheme = await storage.getItem(THEME_KEY);
             const activeTheme: 'light' | 'dark' =
                 savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : 'light';
-            setCurrentTheme(activeTheme);
             UnistylesRuntime.setTheme(activeTheme);
+            setCurrentTheme(activeTheme);
 
             const savedFont = await storage.getItem(FONT_SIZE_KEY);
             if (savedFont && savedFont in FONT_SCALE_MAP) {
@@ -56,49 +60,90 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         }
     };
 
-    const setThemeMode = async (mode: 'light' | 'dark') => {
-        setCurrentTheme(mode);
+    const setThemeMode = useCallback(async (mode: 'light' | 'dark') => {
         UnistylesRuntime.setTheme(mode);
-        await storage.setItem(THEME_KEY, mode);
-    };
+        setCurrentTheme(mode);
+        try {
+            await storage.setItem(THEME_KEY, mode);
+        } catch (e) {
+            console.warn('Failed to persist theme preference:', e);
+        }
+    }, []);
 
-    const toggleTheme = () => {
-        const nextMode = currentTheme === 'dark' ? 'light' : 'dark';
+    const toggleTheme = useCallback(() => {
+        const nextMode = (UnistylesRuntime.themeName === 'dark' || currentTheme === 'dark') ? 'light' : 'dark';
         setThemeMode(nextMode);
-    };
+    }, [currentTheme, setThemeMode]);
 
-    const setFontScale = async (sizeId: FontSizeScaleId) => {
+    const setFontScale = useCallback(async (sizeId: FontSizeScaleId) => {
         setFontSizeState(sizeId);
-        await storage.setItem(FONT_SIZE_KEY, sizeId);
-    };
+        try {
+            await storage.setItem(FONT_SIZE_KEY, sizeId);
+        } catch (e) {
+            console.warn('Failed to persist font size preference:', e);
+        }
+    }, []);
+
+    const fontSizeScale = FONT_SCALE_MAP[fontSizeId] || 1.0;
+
+    const scaledSize = useCallback((baseSize: number) => {
+        return Math.round(baseSize * fontSizeScale);
+    }, [fontSizeScale]);
+
+    const fontSizeContextValue = useMemo<FontSizeContextType>(() => ({
+        fontSizeScale,
+        fontSizeId,
+        scaledSize,
+        setFontScale,
+    }), [fontSizeScale, fontSizeId, scaledSize, setFontScale]);
 
     const theme = currentTheme === 'dark' ? darkTheme : lightTheme;
     const brandColor = theme.colors.brand;
     const primaryColor = theme.colors.primary;
-    const fontSizeScale = FONT_SCALE_MAP[fontSizeId] || 1.0;
 
-    const scaledSize = (baseSize: number) => {
-        return Math.round(baseSize * fontSizeScale);
-    };
+    const themeContextValue = useMemo<ThemeContextType>(() => ({
+        colorScheme: currentTheme,
+        isDark: currentTheme === 'dark',
+        primaryColor,
+        brandColor,
+        fontSizeScale,
+        fontSizeId,
+        scaledSize,
+        toggleTheme,
+        setThemeMode,
+        setFontScale,
+    }), [
+        currentTheme,
+        primaryColor,
+        brandColor,
+        fontSizeScale,
+        fontSizeId,
+        scaledSize,
+        toggleTheme,
+        setThemeMode,
+        setFontScale,
+    ]);
 
     return (
-        <ThemeContext.Provider
-            value={{
-                colorScheme: currentTheme,
-                isDark: currentTheme === 'dark',
-                primaryColor,
-                brandColor,
-                fontSizeScale,
-                fontSizeId,
-                scaledSize,
-                toggleTheme,
-                setThemeMode,
-                setFontScale,
-            }}
-        >
-            {children}
-        </ThemeContext.Provider>
+        <FontSizeContext.Provider value={fontSizeContextValue}>
+            <ThemeContext.Provider value={themeContextValue}>
+                {children}
+            </ThemeContext.Provider>
+        </FontSizeContext.Provider>
     );
+};
+
+export const useFontSize = (): FontSizeContextType => {
+    const context = useContext(FontSizeContext);
+    if (!context) {
+        return {
+            fontSizeScale: 1.0,
+            fontSizeId: 'medium',
+            scaledSize: (baseSize: number) => baseSize,
+            setFontScale: async () => {},
+        };
+    }
+    return context;
 };
 
 export const useAppTheme = () => {
@@ -108,3 +153,4 @@ export const useAppTheme = () => {
     }
     return context;
 };
+
