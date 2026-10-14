@@ -238,8 +238,8 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: theme.borderRadius.lg,
         padding: theme.spacing.md,
         marginBottom: theme.spacing.md,
-        borderWidth: 0.5,
-        borderColor: (theme.colors as any).borderSubtle || theme.colors.border,
+        borderWidth: 1,
+        borderColor: theme.colors.border,
     },
     detailHeroTop: {
         flexDirection: 'row',

@@ -289,22 +289,6 @@ const ActivityCard = memo(({
                     </View>
                 )}
 
-                {/* Status Badge Overlay (Top Right) */}
-                <View
-                    style={[
-                        styles.statusBadgeOverlay,
-                        {
-                            backgroundColor: statusConfig.bg,
-                            borderColor: statusConfig.border,
-                        },
-                    ]}
-                >
-                    <StatusIcon color={statusConfig.text} size={11} strokeWidth={2.5} />
-                    <Text style={[styles.statusBadgeText, { color: statusConfig.text }]}>
-                        {statusConfig.label}
-                    </Text>
-                </View>
-
                 {/* Photos Count Badge Overlay (Top Left) */}
                 {displayImages.length > 1 && (
                     <View style={styles.photoCountBadgeOverlay}>

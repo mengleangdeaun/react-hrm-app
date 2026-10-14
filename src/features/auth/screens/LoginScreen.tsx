@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
     View,
     TouchableOpacity,
@@ -8,6 +8,7 @@ import {
     ScrollView,
     StatusBar,
     StyleSheet,
+    Keyboard,
 } from 'react-native';
 import { Image } from 'expo-image';
 import * as Haptics from 'expo-haptics';
@@ -45,6 +46,30 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [keyboardHeight, setKeyboardHeight] = useState(0);
+
+    useEffect(() => {
+        const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+        const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+        const showSubscription = Keyboard.addListener(showEvent, (e: any) => {
+            setKeyboardHeight(e?.endCoordinates?.height || 0);
+        });
+        const hideSubscription = Keyboard.addListener(hideEvent, () => {
+            setKeyboardHeight(0);
+        });
+
+        return () => {
+            showSubscription.remove();
+            hideSubscription.remove();
+        };
+    }, []);
+
+    const scrollToInput = (yOffset: number) => {
+        setTimeout(() => {
+            scrollViewRef.current?.scrollTo({ y: yOffset, animated: true });
+        }, 100);
+    };
 
     const toggleLanguage = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -201,15 +226,23 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             <KeyboardAvoidingView
                 style={styles.keyboardContainer}
                 behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top + 10 : 0}
+                keyboardVerticalOffset={Platform.OS === 'ios' ? insets.top : 0}
             >
                 <ScrollView
                     ref={scrollViewRef}
-                    contentContainerStyle={styles.scrollContent}
+                    contentContainerStyle={[
+                        styles.scrollContent,
+                        {
+                            paddingBottom: keyboardHeight > 0
+                                ? (Platform.OS === 'ios' ? 40 : keyboardHeight + 36)
+                                : 40,
+                        },
+                    ]}
                     keyboardShouldPersistTaps="handled"
                     keyboardDismissMode="on-drag"
                     showsVerticalScrollIndicator={false}
-                    bounces={false}
+                    bounces={true}
+                    alwaysBounceVertical={false}
                 >
                     {/* ── Hero / Branding Section ─────────────────────────────── */}
                     <View style={styles.brandContainer}>
@@ -280,6 +313,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                             autoCorrect={false}
                             icon={<Mail color={theme.colors.textSecondary} size={18} />}
                             containerStyle={styles.inputSpacing}
+                            onFocus={() => scrollToInput(60)}
                         />
 
                         {/* Password Input */}
@@ -293,6 +327,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                             autoCapitalize="none"
                             autoCorrect={false}
                             icon={<Lock color={theme.colors.textSecondary} size={18} />}
+                            onFocus={() => scrollToInput(140)}
                             rightAction={
                                 <TouchableOpacity
                                     onPress={() => {
@@ -469,12 +504,12 @@ const styles = StyleSheet.create({
         ...Platform.select({
             ios: {
                 shadowColor: '#000000',
-                shadowOffset: { width: 0, height: 6 },
-                shadowOpacity: 0.08,
-                shadowRadius: 12,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.03,
+                shadowRadius: 4,
             },
             android: {
-                elevation: 4,
+                elevation: 1,
             },
         }),
     },
@@ -515,12 +550,12 @@ const styles = StyleSheet.create({
         ...Platform.select({
             ios: {
                 shadowColor: '#000000',
-                shadowOffset: { width: 0, height: 8 },
-                shadowOpacity: 0.06,
-                shadowRadius: 16,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.03,
+                shadowRadius: 6,
             },
             android: {
-                elevation: 3,
+                elevation: 1,
             },
         }),
     },

@@ -3,14 +3,13 @@ import {
     View,
     TouchableOpacity,
     StatusBar,
-    StyleSheet,
     Animated,
     useWindowDimensions,
     Platform,
     ScrollView,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useUnistyles } from 'react-native-unistyles';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import * as Haptics from 'expo-haptics';
 import {
     ArrowRight,
@@ -43,6 +42,100 @@ interface SlideItem {
     illustration: React.ComponentType<{ size?: number; accentColor?: string; isDark?: boolean }>;
 }
 
+const SLIDES: SlideItem[] = [
+    {
+        id: '1',
+        featureKey: 'attendance',
+        titleKey: 'onboarding_1_title',
+        descKey: 'onboarding_1_desc',
+        illustration: AttendanceIllustration,
+    },
+    {
+        id: '2',
+        featureKey: 'activity',
+        titleKey: 'onboarding_2_title',
+        descKey: 'onboarding_2_desc',
+        illustration: ActivityIllustration,
+    },
+    {
+        id: '3',
+        featureKey: 'leave',
+        titleKey: 'onboarding_3_title',
+        descKey: 'onboarding_3_desc',
+        illustration: LeaveIllustration,
+    },
+    {
+        id: '4',
+        featureKey: 'quizzes',
+        titleKey: 'onboarding_4_title',
+        descKey: 'onboarding_4_desc',
+        illustration: QuizIllustration,
+    },
+    {
+        id: '5',
+        featureKey: 'progress',
+        titleKey: 'onboarding_5_title',
+        descKey: 'onboarding_5_desc',
+        illustration: ProgressIllustration,
+    },
+    {
+        id: '6',
+        featureKey: 'schedule',
+        titleKey: 'onboarding_6_title',
+        descKey: 'onboarding_6_desc',
+        illustration: CalendarIllustration,
+    },
+    {
+        id: '7',
+        featureKey: 'notices',
+        titleKey: 'onboarding_7_title',
+        descKey: 'onboarding_7_desc',
+        illustration: AnnouncementIllustration,
+    },
+];
+
+const OnboardingSlideItem = React.memo<{
+    item: SlideItem;
+    width: number;
+    title: string;
+    description: string;
+}>(({ item, width, title, description }) => {
+    const IllustrationComponent = item.illustration;
+    const illustrationSize = Math.min(width * 0.72, 260);
+    const styles = stylesheet;
+
+    return (
+        <View style={[styles.slideWrapper, { width }]}>
+            <ScrollView
+                contentContainerStyle={styles.slideScrollContent}
+                showsVerticalScrollIndicator={false}
+                bounces={false}
+            >
+                <View style={styles.illustrationWrapper}>
+                    <IllustrationComponent size={illustrationSize} />
+                </View>
+
+                <View style={styles.textContent}>
+                    <AppText
+                        variant="h1"
+                        weight="bold"
+                        style={styles.slideTitle}
+                    >
+                        {title}
+                    </AppText>
+
+                    <AppText
+                        variant="body"
+                        style={styles.slideDesc}
+                    >
+                        {description}
+                    </AppText>
+                </View>
+            </ScrollView>
+        </View>
+    );
+});
+
 export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
     navigation,
     route,
@@ -51,6 +144,7 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
     const insets = useSafeAreaInsets();
     const { isDark, toggleTheme } = useAppTheme();
     const { theme } = useUnistyles();
+    const styles = stylesheet;
     const { t, locale, setLocale } = useTranslation();
     const { completeOnboarding } = useAuth();
 
@@ -59,59 +153,7 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
     const flatListRef = useRef<any>(null);
     const scrollX = useRef(new Animated.Value(0)).current;
 
-    const slides: SlideItem[] = [
-        {
-            id: '1',
-            featureKey: 'attendance',
-            titleKey: 'onboarding_1_title',
-            descKey: 'onboarding_1_desc',
-            illustration: AttendanceIllustration,
-        },
-        {
-            id: '2',
-            featureKey: 'activity',
-            titleKey: 'onboarding_2_title',
-            descKey: 'onboarding_2_desc',
-            illustration: ActivityIllustration,
-        },
-        {
-            id: '3',
-            featureKey: 'leave',
-            titleKey: 'onboarding_3_title',
-            descKey: 'onboarding_3_desc',
-            illustration: LeaveIllustration,
-        },
-        {
-            id: '4',
-            featureKey: 'quizzes',
-            titleKey: 'onboarding_4_title',
-            descKey: 'onboarding_4_desc',
-            illustration: QuizIllustration,
-        },
-        {
-            id: '5',
-            featureKey: 'progress',
-            titleKey: 'onboarding_5_title',
-            descKey: 'onboarding_5_desc',
-            illustration: ProgressIllustration,
-        },
-        {
-            id: '6',
-            featureKey: 'schedule',
-            titleKey: 'onboarding_6_title',
-            descKey: 'onboarding_6_desc',
-            illustration: CalendarIllustration,
-        },
-        {
-            id: '7',
-            featureKey: 'notices',
-            titleKey: 'onboarding_7_title',
-            descKey: 'onboarding_7_desc',
-            illustration: AnnouncementIllustration,
-        },
-    ];
-
-    const isLastSlide = activeIndex === slides.length - 1;
+    const isLastSlide = activeIndex === SLIDES.length - 1;
 
     const viewabilityConfig = useRef({
         itemVisiblePercentThreshold: 50,
@@ -134,16 +176,16 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
     const updateIndexFromOffset = useCallback(
         (offsetX: number) => {
             const idx = Math.round(offsetX / width);
-            if (idx >= 0 && idx < slides.length && idx !== activeIndex) {
+            if (idx >= 0 && idx < SLIDES.length && idx !== activeIndex) {
                 setActiveIndex(idx);
             }
         },
-        [width, slides.length, activeIndex]
+        [width, activeIndex]
     );
 
     const scrollToIndex = useCallback(
         (index: number) => {
-            if (index < 0 || index >= slides.length) return;
+            if (index < 0 || index >= SLIDES.length) return;
             setActiveIndex(index);
             try {
                 flatListRef.current?.scrollToOffset({
@@ -160,14 +202,14 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                     // Ignore
                 }
             }
-            Haptics.selectionAsync();
+            Haptics.selectionAsync().catch(() => {});
         },
-        [slides.length, width]
+        [width]
     );
 
     const handleNext = () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-        if (activeIndex >= slides.length - 1) {
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+        if (activeIndex >= SLIDES.length - 1) {
             handleFinish();
         } else {
             scrollToIndex(activeIndex + 1);
@@ -175,7 +217,7 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
     };
 
     const handleSkip = async () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
         await handleFinish();
     };
 
@@ -189,54 +231,34 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
     };
 
     const toggleLanguage = () => {
-        Haptics.selectionAsync();
+        Haptics.selectionAsync().catch(() => {});
         setLocale(locale === 'en' ? 'kh' : 'en');
     };
 
-    const renderSlide = ({ item }: { item: SlideItem }) => {
-        const IllustrationComponent = item.illustration;
-        const illustrationSize = Math.min(width * 0.72, 260);
-
-        return (
-            <View style={[styles.slideWrapper, { width }]}>
-                <ScrollView
-                    contentContainerStyle={styles.slideScrollContent}
-                    showsVerticalScrollIndicator={false}
-                    bounces={false}
-                >
-                    <View style={styles.illustrationWrapper}>
-                        <IllustrationComponent
-                            size={illustrationSize}
-                            isDark={isDark}
-                        />
-                    </View>
-
-                    <View style={styles.textContent}>
-                        <AppText
-                            variant="h1"
-                            weight="bold"
-                            style={[styles.slideTitle, { color: theme.colors.textPrimary }]}
-                        >
-                            {t(item.titleKey)}
-                        </AppText>
-
-                        <AppText
-                            variant="body"
-                            style={[styles.slideDesc, { color: theme.colors.textSecondary }]}
-                        >
-                            {t(item.descKey)}
-                        </AppText>
-                    </View>
-                </ScrollView>
-            </View>
-        );
+    const handleThemeToggle = () => {
+        Haptics.selectionAsync().catch(() => {});
+        toggleTheme();
     };
+
+    const renderItem = useCallback(
+        ({ item }: { item: SlideItem }) => (
+            <OnboardingSlideItem
+                item={item}
+                width={width}
+                title={t(item.titleKey)}
+                description={t(item.descKey)}
+            />
+        ),
+        [width, t]
+    );
+
+    const keyExtractor = useCallback((item: SlideItem) => item.id, []);
 
     // Calculate dynamic safe clearance above the phone navigator/home bar
     const bottomSafePadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 12) + (Platform.OS === 'ios' ? 12 : 16);
 
     return (
-        <SafeAreaView edges={['top']} {...({ style: [styles.container, { backgroundColor: theme.colors.background }] } as any)}>
+        <SafeAreaView edges={['top']} {...({ style: styles.container } as any)}>
             <StatusBar
                 barStyle={isDark ? 'light-content' : 'dark-content'}
                 backgroundColor={theme.colors.background}
@@ -253,19 +275,13 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                         />
                     )}
                     <TouchableOpacity
-                        style={[
-                            styles.utilityButton,
-                            {
-                                backgroundColor: theme.colors.surface,
-                                borderColor: theme.colors.border,
-                            },
-                        ]}
+                        style={styles.utilityButton}
                         onPress={toggleLanguage}
                         activeOpacity={0.7}
                         accessibilityLabel="Change Language"
                     >
                         <Globe size={16} color={theme.colors.textPrimary} />
-                        <AppText style={[styles.utilityButtonText, { color: theme.colors.textPrimary }]}>
+                        <AppText style={styles.utilityButtonText}>
                             {locale === 'en' ? 'ភាសាខ្មែរ' : 'English'}
                         </AppText>
                     </TouchableOpacity>
@@ -273,17 +289,8 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
 
                 <View style={styles.topRight}>
                     <TouchableOpacity
-                        style={[
-                            styles.iconButton,
-                            {
-                                backgroundColor: theme.colors.surface,
-                                borderColor: theme.colors.border,
-                            },
-                        ]}
-                        onPress={() => {
-                            Haptics.selectionAsync();
-                            toggleTheme();
-                        }}
+                        style={styles.iconButton}
+                        onPress={handleThemeToggle}
                         activeOpacity={0.7}
                         accessibilityLabel="Toggle Theme"
                     >
@@ -297,18 +304,13 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                     {/* Integrated Top Skip Button to avoid layout collisions */}
                     {!isReviewMode && !isLastSlide && (
                         <TouchableOpacity
-                            style={[
-                                styles.topSkipButton,
-                                {
-                                    backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)',
-                                },
-                            ]}
+                            style={styles.topSkipButton}
                             onPress={handleSkip}
                             activeOpacity={0.7}
                             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                             accessibilityLabel="Skip Onboarding"
                         >
-                            <AppText variant="caption" weight="bold" style={{ color: theme.colors.textSecondary }}>
+                            <AppText variant="caption" weight="bold" style={styles.topSkipText}>
                                 {t('skip')}
                             </AppText>
                         </TouchableOpacity>
@@ -319,8 +321,8 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
             {/* ── Main Feature Carousel ───────────────────────────────────────── */}
             <Animated.FlatList
                 ref={flatListRef}
-                data={slides}
-                keyExtractor={(item: SlideItem) => item.id}
+                data={SLIDES}
+                keyExtractor={keyExtractor}
                 horizontal
                 pagingEnabled
                 showsHorizontalScrollIndicator={false}
@@ -330,9 +332,9 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                 snapToInterval={width}
                 snapToAlignment="center"
                 disableIntervalMomentum={Platform.OS !== 'web'}
-                initialNumToRender={slides.length}
-                maxToRenderPerBatch={slides.length}
-                windowSize={slides.length}
+                initialNumToRender={SLIDES.length}
+                maxToRenderPerBatch={SLIDES.length}
+                windowSize={SLIDES.length}
                 onScroll={Animated.event(
                     [{ nativeEvent: { contentOffset: { x: scrollX } } }],
                     { useNativeDriver: false }
@@ -356,23 +358,15 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                         animated: true,
                     });
                 }}
-                renderItem={renderSlide}
+                renderItem={renderItem}
                 style={styles.carousel}
             />
 
             {/* ── Bottom Controls with Proper Safe Inset Padding ──────────────── */}
-            <View
-                style={[
-                    styles.bottomBar,
-                    {
-                        backgroundColor: theme.colors.background,
-                        paddingBottom: bottomSafePadding,
-                    },
-                ]}
-            >
+            <View style={[styles.bottomBar, { paddingBottom: bottomSafePadding }]}>
                 {/* Pagination Dots Row */}
                 <View style={styles.paginationRow}>
-                    {slides.map((_, idx) => {
+                    {SLIDES.map((_, idx) => {
                         const inputRange = [
                             (idx - 1) * width,
                             idx * width,
@@ -404,7 +398,6 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                                         {
                                             width: dotWidth,
                                             opacity: dotOpacity,
-                                            backgroundColor: theme.colors.primary,
                                         },
                                     ]}
                                 />
@@ -416,17 +409,11 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                 {/* Navigation Buttons Row */}
                 <View style={styles.navButtonsRow}>
                     <TouchableOpacity
-                        style={[
-                            styles.primaryButton,
-                            {
-                                backgroundColor: theme.colors.primary,
-                                width: '100%',
-                            },
-                        ]}
+                        style={styles.primaryButton}
                         onPress={handleNext}
                         activeOpacity={0.85}
                     >
-                        <AppText variant="button" weight="bold" style={{ color: '#FFFFFF' }}>
+                        <AppText variant="button" weight="bold" style={styles.primaryButtonText}>
                             {isLastSlide
                                 ? isReviewMode
                                     ? t('onboarding_finish_tour', 'Done Exploring')
@@ -445,9 +432,10 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
     );
 };
 
-const styles = StyleSheet.create({
+const stylesheet = StyleSheet.create((theme) => ({
     container: {
         flex: 1,
+        backgroundColor: theme.colors.background,
     },
     topBar: {
         flexDirection: 'row',
@@ -474,17 +462,22 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderRadius: 20,
         borderWidth: 1,
+        borderColor: theme.colors.border,
+        backgroundColor: theme.colors.surface,
         gap: 6,
     },
     utilityButtonText: {
         fontSize: 13,
         fontWeight: '600',
+        color: theme.colors.textPrimary,
     },
     iconButton: {
         width: 38,
         height: 38,
         borderRadius: 19,
         borderWidth: 1,
+        borderColor: theme.colors.border,
+        backgroundColor: theme.colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
     },
@@ -494,6 +487,10 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: theme.colors.surfaceSubtle,
+    },
+    topSkipText: {
+        color: theme.colors.textSecondary,
     },
     carousel: {
         flex: 1,
@@ -530,17 +527,20 @@ const styles = StyleSheet.create({
         fontSize: 23,
         lineHeight: 30,
         letterSpacing: -0.2,
+        color: theme.colors.textPrimary,
     },
     slideDesc: {
         textAlign: 'center',
         paddingHorizontal: 8,
         fontSize: 15,
         lineHeight: 23,
+        color: theme.colors.textSecondary,
     },
     bottomBar: {
         paddingHorizontal: 20,
         paddingTop: 12,
         gap: 18,
+        backgroundColor: theme.colors.background,
     },
     paginationRow: {
         flexDirection: 'row',
@@ -552,6 +552,7 @@ const styles = StyleSheet.create({
     dot: {
         height: 6,
         borderRadius: 3,
+        backgroundColor: theme.colors.brand,
     },
     navButtonsRow: {
         flexDirection: 'row',
@@ -565,5 +566,10 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         borderRadius: 16,
         gap: 8,
+        backgroundColor: theme.colors.brand,
+        width: '100%',
     },
-});
+    primaryButtonText: {
+        color: '#FFFFFF',
+    },
+}));
