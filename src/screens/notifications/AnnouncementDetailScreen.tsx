@@ -5,12 +5,12 @@ import {
     TouchableOpacity,
     StatusBar,
     ActivityIndicator,
-    Image,
     Modal,
     Alert,
     Linking,
     useWindowDimensions,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useQuery, useQueryClient } from '@tanstack/react-query';

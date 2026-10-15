@@ -1,14 +1,10 @@
 import React from 'react';
-import {
-    View,
-    StyleSheet,
-    Image,
-} from 'react-native';
+import { View } from 'react-native';
+import { Image } from 'expo-image';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AppText as Text } from '../../components/AppText';
-import { Heart, Gift, Cake, Sparkles } from 'lucide-react-native';
-import { useAppTheme } from '../../context/ThemeContext';
-import { lightTheme, darkTheme } from '../../styles/theme';
+import { Gift, Cake, Sparkles } from 'lucide-react-native';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { AppShell } from '../../components/common/AppShell';
 import { AppCard } from '../../components/common/AppCard';
 import { EmptyState } from '../../components/common/EmptyState';
@@ -19,9 +15,9 @@ import { queryKeys } from '../../api/queryKeys';
 import { formatRelativeTime } from '../../utils/dateTime';
 
 export const WishesInboxScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-    const { isDark } = useAppTheme();
     const { t, locale } = useTranslation();
-    const theme = isDark ? darkTheme : lightTheme;
+    const { theme } = useUnistyles();
+    const styles = stylesheet;
     const queryClient = useQueryClient();
 
     const {
@@ -66,20 +62,20 @@ export const WishesInboxScreen: React.FC<{ navigation: any }> = ({ navigation })
                         <AppCard key={item.id} variant="surface" style={styles.card}>
                             <View style={styles.cardHeader}>
                                 {senderAvatar ? (
-                                    <Image source={{ uri: senderAvatar }} style={styles.avatar} />
+                                    <Image source={{ uri: senderAvatar }} style={styles.avatar} contentFit="cover" />
                                 ) : (
-                                    <View style={[styles.avatarFallback, { backgroundColor: isBirthday ? theme.colors.status.pinkSubtle : theme.colors.status.purpleSubtle }]}>
-                                        <Text style={[styles.avatarFallbackText, { color: isBirthday ? theme.colors.status.pink : theme.colors.status.purple }]}>
+                                    <View style={[styles.avatarFallback, isBirthday ? styles.avatarFallbackBirthday : styles.avatarFallbackAnniversary]}>
+                                        <Text style={[styles.avatarFallbackText, isBirthday ? styles.avatarFallbackTextBirthday : styles.avatarFallbackTextAnniversary]}>
                                             {senderName.charAt(0).toUpperCase()}
                                         </Text>
                                     </View>
                                 )}
 
                                 <View style={styles.senderWrapper}>
-                                    <Text style={[styles.senderName, { color: theme.colors.textPrimary }]}>
+                                    <Text style={styles.senderName}>
                                         {senderName}
                                     </Text>
-                                    <Text style={[styles.dateText, { color: theme.colors.textSecondary }]}>
+                                    <Text style={styles.dateText}>
                                         {dateFormatted}
                                     </Text>
                                 </View>
@@ -87,10 +83,7 @@ export const WishesInboxScreen: React.FC<{ navigation: any }> = ({ navigation })
                                 <View
                                     style={[
                                         styles.typePill,
-                                        {
-                                            backgroundColor: isBirthday ? theme.colors.status.pinkSubtle : theme.colors.status.purpleSubtle,
-                                            borderColor: isBirthday ? theme.colors.status.pinkBorder : theme.colors.status.purpleBorder,
-                                        },
+                                        isBirthday ? styles.typePillBirthday : styles.typePillAnniversary,
                                     ]}
                                 >
                                     {isBirthday ? (
@@ -101,7 +94,7 @@ export const WishesInboxScreen: React.FC<{ navigation: any }> = ({ navigation })
                                     <Text
                                         style={[
                                             styles.typePillText,
-                                            { color: isBirthday ? theme.colors.status.pink : theme.colors.status.purple },
+                                            isBirthday ? styles.typePillTextBirthday : styles.typePillTextAnniversary,
                                         ]}
                                     >
                                         {isBirthday ? t('birthday', 'Birthday') : t('anniversary', 'Anniversary')}
@@ -109,7 +102,7 @@ export const WishesInboxScreen: React.FC<{ navigation: any }> = ({ navigation })
                                 </View>
                             </View>
 
-                            <Text style={[styles.messageText, { color: theme.colors.textPrimary }]}>
+                            <Text style={styles.messageText}>
                                 "{item.message}"
                             </Text>
 
@@ -117,7 +110,7 @@ export const WishesInboxScreen: React.FC<{ navigation: any }> = ({ navigation })
                                 <Image
                                     source={{ uri: attachedImg }}
                                     style={styles.attachedImage}
-                                    resizeMode="cover"
+                                    contentFit="cover"
                                 />
                             ) : null}
                         </AppCard>
@@ -128,7 +121,7 @@ export const WishesInboxScreen: React.FC<{ navigation: any }> = ({ navigation })
     );
 };
 
-const styles = StyleSheet.create({
+const stylesheet = StyleSheet.create((theme) => ({
     card: {
         marginBottom: 12,
     },
@@ -150,9 +143,21 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
     },
+    avatarFallbackBirthday: {
+        backgroundColor: theme.colors.status.pinkSubtle,
+    },
+    avatarFallbackAnniversary: {
+        backgroundColor: theme.colors.status.purpleSubtle,
+    },
     avatarFallbackText: {
         fontSize: 14,
         fontWeight: '800',
+    },
+    avatarFallbackTextBirthday: {
+        color: theme.colors.status.pink,
+    },
+    avatarFallbackTextAnniversary: {
+        color: theme.colors.status.purple,
     },
     senderWrapper: {
         flex: 1,
@@ -160,10 +165,12 @@ const styles = StyleSheet.create({
     senderName: {
         fontSize: 14,
         fontWeight: '700',
+        color: theme.colors.textPrimary,
     },
     dateText: {
         fontSize: 11,
         marginTop: 1,
+        color: theme.colors.textSecondary,
     },
     typePill: {
         flexDirection: 'row',
@@ -174,15 +181,30 @@ const styles = StyleSheet.create({
         borderRadius: 9999,
         borderWidth: 1,
     },
+    typePillBirthday: {
+        backgroundColor: theme.colors.status.pinkSubtle,
+        borderColor: theme.colors.status.pinkBorder,
+    },
+    typePillAnniversary: {
+        backgroundColor: theme.colors.status.purpleSubtle,
+        borderColor: theme.colors.status.purpleBorder,
+    },
     typePillText: {
         fontSize: 10,
-        fontWeight: '700',
+        fontWeight: '800',
         textTransform: 'uppercase',
+    },
+    typePillTextBirthday: {
+        color: theme.colors.status.pink,
+    },
+    typePillTextAnniversary: {
+        color: theme.colors.status.purple,
     },
     messageText: {
         fontSize: 13,
         lineHeight: 20,
         fontStyle: 'italic',
+        color: theme.colors.textPrimary,
     },
     attachedImage: {
         width: '100%',
@@ -190,4 +212,4 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         marginTop: 10,
     },
-});
+}));

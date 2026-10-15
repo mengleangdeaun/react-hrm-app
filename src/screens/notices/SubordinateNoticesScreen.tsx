@@ -9,11 +9,11 @@ import {
     Alert,
     Modal,
     TextInput,
-    Image,
     KeyboardAvoidingView,
     Platform,
     StyleSheet as RNStyleSheet,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

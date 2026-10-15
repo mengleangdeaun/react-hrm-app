@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import {
     View,
     ScrollView,
@@ -39,6 +39,74 @@ const formatTimer = (seconds: number) => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
 };
 
+interface QuizCountdownBadgeProps {
+    initialSeconds: number;
+    onExpire: () => void;
+    styles: any;
+    theme: any;
+    primaryColor: string;
+}
+
+const QuizCountdownBadge: React.FC<QuizCountdownBadgeProps> = React.memo(
+    ({ initialSeconds, onExpire, styles, theme, primaryColor }) => {
+        const [seconds, setSeconds] = useState<number>(initialSeconds);
+        const onExpireRef = useRef(onExpire);
+        onExpireRef.current = onExpire;
+
+        useEffect(() => {
+            setSeconds(initialSeconds);
+        }, [initialSeconds]);
+
+        useEffect(() => {
+            if (seconds <= 0) return;
+            const timer = setInterval(() => {
+                setSeconds((prev) => {
+                    if (prev <= 1) {
+                        clearInterval(timer);
+                        onExpireRef.current();
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+            return () => clearInterval(timer);
+        }, []);
+
+        const isCriticalTime = seconds <= 60;
+        const isWarningTime = seconds > 60 && seconds <= 180;
+
+        return (
+            <View
+                style={[
+                    styles.timerBadge,
+                    isCriticalTime && styles.timerBadgeCritical,
+                    isWarningTime && styles.timerBadgeWarning,
+                ]}
+            >
+                <Clock
+                    color={
+                        isCriticalTime
+                            ? theme.colors.status.danger
+                            : isWarningTime
+                            ? theme.colors.status.warning
+                            : primaryColor
+                    }
+                    size={14}
+                />
+                <Text
+                    style={[
+                        styles.timerText,
+                        isCriticalTime && styles.timerTextCritical,
+                        isWarningTime && styles.timerTextWarning,
+                    ]}
+                >
+                    {formatTimer(seconds)}
+                </Text>
+            </View>
+        );
+    }
+);
+
 export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
     route,
     navigation,
@@ -69,12 +137,12 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
     const [answers, setAnswers] = useState<QuizAnswerPayload[]>([]);
 
     // Proctoring states
-    const [timeLeft, setTimeLeft] = useState<number | null>(null);
-    const [idleSeconds, setIdleSeconds] = useState<number>(180);
+    const [quizRemainingSeconds, setQuizRemainingSeconds] = useState<number | null>(null);
+    const idleSecondsRef = useRef<number>(180);
     const [tabSwitchCount, setTabSwitchCount] = useState<number>(0);
 
     // Refs for timer callbacks
-    const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const idleIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const answersRef = useRef<QuizAnswerPayload[]>([]);
     const lastWarningTimeRef = useRef<number>(0);
     const questionScrollRef = useRef<any>(null);
@@ -129,9 +197,9 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
                         const startTime = new Date(res.started_at).getTime();
                         const elapsed = Math.floor((Date.now() - startTime) / 1000);
                         const remaining = qDuration - elapsed;
-                        setTimeLeft(remaining > 0 ? remaining : 0);
+                        setQuizRemainingSeconds(remaining > 0 ? remaining : 0);
                     } else {
-                        setTimeLeft(qDuration);
+                        setQuizRemainingSeconds(qDuration);
                     }
                 }
             }
@@ -142,35 +210,24 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
         }
     };
 
-    // Overall & Inactivity Timer Interval
+    // Inactivity proctoring timer (ref-driven to prevent 1-second re-render cycles)
+    const autoSubmitRef = useRef<((reason: string) => Promise<void>) | null>(null);
+
     useEffect(() => {
         if (!started || completed) return;
 
-        timerRef.current = setInterval(() => {
-            // Decrement overall quiz duration
-            setTimeLeft((prev) => {
-                if (prev === null) return null;
-                if (prev <= 1) {
-                    clearInterval(timerRef.current!);
-                    handleAutoSubmit('Time is up! Your quiz has been submitted automatically.');
-                    return 0;
+        idleIntervalRef.current = setInterval(() => {
+            idleSecondsRef.current -= 1;
+            if (idleSecondsRef.current <= 0) {
+                if (idleIntervalRef.current) clearInterval(idleIntervalRef.current);
+                if (autoSubmitRef.current) {
+                    autoSubmitRef.current('Test submitted automatically due to 3 minutes of inactivity.');
                 }
-                return prev - 1;
-            });
-
-            // Decrement inactivity timer
-            setIdleSeconds((prev) => {
-                if (prev <= 1) {
-                    clearInterval(timerRef.current!);
-                    handleAutoSubmit('Test submitted automatically due to 3 minutes of inactivity.');
-                    return 0;
-                }
-                return prev - 1;
-            });
+            }
         }, 1000);
 
         return () => {
-            if (timerRef.current) clearInterval(timerRef.current);
+            if (idleIntervalRef.current) clearInterval(idleIntervalRef.current);
         };
     }, [started, completed]);
 
@@ -208,9 +265,9 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
         return () => subscription.remove();
     }, [started, completed]);
 
-    const resetIdleTimer = () => {
-        setIdleSeconds(180);
-    };
+    const resetIdleTimer = useCallback(() => {
+        idleSecondsRef.current = 180;
+    }, []);
 
     const handleStartTest = async () => {
         if (!token) return;
@@ -218,7 +275,7 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
             setLoading(true);
             await quizApi.startQuiz(token).catch(() => null);
             setStarted(true);
-            setTimeLeft(quizDuration);
+            setQuizRemainingSeconds(quizDuration);
         } catch (err) {
             console.warn('Failed to start quiz session:', err);
         } finally {
@@ -267,7 +324,7 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
     const handleAutoSubmit = async (reasonMessage: string) => {
         if (submitting || completed) return;
         setSubmitting(true);
-        if (timerRef.current) clearInterval(timerRef.current);
+        if (idleIntervalRef.current) clearInterval(idleIntervalRef.current);
 
         try {
             const raw = (answersRef.current && answersRef.current.length > 0) ? answersRef.current : answers;
@@ -338,7 +395,7 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
     const submitManual = async () => {
         if (submitting) return;
         setSubmitting(true);
-        if (timerRef.current) clearInterval(timerRef.current);
+        if (idleIntervalRef.current) clearInterval(idleIntervalRef.current);
 
         try {
             const raw = (answersRef.current && answersRef.current.length > 0) ? answersRef.current : answers;
@@ -543,9 +600,11 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
         );
     }
 
-    // Determine timer state styling (warning under 3 mins, critical danger under 1 min)
-    const isCriticalTime = timeLeft !== null && timeLeft <= 60;
-    const isWarningTime = timeLeft !== null && timeLeft > 60 && timeLeft <= 180;
+    autoSubmitRef.current = handleAutoSubmit;
+
+    const handleTimerExpire = useCallback(() => {
+        handleAutoSubmit('Time is up! Your quiz has been submitted automatically.');
+    }, []);
 
     return (
         <View style={[styles.safeArea, { paddingTop: insets.top }]}>
@@ -559,34 +618,16 @@ export const TakeQuizScreen: React.FC<{ route: any; navigation: any }> = ({
                     accessibilityLabel="Leave quiz"
                 />
 
-                {/* Live Countdown Timer Badge */}
-                <View
-                    style={[
-                        styles.timerBadge,
-                        isCriticalTime && styles.timerBadgeCritical,
-                        isWarningTime && styles.timerBadgeWarning,
-                    ]}
-                >
-                    <Clock
-                        color={
-                            isCriticalTime
-                                ? theme.colors.status.danger
-                                : isWarningTime
-                                ? theme.colors.status.warning
-                                : primaryColor
-                        }
-                        size={14}
+                {/* Live Countdown Timer Badge (isolated to prevent 1,400+ line screen re-render) */}
+                {quizRemainingSeconds !== null && (
+                    <QuizCountdownBadge
+                        initialSeconds={quizRemainingSeconds}
+                        onExpire={handleTimerExpire}
+                        styles={styles}
+                        theme={theme}
+                        primaryColor={primaryColor}
                     />
-                    <Text
-                        style={[
-                            styles.timerText,
-                            isCriticalTime && styles.timerTextCritical,
-                            isWarningTime && styles.timerTextWarning,
-                        ]}
-                    >
-                        {timeLeft !== null ? formatTimer(timeLeft) : '00:00'}
-                    </Text>
-                </View>
+                )}
 
                 {/* Focus Violation Indicator */}
                 {tabSwitchCount > 0 ? (

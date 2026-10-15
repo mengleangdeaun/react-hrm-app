@@ -1,11 +1,11 @@
 import React, { useState, useCallback } from 'react';
 import {
     View,
-    StyleSheet,
     TouchableOpacity,
     Alert,
     ActivityIndicator,
 } from 'react-native';
+import { StyleSheet } from 'react-native-unistyles';
 import { useQuery, useMutation, useQueryClient, onlineManager } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
 import { syncQueue } from '../../offline/syncQueue';

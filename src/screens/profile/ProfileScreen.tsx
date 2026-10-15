@@ -6,9 +6,9 @@ import {
     StatusBar,
     Alert,
     ActivityIndicator,
-    Image,
     RefreshControl,
 } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import * as ImagePicker from 'expo-image-picker';

@@ -1,26 +1,22 @@
 import React, { useState } from 'react';
 import {
     View,
-    StyleSheet,
     TouchableOpacity,
     Alert,
 } from 'react-native';
 import { AppText as Text } from '../../components/AppText';
-import { Send, MessageSquare, ShieldCheck, Check } from 'lucide-react-native';
-import { useAppTheme } from '../../context/ThemeContext';
-import { lightTheme, darkTheme } from '../../styles/theme';
+import { Send, MessageSquare, Check } from 'lucide-react-native';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { AppShell } from '../../components/common/AppShell';
 import { AppCard } from '../../components/common/AppCard';
 import { AppInput } from '../../components/common/AppInput';
 import { AppButton } from '../../components/common/AppButton';
-
 import { useTranslation } from '../../context/LanguageContext';
 import { profileApi } from '../../api/profile';
 
 export const FeedbackScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-    const { isDark } = useAppTheme();
     const { t } = useTranslation();
-    const theme = isDark ? darkTheme : lightTheme;
+    const styles = stylesheet;
 
     const [subject, setSubject] = useState('');
     const [message, setMessage] = useState('');
@@ -59,14 +55,14 @@ export const FeedbackScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
         <AppShell title={t('suggestion_and_feedback', 'Suggestion & Feedback')} onBack={() => navigation.goBack()}>
             <AppCard variant="surface" style={styles.card}>
                 <View style={styles.headerInfoRow}>
-                    <View style={[styles.iconBadge, { backgroundColor: 'rgba(37, 99, 235, 0.12)' }]}>
+                    <View style={styles.iconBadge}>
                         <MessageSquare color="#2563EB" size={20} />
                     </View>
                     <View style={styles.headerTextWrapper}>
-                        <Text style={[styles.cardTitle, { color: theme.colors.textPrimary }]}>
+                        <Text style={styles.cardTitle}>
                             {t('share_your_thoughts', 'Share Your Thoughts')}
                         </Text>
-                        <Text style={[styles.cardSub, { color: theme.colors.textSecondary }]}>
+                        <Text style={styles.cardSub}>
                             {t('help_us_improve', 'Help us improve our workplace and operations.')}
                         </Text>
                     </View>
@@ -92,26 +88,18 @@ export const FeedbackScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
 
                 {/* Anonymous Toggle */}
                 <TouchableOpacity
-                    style={[styles.checkboxRow, { backgroundColor: theme.colors.surfaceSubtle }]}
+                    style={styles.checkboxRow}
                     onPress={() => setIsAnonymous(!isAnonymous)}
                     activeOpacity={0.8}
                 >
-                    <View
-                        style={[
-                            styles.checkbox,
-                            {
-                                borderColor: isAnonymous ? theme.colors.primary : theme.colors.border,
-                                backgroundColor: isAnonymous ? theme.colors.primary : 'transparent',
-                            },
-                        ]}
-                    >
+                    <View style={[styles.checkbox, isAnonymous && styles.checkboxChecked]}>
                         {isAnonymous && <Check color="#FFFFFF" size={12} />}
                     </View>
                     <View style={styles.checkboxLabelWrapper}>
-                        <Text style={[styles.checkboxLabel, { color: theme.colors.textPrimary }]}>
+                        <Text style={styles.checkboxLabel}>
                             {t('submit_anonymously', 'Submit Anonymously')}
                         </Text>
-                        <Text style={[styles.checkboxSub, { color: theme.colors.textSecondary }]}>
+                        <Text style={styles.checkboxSub}>
                             {t('anonymous_desc', 'Your name and employee ID will not be attached to this submission.')}
                         </Text>
                     </View>
@@ -131,7 +119,7 @@ export const FeedbackScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
     );
 };
 
-const styles = StyleSheet.create({
+const stylesheet = StyleSheet.create((theme) => ({
     card: {
         marginTop: 6,
     },
@@ -147,6 +135,7 @@ const styles = StyleSheet.create({
         borderRadius: 14,
         justifyContent: 'center',
         alignItems: 'center',
+        backgroundColor: 'rgba(37, 99, 235, 0.12)',
     },
     headerTextWrapper: {
         flex: 1,
@@ -154,11 +143,13 @@ const styles = StyleSheet.create({
     cardTitle: {
         fontSize: 16,
         fontWeight: '700',
+        color: theme.colors.textPrimary,
     },
     cardSub: {
         fontSize: 12,
         marginTop: 2,
         lineHeight: 16,
+        color: theme.colors.textSecondary,
     },
     checkboxRow: {
         flexDirection: 'row',
@@ -168,14 +159,21 @@ const styles = StyleSheet.create({
         marginTop: 4,
         marginBottom: 16,
         gap: 12,
+        backgroundColor: theme.colors.surfaceSubtle,
     },
     checkbox: {
         width: 22,
         height: 22,
         borderRadius: 6,
         borderWidth: 2,
+        borderColor: theme.colors.border,
+        backgroundColor: 'transparent',
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    checkboxChecked: {
+        borderColor: theme.colors.primary,
+        backgroundColor: theme.colors.primary,
     },
     checkboxLabelWrapper: {
         flex: 1,
@@ -183,13 +181,15 @@ const styles = StyleSheet.create({
     checkboxLabel: {
         fontSize: 13,
         fontWeight: '700',
+        color: theme.colors.textPrimary,
     },
     checkboxSub: {
         fontSize: 11,
         marginTop: 1,
         lineHeight: 14,
+        color: theme.colors.textSecondary,
     },
     submitWrapper: {
         marginTop: 6,
     },
-});
+}));
