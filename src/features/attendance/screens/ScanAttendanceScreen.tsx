@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
     View,
-    StyleSheet,
     TouchableOpacity,
     Alert,
     ActivityIndicator,
@@ -10,6 +9,7 @@ import {
     Linking,
     AppState,
 } from 'react-native';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useFocusEffect, useIsFocused } from '@react-navigation/native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useCameraPermissions } from 'expo-camera';
@@ -39,7 +39,6 @@ import { AttendanceReasonModal } from '../../../components/attendance/Attendance
 import { AppBottomSheet } from '../../../components/common/AppBottomSheet';
 import { AppButton } from '../../../components/common/AppButton';
 import { useTranslation } from '../../../context/LanguageContext';
-import { lightTheme, darkTheme } from '../../../styles/theme';
 import { ModernScannerCanvas } from '../../../components/scanner/ModernScannerCanvas';
 import { useImageQrDecoder } from '../../../components/scanner/useImageQrDecoder';
 import { useAttendanceGuard } from '../../../hooks/useAttendanceGuard';
@@ -61,7 +60,8 @@ export interface GpsLocation {
 export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation, route }) => {
     const { isDark } = useAppTheme();
     const { t } = useTranslation();
-    const theme = isDark ? darkTheme : lightTheme;
+    const { theme } = useUnistyles();
+    const styles = stylesheet;
     const queryClient = useQueryClient();
 
     // Proactive Attendance Guard
@@ -980,7 +980,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
     );
 };
 
-const styles = StyleSheet.create({
+const stylesheet = StyleSheet.create((theme) => ({
     container: {
         flex: 1,
         backgroundColor: '#000000',
@@ -1313,4 +1313,4 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontWeight: '700',
     },
-});
+}));

@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useContext } from 'react';
 import {
     View,
-    TouchableOpacity,
+    Pressable,
     StyleSheet,
 } from 'react-native';
 import { AppText as Text } from '../AppText';
@@ -135,27 +135,35 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
         <>
             {/* Month Switcher Header */}
             <View style={styles.monthNavRow}>
-                <TouchableOpacity
+                <Pressable
                     onPress={() => setViewMonth((prev) => subMonths(prev, 1))}
-                    style={[styles.navBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
+                    style={({ pressed }: { pressed: boolean }) => [
+                        styles.navBtn,
+                        { backgroundColor: theme.colors.surfaceSubtle },
+                        pressed && { opacity: 0.7, transform: [{ scale: 0.92 }] },
+                    ]}
                     accessibilityRole="button"
                     accessibilityLabel="Previous month"
-                    activeOpacity={0.7}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                     <ChevronLeft color={theme.colors.textPrimary} size={18} />
-                </TouchableOpacity>
+                </Pressable>
                 <Text style={[styles.monthNavTitle, { color: theme.colors.textPrimary }]}>
                     {format(viewMonth, 'MMMM yyyy')}
                 </Text>
-                <TouchableOpacity
+                <Pressable
                     onPress={() => setViewMonth((prev) => addMonths(prev, 1))}
-                    style={[styles.navBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
+                    style={({ pressed }: { pressed: boolean }) => [
+                        styles.navBtn,
+                        { backgroundColor: theme.colors.surfaceSubtle },
+                        pressed && { opacity: 0.7, transform: [{ scale: 0.92 }] },
+                    ]}
                     accessibilityRole="button"
                     accessibilityLabel="Next month"
-                    activeOpacity={0.7}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                 >
                     <ChevronRight color={theme.colors.textPrimary} size={18} />
-                </TouchableOpacity>
+                </Pressable>
             </View>
 
             {/* Weekday Labels (Mon - Sun) */}
@@ -179,13 +187,13 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
 
                     return (
                         <View key={d.toISOString()} style={styles.dayCellCol}>
-                            <TouchableOpacity
+                            <Pressable
                                 disabled={disabled}
                                 onPress={() => onDaySelect(d)}
                                 accessibilityRole="button"
                                 accessibilityLabel={`${format(d, 'MMMM d, yyyy')}${isSelected ? ', selected' : ''}${isCurrentDay ? ', today' : ''}${disabled ? ', disabled' : ''}`}
                                 accessibilityState={{ selected: isSelected, disabled }}
-                                style={[
+                                style={({ pressed }: { pressed: boolean }) => [
                                     styles.dayCell,
                                     isSelected && {
                                         backgroundColor: theme.colors.brand,
@@ -197,6 +205,10 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
                                     },
                                     disabled && {
                                         opacity: 0.25,
+                                    },
+                                    pressed && !disabled && {
+                                        opacity: 0.75,
+                                        transform: [{ scale: 0.92 }],
                                     },
                                 ]}
                             >
@@ -219,7 +231,7 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
                                 >
                                     {format(d, 'd')}
                                 </Text>
-                            </TouchableOpacity>
+                            </Pressable>
                         </View>
                     );
                 })}
@@ -235,12 +247,11 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
                 </Text>
             )}
 
-            <TouchableOpacity
+            <Pressable
                 onPress={handlePress}
-                activeOpacity={0.75}
                 accessibilityRole="button"
                 accessibilityLabel={`${label || placeholder}: ${formattedDisplay}`}
-                style={[
+                style={({ pressed }: { pressed: boolean }) => [
                     styles.fieldWrapper,
                     {
                         backgroundColor: theme.colors.surface,
@@ -250,6 +261,7 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
                             ? theme.colors.brand
                             : theme.colors.border,
                     },
+                    pressed && { opacity: 0.8 },
                 ]}
             >
                 <View style={styles.fieldContent}>
@@ -271,17 +283,21 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
 
                 <View style={styles.rightActionsRow}>
                     {isClearable && Boolean(value) && (
-                        <TouchableOpacity
+                        <Pressable
                             onPress={() => {
                                 onChange('');
                                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                             }}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                            style={styles.clearBtn}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            style={({ pressed }: { pressed: boolean }) => [
+                                styles.clearBtn,
+                                pressed && { opacity: 0.6, transform: [{ scale: 0.9 }] },
+                            ]}
+                            accessibilityRole="button"
                             accessibilityLabel="Clear date"
                         >
                             <X size={15} color={theme.colors.textSecondary} />
-                        </TouchableOpacity>
+                        </Pressable>
                     )}
 
                     {isInline && (
@@ -290,7 +306,7 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
                         </View>
                     )}
                 </View>
-            </TouchableOpacity>
+            </Pressable>
 
             {error && (
                 <Text style={[styles.errorText, { color: theme.colors.status.danger }]}>
@@ -326,15 +342,19 @@ export const NativeDatePickerField: React.FC<NativeDatePickerFieldProps> = ({
                     onClose={() => setModalVisible(false)}
                     title={label || 'Select Date'}
                     footer={
-                        <TouchableOpacity
+                        <Pressable
                             onPress={handleConfirm}
-                            style={[styles.confirmBtn, { backgroundColor: theme.colors.brand }]}
-                            activeOpacity={0.85}
+                            style={({ pressed }: { pressed: boolean }) => [
+                                styles.confirmBtn,
+                                { backgroundColor: theme.colors.brand },
+                                pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+                            ]}
+                            accessibilityRole="button"
                         >
                             <Text style={styles.confirmBtnText}>
                                 Select {formatDateDisplay(selectedDate, 'standard')}
                             </Text>
-                        </TouchableOpacity>
+                        </Pressable>
                     }
                 >
                     {renderCalendarContent((d: Date) => {

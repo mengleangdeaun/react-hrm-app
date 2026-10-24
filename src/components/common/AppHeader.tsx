@@ -1,7 +1,7 @@
 import React from 'react';
 import {
     View,
-    TouchableOpacity,
+    Pressable,
     Platform,
 } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
@@ -45,13 +45,16 @@ export const HeaderIconButton: React.FC<{
     const hasBadge = badge !== undefined && badge !== false && badge !== 0;
 
     return (
-        <TouchableOpacity
+        <Pressable
             onPress={handlePress}
-            activeOpacity={0.7}
             accessibilityRole="button"
             accessibilityLabel={accessibilityLabel}
-            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-            style={[styles.iconButton, style]}
+            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            style={({ pressed }: { pressed: boolean }) => [
+                styles.iconButton,
+                pressed && { opacity: 0.7, transform: [{ scale: 0.94 }] },
+                style,
+            ]}
         >
             {icon}
             {hasBadge && (
@@ -65,7 +68,7 @@ export const HeaderIconButton: React.FC<{
                     )}
                 </View>
             )}
-        </TouchableOpacity>
+        </Pressable>
     );
 };
 

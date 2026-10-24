@@ -1,7 +1,7 @@
 import React, { useRef, useState, useCallback } from 'react';
 import {
     View,
-    TouchableOpacity,
+    Pressable,
     StatusBar,
     Animated,
     useWindowDimensions,
@@ -274,24 +274,30 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                             accessibilityLabel="Close tour"
                         />
                     )}
-                    <TouchableOpacity
-                        style={styles.utilityButton}
+                    <Pressable
+                        style={({ pressed }: { pressed: boolean }) => [
+                            styles.utilityButton,
+                            pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] },
+                        ]}
                         onPress={toggleLanguage}
-                        activeOpacity={0.7}
+                        accessibilityRole="button"
                         accessibilityLabel="Change Language"
                     >
                         <Globe size={16} color={theme.colors.textPrimary} />
                         <AppText style={styles.utilityButtonText}>
                             {locale === 'en' ? 'ភាសាខ្មែរ' : 'English'}
                         </AppText>
-                    </TouchableOpacity>
+                    </Pressable>
                 </View>
 
                 <View style={styles.topRight}>
-                    <TouchableOpacity
-                        style={styles.iconButton}
+                    <Pressable
+                        style={({ pressed }: { pressed: boolean }) => [
+                            styles.iconButton,
+                            pressed && { opacity: 0.7, transform: [{ scale: 0.92 }] },
+                        ]}
                         onPress={handleThemeToggle}
-                        activeOpacity={0.7}
+                        accessibilityRole="button"
                         accessibilityLabel="Toggle Theme"
                     >
                         {isDark ? (
@@ -299,21 +305,24 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                         ) : (
                             <Moon size={18} color="#6366F1" />
                         )}
-                    </TouchableOpacity>
+                    </Pressable>
 
                     {/* Integrated Top Skip Button to avoid layout collisions */}
                     {!isReviewMode && !isLastSlide && (
-                        <TouchableOpacity
-                            style={styles.topSkipButton}
+                        <Pressable
+                            style={({ pressed }: { pressed: boolean }) => [
+                                styles.topSkipButton,
+                                pressed && { opacity: 0.7, transform: [{ scale: 0.96 }] },
+                            ]}
                             onPress={handleSkip}
-                            activeOpacity={0.7}
-                            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                            hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                            accessibilityRole="button"
                             accessibilityLabel="Skip Onboarding"
                         >
                             <AppText variant="caption" weight="bold" style={styles.topSkipText}>
                                 {t('skip')}
                             </AppText>
-                        </TouchableOpacity>
+                        </Pressable>
                     )}
                 </View>
             </View>
@@ -386,11 +395,12 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                         });
 
                         return (
-                            <TouchableOpacity
+                            <Pressable
                                 key={idx}
                                 onPress={() => scrollToIndex(idx)}
-                                hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
-                                activeOpacity={0.7}
+                                hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
+                                accessibilityRole="button"
+                                accessibilityLabel={`Slide ${idx + 1}`}
                             >
                                 <Animated.View
                                     style={[
@@ -401,17 +411,20 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                                         },
                                     ]}
                                 />
-                            </TouchableOpacity>
+                            </Pressable>
                         );
                     })}
                 </View>
 
                 {/* Navigation Buttons Row */}
                 <View style={styles.navButtonsRow}>
-                    <TouchableOpacity
-                        style={styles.primaryButton}
+                    <Pressable
+                        style={({ pressed }: { pressed: boolean }) => [
+                            styles.primaryButton,
+                            pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+                        ]}
                         onPress={handleNext}
-                        activeOpacity={0.85}
+                        accessibilityRole="button"
                     >
                         <AppText variant="button" weight="bold" style={styles.primaryButtonText}>
                             {isLastSlide
@@ -425,7 +438,7 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                         ) : (
                             <ArrowRight size={18} color="#FFFFFF" />
                         )}
-                    </TouchableOpacity>
+                    </Pressable>
                 </View>
             </View>
         </SafeAreaView>

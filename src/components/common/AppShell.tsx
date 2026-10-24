@@ -7,7 +7,7 @@ import {
     KeyboardAvoidingView,
     Platform,
 } from 'react-native';
-import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { StyleSheet, useUnistyles, UnistylesRuntime } from 'react-native-unistyles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { OfflineBanner } from './OfflineBanner';
 import { AppHeader } from './AppHeader';
@@ -72,7 +72,7 @@ export const AppShell: React.FC<AppShellProps> = ({
 
     const footerBottomPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 12) + (Platform.OS === 'ios' ? 12 : 16);
 
-    const isDark = theme.colors.background === '#121212';
+    const isDark = UnistylesRuntime.themeName === 'dark' || theme.colors.background === '#121212';
 
     const renderContent = () => {
         if (scrollable) {

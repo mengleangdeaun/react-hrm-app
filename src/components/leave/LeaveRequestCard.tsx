@@ -1,5 +1,5 @@
 import React, { memo, useCallback } from 'react';
-import { View, Pressable, TouchableOpacity } from 'react-native';
+import { View, Pressable } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import * as Haptics from 'expo-haptics';
 import {
@@ -195,27 +195,31 @@ export const ManagerApprovalCard = memo(({ item, t, onApprove, onReject, onOpenD
 
             {/* Quick Manager Actions */}
             <View style={styles.approvalActionRow}>
-                <TouchableOpacity
-                    style={styles.rejectActionBtn}
+                <Pressable
+                    style={({ pressed }: { pressed: boolean }) => [
+                        styles.rejectActionBtn,
+                        pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] },
+                    ]}
                     onPress={() => onReject(item)}
-                    activeOpacity={0.85}
                     accessibilityRole="button"
                     accessibilityLabel={t('reject', 'Reject')}
                 >
                     <X size={15} color={theme.colors.status.danger} />
                     <Text style={styles.rejectActionText}>{t('reject', 'Reject')}</Text>
-                </TouchableOpacity>
+                </Pressable>
 
-                <TouchableOpacity
-                    style={styles.approveActionBtn}
+                <Pressable
+                    style={({ pressed }: { pressed: boolean }) => [
+                        styles.approveActionBtn,
+                        pressed && { opacity: 0.8, transform: [{ scale: 0.97 }] },
+                    ]}
                     onPress={() => onApprove(item.id)}
-                    activeOpacity={0.85}
                     accessibilityRole="button"
                     accessibilityLabel={t('approve', 'Approve')}
                 >
                     <Check size={15} color="#FFFFFF" />
                     <Text style={styles.approveActionText}>{t('approve', 'Approve')}</Text>
-                </TouchableOpacity>
+                </Pressable>
             </View>
         </Pressable>
     );

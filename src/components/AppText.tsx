@@ -28,6 +28,28 @@ export type AppTextProps = React.ComponentProps<typeof RNText> & {
     isKhmer?: boolean;
 };
 
+// High-speed LRU-bounded cache for Khmer script detection on strings
+const khmerStringCache = new Map<string, boolean>();
+const MAX_KHMER_CACHE = 400;
+
+function fastCheckKhmer(text?: any): boolean {
+    if (typeof text === 'string') {
+        if (!text) return false;
+        const cached = khmerStringCache.get(text);
+        if (cached !== undefined) return cached;
+        const result = hasKhmerText(text);
+        if (khmerStringCache.size >= MAX_KHMER_CACHE) {
+            khmerStringCache.clear();
+        }
+        khmerStringCache.set(text, result);
+        return result;
+    }
+    return hasKhmerText(text);
+}
+
+// Static memoized cache for standard base style allocations (eliminates Hermes GC sweeps)
+const baseStyleCache = new Map<string, any>();
+
 const AppTextComponent: React.FC<AppTextProps> = ({
     variant = 'body',
     weight,
@@ -61,23 +83,56 @@ const AppTextComponent: React.FC<AppTextProps> = ({
         ? explicitIsKhmer
         : activeLocale === 'kh'
         ? true
-        : hasKhmerText(children);
+        : fastCheckKhmer(children);
 
     const resolvedFontFamily = resolveFontFamily(resolvedWeight, isKhmer);
 
     // 3. Computed Typography Metrics
     const effectiveScale = fontSizeScale || 1.0;
+    const resolvedAlign = align || 'auto';
+
+    // 4. Resolve Unistyles Native Color Class
+    const colorKey = (color && `color_${color}` in styles)
+        ? (styles as any)[`color_${color}`]
+        : styles.color_primary;
+
+    // Fast-path: When no custom inline style override is provided (standard case for >80% of text elements)
+    if (!style) {
+        const cacheKey = `${safeVariant}_${resolvedWeight}_${isKhmer ? 'kh' : 'en'}_${effectiveScale}_${resolvedAlign}`;
+        let cachedBase = baseStyleCache.get(cacheKey);
+        if (!cachedBase) {
+            const baseFontSize = token.fontSize;
+            const scaledFontSize = Math.round(baseFontSize * effectiveScale);
+            const baseLineHeight = token.lineHeight;
+            const scaledLineHeight = Math.round(baseLineHeight * effectiveScale);
+            const resolvedLetterSpacing = isKhmer ? 0 : token.letterSpacing;
+
+            cachedBase = Object.freeze({
+                fontFamily: resolvedFontFamily,
+                fontSize: scaledFontSize,
+                lineHeight: scaledLineHeight,
+                letterSpacing: resolvedLetterSpacing,
+                textAlign: resolvedAlign,
+                ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
+            });
+            baseStyleCache.set(cacheKey, cachedBase);
+        }
+
+        return (
+            <RNText style={[cachedBase, colorKey]} {...props}>
+                {children}
+            </RNText>
+        );
+    }
+
+    // Dynamic path: Handle specific custom style overrides
+    const flattenedStyle: any = Array.isArray(style) ? RNStyleSheet.flatten(style) : style;
     const baseFontSize = token.fontSize;
     const scaledFontSize = Math.round(baseFontSize * effectiveScale);
-    const baseLineHeight = token.lineHeight;
-    const scaledLineHeight = Math.round(baseLineHeight * effectiveScale);
-
-    const flattenedStyle: any = Array.isArray(style) ? RNStyleSheet.flatten(style) : (style || {});
     const finalFontSize = flattenedStyle.fontSize
         ? Math.round(flattenedStyle.fontSize * effectiveScale)
         : scaledFontSize;
 
-    // 4. Unified Line Height: Rock-solid stability between English and Khmer
     let computedLineHeight: number;
     if (flattenedStyle.lineHeight) {
         computedLineHeight = Math.round(flattenedStyle.lineHeight * effectiveScale);
@@ -87,10 +142,9 @@ const AppTextComponent: React.FC<AppTextProps> = ({
             finalFontSize + 6
         );
     } else {
-        computedLineHeight = scaledLineHeight;
+        computedLineHeight = Math.round(token.lineHeight * effectiveScale);
     }
 
-    // 5. Letter Spacing Normalization
     let resolvedLetterSpacing: number | undefined;
     if (flattenedStyle.letterSpacing !== undefined) {
         resolvedLetterSpacing = flattenedStyle.letterSpacing;
@@ -99,11 +153,6 @@ const AppTextComponent: React.FC<AppTextProps> = ({
     } else {
         resolvedLetterSpacing = token.letterSpacing;
     }
-
-    // 6. Resolve Unistyles Native Color Class
-    const colorKey = (color && `color_${color}` in styles)
-        ? (styles as any)[`color_${color}`]
-        : styles.color_primary;
 
     const computedBaseStyle: any = {
         fontFamily: flattenedStyle.fontFamily || resolvedFontFamily,
@@ -155,4 +204,3 @@ const stylesheet = StyleSheet.create((theme) => ({
 }));
 
 export const AppText = React.memo(AppTextComponent);
-

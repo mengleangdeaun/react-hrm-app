@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import {
     View,
-    TouchableOpacity,
+    Pressable,
     TextInput,
     ActivityIndicator,
     StyleSheet,
@@ -121,15 +121,16 @@ export const AttendanceReasonModal: React.FC<AttendanceReasonModalProps> = ({
             title={title}
             subtitle={subtitle}
             footer={
-                <TouchableOpacity
-                    style={[
+                <Pressable
+                    style={({ pressed }: { pressed: boolean }) => [
                         styles.submitButton,
                         { backgroundColor: theme.colors.brand },
                         !canSubmit && styles.submitButtonDisabled,
+                        pressed && canSubmit && !isLoading && { opacity: 0.85, transform: [{ scale: 0.98 }] },
                     ]}
                     onPress={handleSubmit}
                     disabled={!canSubmit || isLoading}
-                    activeOpacity={0.85}
+                    accessibilityRole="button"
                 >
                     {isLoading ? (
                         <ActivityIndicator color="#FFFFFF" size="small" />
@@ -138,7 +139,7 @@ export const AttendanceReasonModal: React.FC<AttendanceReasonModalProps> = ({
                             {submitLabel || (isLate ? t('proceed_to_scan', 'Proceed to Scan') : t('confirm_and_proceed', 'Confirm & Proceed'))}
                         </AppText>
                     )}
-                </TouchableOpacity>
+                </Pressable>
             }
         >
             {/* Quick Presets from Backend DB */}
@@ -151,17 +152,18 @@ export const AttendanceReasonModal: React.FC<AttendanceReasonModalProps> = ({
                         {activePresetsList.map((item) => {
                             const active = selectedPreset === item.label;
                             return (
-                                <TouchableOpacity
+                                <Pressable
                                     key={item.id}
-                                    style={[
+                                    style={({ pressed }: { pressed: boolean }) => [
                                         styles.presetChip,
                                         {
                                             backgroundColor: active ? theme.colors.brand : theme.colors.surfaceSubtle,
                                             borderColor: active ? theme.colors.brand : theme.colors.border,
                                         },
+                                        pressed && { opacity: 0.8, transform: [{ scale: 0.96 }] },
                                     ]}
                                     onPress={() => handleSelectPreset(item.label)}
-                                    activeOpacity={0.7}
+                                    accessibilityRole="button"
                                 >
                                     {active && <Check size={14} color="#FFFFFF" style={{ marginRight: 4 }} />}
                                     <AppText
@@ -173,7 +175,7 @@ export const AttendanceReasonModal: React.FC<AttendanceReasonModalProps> = ({
                                     >
                                         {item.label}
                                     </AppText>
-                                </TouchableOpacity>
+                                </Pressable>
                             );
                         })}
                     </View>

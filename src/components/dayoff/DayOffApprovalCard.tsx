@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, StyleSheet, Pressable, Image } from 'react-native';
 import { AppText as Text } from '../AppText';
 import { Calendar, Check, X, ArrowRight, User } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
@@ -159,27 +159,35 @@ export const DayOffApprovalCard: React.FC<DayOffApprovalCardProps> = ({
 
             {/* Approve / Reject Actions */}
             <View style={styles.actionRow}>
-                <TouchableOpacity
+                <Pressable
                     onPress={() => onApprove(Number(request.id))}
-                    style={[styles.actionBtn, styles.approveBtn, { backgroundColor: theme.colors.primary }]}
-                    activeOpacity={0.8}
+                    style={({ pressed }: { pressed: boolean }) => [
+                        styles.actionBtn,
+                        styles.approveBtn,
+                        { backgroundColor: theme.colors.primary },
+                        pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+                    ]}
                     accessibilityRole="button"
                     accessibilityLabel="Approve day off request"
                 >
                     <Check color="#FFFFFF" size={16} />
                     <Text style={styles.actionBtnText}>{t('approve', 'Approve')}</Text>
-                </TouchableOpacity>
+                </Pressable>
 
-                <TouchableOpacity
+                <Pressable
                     onPress={() => onReject(Number(request.id))}
-                    style={[styles.actionBtn, styles.rejectBtn, { backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)' }]}
-                    activeOpacity={0.8}
+                    style={({ pressed }: { pressed: boolean }) => [
+                        styles.actionBtn,
+                        styles.rejectBtn,
+                        { backgroundColor: 'rgba(239, 68, 68, 0.1)', borderColor: 'rgba(239, 68, 68, 0.3)' },
+                        pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+                    ]}
                     accessibilityRole="button"
                     accessibilityLabel="Reject day off request"
                 >
                     <X color="#EF4444" size={16} />
                     <Text style={[styles.actionBtnText, { color: '#EF4444' }]}>{t('reject', 'Reject')}</Text>
-                </TouchableOpacity>
+                </Pressable>
             </View>
         </View>
     );

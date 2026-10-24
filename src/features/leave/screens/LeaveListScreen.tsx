@@ -7,13 +7,14 @@ import {
     Alert,
     TextInput,
     Platform,
+    ActivityIndicator,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import * as Haptics from 'expo-haptics';
 import { AppText as Text } from '../../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useQuery, useQueryClient, onlineManager } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useQueryClient, onlineManager } from '@tanstack/react-query';
 import { AppShell } from '../../../components/common/AppShell';
 import { HeaderIconButton } from '../../../components/common/AppHeader';
 import { LeaveListSkeleton } from '../../../components/common/Skeletons';
@@ -93,32 +94,56 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
         ).length;
     }, [managerApprovals]);
 
-    // Query 3: Primary Tab Data
+    // Query 3: Primary Tab Data with Infinite Pagination for personal requests
     const {
-        data: leaveRequests = [],
-        isLoading,
-        isFetching,
+        data: infiniteMyRequests,
+        isLoading: isLoadingMyRequests,
+        isFetching: isFetchingMyRequests,
+        isFetchingNextPage,
+        hasNextPage,
+        fetchNextPage,
         isError,
         error,
-        refetch,
-    } = useQuery<LeaveRequest[]>({
-        queryKey: queryKeys.leave.requests(activeTab),
-        queryFn: async () => {
-            if (activeTab === 'my_requests') {
-                const reqRes = await leaveApi.getLeaveRequests();
-                return Array.isArray(reqRes?.data)
-                    ? reqRes.data
-                    : Array.isArray(reqRes?.requests)
-                    ? reqRes.requests
-                    : Array.isArray(reqRes)
-                    ? reqRes
-                    : [];
-            } else {
-                return managerApprovals;
-            }
+        refetch: refetchMyRequests,
+    } = useInfiniteQuery({
+        queryKey: queryKeys.leave.requests('my_requests'),
+        queryFn: async ({ pageParam = 1 }) => {
+            const reqRes = await leaveApi.getLeaveRequests({ page: pageParam, per_page: 25 });
+            const items: LeaveRequest[] = Array.isArray(reqRes?.data)
+                ? reqRes.data
+                : Array.isArray(reqRes?.requests)
+                ? reqRes.requests
+                : Array.isArray(reqRes)
+                ? reqRes
+                : [];
+            const lastPage = reqRes?.last_page ?? (items.length < 25 ? pageParam : pageParam + 1);
+            return {
+                items,
+                page: pageParam,
+                hasMore: pageParam < lastPage,
+            };
         },
+        getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
+        initialPageParam: 1,
         staleTime: 1000 * 60 * 3,
+        enabled: activeTab === 'my_requests',
     });
+
+    const myRequests = useMemo(() => {
+        return infiniteMyRequests?.pages.flatMap((page) => page.items) ?? [];
+    }, [infiniteMyRequests]);
+
+    const leaveRequests = activeTab === 'my_requests' ? myRequests : managerApprovals;
+    const isLoading = activeTab === 'my_requests' ? isLoadingMyRequests : false;
+    const isFetching = activeTab === 'my_requests' ? isFetchingMyRequests : false;
+
+    const refetch = useCallback(() => {
+        if (activeTab === 'my_requests') {
+            refetchMyRequests();
+        } else {
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.approvals });
+        }
+    }, [activeTab, refetchMyRequests, queryClient]);
 
     const onRefresh = useCallback(() => {
         refetch();
@@ -736,9 +761,22 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 showsVerticalScrollIndicator={false}
                 ListHeaderComponent={listHeader}
                 ListEmptyComponent={emptyStateComponent}
+                onEndReached={() => {
+                    if (activeTab === 'my_requests' && hasNextPage && !isFetchingNextPage) {
+                        fetchNextPage();
+                    }
+                }}
+                onEndReachedThreshold={0.4}
+                ListFooterComponent={
+                    isFetchingNextPage ? (
+                        <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                            <ActivityIndicator size="small" color={theme.colors.brand} />
+                        </View>
+                    ) : null
+                }
                 refreshControl={
                     <RefreshControl
-                        refreshing={isFetching && !isLoading}
+                        refreshing={isFetching && !isLoading && !isFetchingNextPage}
                         onRefresh={onRefresh}
                         tintColor={theme.colors.brand}
                     />

@@ -72,7 +72,7 @@
         {
           "photosPermission": "Allow SCCG App to access and save activity photos to your gallery.",
           "savePhotosPermission": "Allow SCCG App to save activity photos directly to your gallery.",
-          "isAccessMediaLocationEnabled": true
+          "isAccessMediaLocationEnabled": false
         }
       ],
       [

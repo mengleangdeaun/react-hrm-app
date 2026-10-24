@@ -24,7 +24,7 @@ import { AppText as Text } from '../../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, formatDateDisplay, formatTimeDisplay } from '../../../utils/dateTime';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { activityApi, ActivityItem, OFFICIAL_ACTIVITY_TYPES } from '../../../api/activity';
 import { queryKeys } from '../../../api/queryKeys';
 import { useAppTheme } from '../../../context/ThemeContext';
@@ -406,27 +406,50 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
     const [filterModalVisible, setFilterModalVisible] = useState<boolean>(false);
     const [savingUrl, setSavingUrl] = useState<string | null>(null);
 
-    // 5-Minute In-Memory Caching for Activities
+    // 5-Minute In-Memory Caching for Activities with Infinite Pagination
     const {
-        data: activities = [],
+        data: infiniteData,
         isLoading,
         isFetching,
-    } = useQuery<ActivityItem[]>({
+        isFetchingNextPage,
+        hasNextPage,
+        fetchNextPage,
+        refetch,
+    } = useInfiniteQuery({
         queryKey: queryKeys.activity.list(selectedMonth, selectedCategory),
-        queryFn: async () => {
-            const params: any = { month: selectedMonth, per_page: 50 };
+        queryFn: async ({ pageParam = 1 }) => {
+            const params: any = { month: selectedMonth, page: pageParam, per_page: 25 };
             if (selectedCategory !== 'all') {
                 params.activity_type = selectedCategory;
             }
             const res = await activityApi.getActivities(params);
-            return res?.data || res?.activities || (Array.isArray(res) ? res : []);
+            const items: ActivityItem[] = Array.isArray(res?.data)
+                ? res.data
+                : Array.isArray(res?.activities)
+                ? res.activities
+                : Array.isArray(res)
+                ? res
+                : [];
+            const lastPage = res?.last_page ?? (items.length < 25 ? pageParam : pageParam + 1);
+            return {
+                items,
+                page: pageParam,
+                hasMore: pageParam < lastPage,
+            };
         },
-        staleTime: 1000 * 60 * 5, // 5 minutes cache
+        getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.page + 1 : undefined),
+        initialPageParam: 1,
+        staleTime: 1000 * 60 * 5,
     });
+
+    const activities = useMemo(() => {
+        return infiniteData?.pages.flatMap((page) => page.items) ?? [];
+    }, [infiniteData]);
 
     const onRefresh = useCallback(async () => {
         await queryClient.invalidateQueries({ queryKey: queryKeys.activity.all });
-    }, [queryClient]);
+        refetch();
+    }, [queryClient, refetch]);
 
     const openFilterModal = () => {
         setDraftCategory(selectedCategory);
@@ -756,9 +779,22 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                 showsVerticalScrollIndicator={false}
                 ListHeaderComponent={listHeader}
                 ListEmptyComponent={emptyStateComponent}
+                onEndReached={() => {
+                    if (hasNextPage && !isFetchingNextPage) {
+                        fetchNextPage();
+                    }
+                }}
+                onEndReachedThreshold={0.4}
+                ListFooterComponent={
+                    isFetchingNextPage ? (
+                        <View style={{ paddingVertical: 16, alignItems: 'center' }}>
+                            <ActivityIndicator size="small" color={theme.colors.brand} />
+                        </View>
+                    ) : null
+                }
                 refreshControl={
                     <RefreshControl
-                        refreshing={isFetching && !isLoading}
+                        refreshing={isFetching && !isLoading && !isFetchingNextPage}
                         onRefresh={onRefresh}
                         tintColor={theme.colors.brand}
                     />

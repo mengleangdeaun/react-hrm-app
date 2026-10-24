@@ -2,7 +2,7 @@ import React, { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import {
     View,
     StyleSheet,
-    TouchableOpacity,
+    Pressable,
     ActivityIndicator,
     useWindowDimensions,
     PanResponder,
@@ -208,20 +208,24 @@ export const ModernScannerCanvas: React.FC<ModernScannerCanvasProps> = ({
                     ]}
                     pointerEvents="box-none"
                 >
-                    <TouchableOpacity
-                        style={[styles.rescanBtn, { backgroundColor: accentColor }]}
+                    <Pressable
+                        style={({ pressed }: { pressed: boolean }) => [
+                            styles.rescanBtn,
+                            { backgroundColor: accentColor },
+                            pressed && { opacity: 0.85, transform: [{ scale: 0.96 }] },
+                        ]}
                         onPress={() => {
                             Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                             onRescanPress();
                         }}
-                        activeOpacity={0.85}
+                        accessibilityRole="button"
                         accessibilityLabel="Tap to rescan"
                     >
                         <RefreshCw size={16} color="#FFFFFF" />
                         <AppText style={styles.rescanBtnText}>
                             {t('tap_to_rescan', 'Tap to Rescan')}
                         </AppText>
-                    </TouchableOpacity>
+                    </Pressable>
                 </View>
             )}
 
@@ -236,47 +240,54 @@ export const ModernScannerCanvas: React.FC<ModernScannerCanvasProps> = ({
                 pointerEvents="box-none"
             >
                 {/* Bottom Left: Back Button */}
-                <TouchableOpacity
-                    style={styles.circleActionButton}
+                <Pressable
+                    style={({ pressed }: { pressed: boolean }) => [
+                        styles.circleActionButton,
+                        pressed && { opacity: 0.75, transform: [{ scale: 0.92 }] },
+                    ]}
                     onPress={() => {
                         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
                         onBackPress();
                     }}
-                    activeOpacity={0.75}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityRole="button"
                     accessibilityLabel="Go back"
                 >
                     <ArrowLeft color="#FFFFFF" size={20} />
-                </TouchableOpacity>
+                </Pressable>
 
                 {/* Bottom Center: Primary Upload Photo Button */}
                 {onUploadPhotoPress && (
-                    <TouchableOpacity
-                        style={[
+                    <Pressable
+                        style={({ pressed }: { pressed: boolean }) => [
                             styles.heroUploadButton,
                             {
                                 backgroundColor: accentColor,
                             },
+                            pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
                         ]}
                         onPress={onUploadPhotoPress}
-                        activeOpacity={0.85}
                         disabled={isLoading || isDecodingImage}
+                        accessibilityRole="button"
                         accessibilityLabel="Upload photo from gallery"
                     >
                         <ImageIcon size={18} color="#FFFFFF" />
                         <AppText variant="button" weight="bold" style={styles.heroUploadText}>
                             {t('upload_photo', 'Upload Photo')}
                         </AppText>
-                    </TouchableOpacity>
+                    </Pressable>
                 )}
 
                 {/* Bottom Right: Flash / Torch Toggle */}
-                <TouchableOpacity
-                    style={[
+                <Pressable
+                    style={({ pressed }: { pressed: boolean }) => [
                         styles.circleActionButton,
                         torch && styles.circleActionButtonActiveTorch,
+                        pressed && { opacity: 0.75, transform: [{ scale: 0.92 }] },
                     ]}
                     onPress={toggleTorch}
-                    activeOpacity={0.75}
+                    hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                    accessibilityRole="button"
                     accessibilityLabel={torch ? 'Turn off flash' : 'Turn on flash'}
                 >
                     {torch ? (
@@ -284,7 +295,7 @@ export const ModernScannerCanvas: React.FC<ModernScannerCanvasProps> = ({
                     ) : (
                         <ZapOff size={20} color="#FFFFFF" />
                     )}
-                </TouchableOpacity>
+                </Pressable>
             </View>
         </View>
     );

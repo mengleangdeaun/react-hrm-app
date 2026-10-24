@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, TouchableOpacity } from 'react-native';
+import { View, Pressable } from 'react-native';
 import { StyleSheet } from 'react-native-unistyles';
 
 export interface AppCardProps {
@@ -39,16 +39,18 @@ export const AppCard: React.FC<AppCardProps> = ({
 
     if (onPress) {
         return (
-            <TouchableOpacity
+            <Pressable
                 onPress={onPress}
-                activeOpacity={0.75}
                 accessibilityRole="button"
                 accessibilityLabel={accessibilityLabel}
                 accessibilityHint={accessibilityHint}
-                style={cardStyles}
+                style={({ pressed }: { pressed: boolean }) => [
+                    cardStyles,
+                    pressed && { opacity: 0.88, transform: [{ scale: 0.995 }] },
+                ]}
             >
                 {children}
-            </TouchableOpacity>
+            </Pressable>
         );
     }
 

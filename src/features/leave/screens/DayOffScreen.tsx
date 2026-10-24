@@ -1,0 +1,1479 @@
+﻿import React, { useState, useCallback } from 'react';
+import {
+    View,
+    TouchableOpacity,
+    Alert,
+    ActivityIndicator,
+} from 'react-native';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { useQuery, useMutation, useQueryClient, onlineManager } from '@tanstack/react-query';
+import * as Haptics from 'expo-haptics';
+import { syncQueue } from '../../../offline/syncQueue';
+import { isNetworkError } from '../../../api/client';
+import {
+    Calendar,
+    CalendarCheck,
+    Clock,
+    Check,
+    X,
+    Plus,
+    Trash2,
+    Send,
+    FileText,
+    ArrowRight,
+} from 'lucide-react-native';
+
+import { AppText as Text } from '../../../components/AppText';
+import { useAppTheme } from '../../../context/ThemeContext';
+import { AppShell } from '../../../components/common/AppShell';
+import { AppCard } from '../../../components/common/AppCard';
+import { AppInput } from '../../../components/common/AppInput';
+import { AppButton } from '../../../components/common/AppButton';
+import { StatusBadge } from '../../../components/common/StatusBadge';
+import { HeaderIconButton } from '../../../components/common/AppHeader';
+import { queryKeys } from '../../../api/queryKeys';
+import { NativeDatePickerField } from '../../../components/common/NativeDatePickerField';
+import { useTranslation } from '../../../context/LanguageContext';
+import {
+    formatDateDisplay,
+    formatTimeDisplay,
+    getTodayDateString,
+} from '../../../utils/dateTime';
+
+import { EmptyState } from '../../../components/common/EmptyState';
+import { DayOffSkeleton } from '../../../components/common/Skeletons';
+import {
+    dayOffApi,
+    DayOffInfo,
+    DayOffRequestItem,
+    SubmitDayOffPayload,
+} from '../../../api/dayoff';
+import { DayOffApprovalCard } from '../../../components/dayoff/DayOffApprovalCard';
+import { DayOffActionModal } from '../../../components/dayoff/DayOffActionModal';
+
+const ALL_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
+const FULL_DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
+
+export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation, route }) => {
+    const { isDark } = useAppTheme();
+    const { t } = useTranslation();
+    const { theme } = useUnistyles();
+    const styles = stylesheet;
+    const queryClient = useQueryClient();
+
+    const initialTab = route?.params?.tab === 'approvals' ? 'approvals' : 'my';
+    const [activeTab, setActiveTab] = useState<'my' | 'approvals'>(initialTab);
+    const [showForm, setShowForm] = useState(false);
+
+    // Form State
+    const [frequency, setFrequency] = useState<'weekly' | 'monthly' | 'specific_dates'>('weekly');
+    const [requestedDaysOff, setRequestedDaysOff] = useState<string[]>([]);
+    const [weeksOfMonth, setWeeksOfMonth] = useState<number[]>([]);
+    const [specificDates, setSpecificDates] = useState<string[]>([]);
+    const [effectiveFrom, setEffectiveFrom] = useState(() => getTodayDateString());
+    const [effectiveTo, setEffectiveTo] = useState('');
+    const [reason, setReason] = useState('');
+    const [pickerDate, setPickerDate] = useState(() => getTodayDateString());
+
+    // Action Modal State
+    const [actionId, setActionId] = useState<number | null>(null);
+    const [actionMode, setActionMode] = useState<'approve' | 'reject' | 'cancel' | null>(null);
+
+    // Queries
+    const {
+        data: info,
+        isLoading: isInfoLoading,
+        isRefetching: isInfoRefetching,
+        refetch: refetchInfo,
+    } = useQuery<DayOffInfo>({
+        queryKey: queryKeys.leave.dayOffInfo,
+        queryFn: dayOffApi.getDayOffInfo,
+    });
+
+    const {
+        data: requests = [],
+        isLoading: isRequestsLoading,
+        isRefetching: isRequestsRefetching,
+        refetch: refetchRequests,
+    } = useQuery<DayOffRequestItem[]>({
+        queryKey: queryKeys.leave.dayOffRequests,
+        queryFn: dayOffApi.getMyRequests,
+    });
+
+    const {
+        data: teamRequests = [],
+        isLoading: isTeamLoading,
+        isRefetching: isTeamRefetching,
+        refetch: refetchTeam,
+    } = useQuery<DayOffRequestItem[]>({
+        queryKey: queryKeys.leave.teamDayOffRequests,
+        queryFn: dayOffApi.getTeamApprovals,
+    });
+
+    const isRefreshing = isInfoRefetching || isRequestsRefetching || isTeamRefetching;
+
+    const onRefresh = useCallback(() => {
+        refetchInfo();
+        refetchRequests();
+        refetchTeam();
+    }, [refetchInfo, refetchRequests, refetchTeam]);
+
+    // Mutations
+    const submitMutation = useMutation({
+        mutationFn: async (payload: SubmitDayOffPayload) => {
+            if (!onlineManager.isOnline()) {
+                await syncQueue.enqueue(
+                    'day_off_request',
+                    '/employee-app/day-off-requests',
+                    'POST',
+                    payload,
+                    { description: 'Day-off Change Request' }
+                );
+                return { isOffline: true, payload };
+            }
+            try {
+                const res = await dayOffApi.submitRequest(payload);
+                return res;
+            } catch (err: any) {
+                if (isNetworkError(err)) {
+                    await syncQueue.enqueue(
+                        'day_off_request',
+                        '/employee-app/day-off-requests',
+                        'POST',
+                        payload,
+                        { description: 'Day-off Change Request' }
+                    );
+                    return { isOffline: true, payload };
+                }
+                throw err;
+            }
+        },
+        onSuccess: (data: any) => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+            setShowForm(false);
+            resetForm();
+
+            if (data?.isOffline && data.payload) {
+                const optimisticItem: DayOffRequestItem = {
+                    id: Date.now(),
+                    employee_id: 0,
+                    frequency: data.payload.frequency,
+                    requested_days_off: data.payload.requested_days_off,
+                    weeks_of_month: data.payload.weeks_of_month,
+                    specific_dates: data.payload.specific_dates,
+                    effective_from: data.payload.effective_from,
+                    effective_to: data.payload.effective_to,
+                    reason: data.payload.reason,
+                    status: 'pending',
+                    created_at: new Date().toISOString(),
+                };
+                queryClient.setQueryData(queryKeys.leave.dayOffRequests, (old: any) => {
+                    const list = Array.isArray(old) ? old : [];
+                    return [optimisticItem, ...list];
+                });
+                Alert.alert(
+                    t('saved_offline', 'Saved Offline'),
+                    t('day_off_offline_saved_desc', 'Day-off request saved offline â€¢ Will sync automatically once connected.')
+                );
+                return;
+            }
+
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.dayOffRequests });
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.dayOffInfo });
+            Alert.alert(t('success', 'Success'), t('request_submitted_successfully', 'Day-off change request submitted successfully.'));
+        },
+        onError: (err: any) => {
+            const msg = err.response?.data?.message || t('failed_to_submit', 'Failed to submit day-off request.');
+            Alert.alert(t('error', 'Error'), msg);
+        },
+    });
+
+    const approveMutation = useMutation({
+        mutationFn: async (id: number) => {
+            if (!onlineManager.isOnline()) {
+                await syncQueue.enqueue(
+                    'day_off_approve',
+                    `/employee-app/day-off-requests/${id}/approve`,
+                    'PUT',
+                    undefined,
+                    { description: `Approve Day-Off Request #${id}` }
+                );
+                return { isOffline: true, id };
+            }
+            try {
+                const res = await dayOffApi.approveRequest(id);
+                return res;
+            } catch (err: any) {
+                if (isNetworkError(err)) {
+                    await syncQueue.enqueue(
+                        'day_off_approve',
+                        `/employee-app/day-off-requests/${id}/approve`,
+                        'PUT',
+                        undefined,
+                        { description: `Approve Day-Off Request #${id}` }
+                    );
+                    return { isOffline: true, id };
+                }
+                throw err;
+            }
+        },
+        onSuccess: (data: any) => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+            closeAction();
+
+            if (data?.isOffline) {
+                queryClient.setQueryData(queryKeys.leave.teamDayOffRequests, (old: any) => {
+                    if (!Array.isArray(old)) return old;
+                    return old.map((item: DayOffRequestItem) => (item.id === data.id ? { ...item, status: 'approved' } : item));
+                });
+                Alert.alert(
+                    t('saved_offline', 'Saved Offline'),
+                    t('approve_offline_saved_desc', 'Approval saved offline â€¢ Will sync automatically once connected.')
+                );
+                return;
+            }
+
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.teamDayOffRequests });
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.dayOffInfo });
+            Alert.alert(t('approved', 'Approved'), t('request_approved', 'Request approved successfully.'));
+        },
+        onError: (err: any) => {
+            const msg = err.response?.data?.message || t('failed_to_approve', 'Failed to approve request.');
+            Alert.alert(t('error', 'Error'), msg);
+        },
+    });
+
+    const rejectMutation = useMutation({
+        mutationFn: async ({ id, reason }: { id: number; reason: string }) => {
+            if (!onlineManager.isOnline()) {
+                await syncQueue.enqueue(
+                    'day_off_reject',
+                    `/employee-app/day-off-requests/${id}/reject`,
+                    'PUT',
+                    { reason },
+                    { description: `Reject Day-Off Request #${id}` }
+                );
+                return { isOffline: true, id, reason };
+            }
+            try {
+                const res = await dayOffApi.rejectRequest(id, reason);
+                return res;
+            } catch (err: any) {
+                if (isNetworkError(err)) {
+                    await syncQueue.enqueue(
+                        'day_off_reject',
+                        `/employee-app/day-off-requests/${id}/reject`,
+                        'PUT',
+                        { reason },
+                        { description: `Reject Day-Off Request #${id}` }
+                    );
+                    return { isOffline: true, id, reason };
+                }
+                throw err;
+            }
+        },
+        onSuccess: (data: any) => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+            closeAction();
+
+            if (data?.isOffline) {
+                queryClient.setQueryData(queryKeys.leave.teamDayOffRequests, (old: any) => {
+                    if (!Array.isArray(old)) return old;
+                    return old.map((item: DayOffRequestItem) =>
+                        item.id === data.id ? { ...item, status: 'rejected', rejection_reason: data.reason } : item
+                    );
+                });
+                Alert.alert(
+                    t('saved_offline', 'Saved Offline'),
+                    t('reject_offline_saved_desc', 'Rejection saved offline â€¢ Will sync automatically once connected.')
+                );
+                return;
+            }
+
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.teamDayOffRequests });
+            Alert.alert(t('rejected', 'Rejected'), t('request_rejected', 'Request rejected successfully.'));
+        },
+        onError: (err: any) => {
+            const msg = err.response?.data?.message || t('failed_to_reject', 'Failed to reject request.');
+            Alert.alert(t('error', 'Error'), msg);
+        },
+    });
+
+    const cancelMutation = useMutation({
+        mutationFn: async (id: number) => {
+            if (!onlineManager.isOnline()) {
+                await syncQueue.enqueue(
+                    'day_off_cancel',
+                    `/employee-app/day-off-requests/${id}/cancel`,
+                    'PUT',
+                    undefined,
+                    { description: `Cancel Day-Off Request #${id}` }
+                );
+                return { isOffline: true, id };
+            }
+            try {
+                const res = await dayOffApi.cancelRequest(id);
+                return res;
+            } catch (err: any) {
+                if (isNetworkError(err)) {
+                    await syncQueue.enqueue(
+                        'day_off_cancel',
+                        `/employee-app/day-off-requests/${id}/cancel`,
+                        'PUT',
+                        undefined,
+                        { description: `Cancel Day-Off Request #${id}` }
+                    );
+                    return { isOffline: true, id };
+                }
+                throw err;
+            }
+        },
+        onSuccess: (data: any) => {
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+            closeAction();
+
+            if (data?.isOffline) {
+                queryClient.setQueryData(queryKeys.leave.dayOffRequests, (old: any) => {
+                    if (!Array.isArray(old)) return old;
+                    return old.map((item: DayOffRequestItem) => (item.id === data.id ? { ...item, status: 'cancelled' } : item));
+                });
+                Alert.alert(
+                    t('saved_offline', 'Saved Offline'),
+                    t('cancel_offline_saved_desc', 'Cancellation saved offline â€¢ Will sync automatically once connected.')
+                );
+                return;
+            }
+
+            queryClient.invalidateQueries({ queryKey: queryKeys.leave.dayOffRequests });
+            Alert.alert(t('cancelled', 'Cancelled'), t('request_cancelled', 'Request cancelled.'));
+        },
+        onError: (err: any) => {
+            const msg = err.response?.data?.message || t('failed_to_cancel', 'Failed to cancel request.');
+            Alert.alert(t('error', 'Error'), msg);
+        },
+    });
+
+    const resetForm = () => {
+        setRequestedDaysOff([]);
+        setWeeksOfMonth([]);
+        setSpecificDates([]);
+        setEffectiveFrom(getTodayDateString());
+        setEffectiveTo('');
+        setReason('');
+        setFrequency('weekly');
+        setPickerDate(getTodayDateString());
+    };
+
+    const toggleDay = (day: string) => {
+        const dayKey = day.charAt(0).toUpperCase() + day.slice(1).toLowerCase();
+        setRequestedDaysOff((prev) =>
+            prev.includes(dayKey) ? prev.filter((d) => d !== dayKey) : [...prev, dayKey]
+        );
+    };
+
+    const toggleWeek = (week: number) => {
+        setWeeksOfMonth((prev) =>
+            prev.includes(week) ? prev.filter((w) => w !== week) : [...prev, week]
+        );
+    };
+
+    const addSpecificDate = (date: string) => {
+        if (date && !specificDates.includes(date)) {
+            setSpecificDates((prev) => [...prev, date].sort());
+        }
+        setPickerDate(date);
+    };
+
+    const removeSpecificDate = (date: string) => {
+        setSpecificDates((prev) => prev.filter((d) => d !== date));
+    };
+
+    const handleSubmitForm = () => {
+        if (frequency !== 'specific_dates' && requestedDaysOff.length === 0) {
+            Alert.alert(t('required', 'Required'), t('select_at_least_one_day', 'Please select at least one day off.'));
+            return;
+        }
+        if (frequency === 'monthly' && weeksOfMonth.length === 0) {
+            Alert.alert(t('required', 'Required'), t('select_at_least_one_week', 'Please select at least one week of month.'));
+            return;
+        }
+        if (frequency === 'specific_dates' && specificDates.length === 0) {
+            Alert.alert(t('required', 'Required'), t('select_at_least_one_date', 'Please add at least one specific date.'));
+            return;
+        }
+        if (!reason.trim()) {
+            Alert.alert(t('required', 'Required'), t('provide_reason', 'Please provide a reason for this change request.'));
+            return;
+        }
+
+        submitMutation.mutate({
+            frequency,
+            requested_days_off: frequency !== 'specific_dates' ? requestedDaysOff : [],
+            weeks_of_month: frequency === 'monthly' ? weeksOfMonth : [],
+            specific_dates: frequency === 'specific_dates' ? specificDates : [],
+            effective_from: effectiveFrom,
+            effective_to: effectiveTo ? effectiveTo : undefined,
+            reason: reason.trim(),
+        });
+    };
+
+    const handleConfirmAction = (confirmReason?: string) => {
+        if (!actionId || !actionMode) return;
+        if (actionMode === 'approve') {
+            approveMutation.mutate(actionId);
+        } else if (actionMode === 'reject') {
+            rejectMutation.mutate({ id: actionId, reason: confirmReason || '' });
+        } else if (actionMode === 'cancel') {
+            cancelMutation.mutate(actionId);
+        }
+    };
+
+    const closeAction = () => {
+        setActionId(null);
+        setActionMode(null);
+    };
+
+    const getStatusStyle = (status: string) => {
+        switch (status) {
+            case 'approved':
+                return {
+                    bg: theme.colors.status.successSubtle,
+                    border: theme.colors.status.successBorder,
+                    color: theme.colors.status.success,
+                    icon: <Check size={12} color={theme.colors.status.success} />,
+                    label: t('approved', 'Approved'),
+                };
+            case 'rejected':
+                return {
+                    bg: theme.colors.status.dangerSubtle,
+                    border: theme.colors.status.dangerBorder,
+                    color: theme.colors.status.danger,
+                    icon: <X size={12} color={theme.colors.status.danger} />,
+                    label: t('rejected', 'Rejected'),
+                };
+            default:
+                return {
+                    bg: theme.colors.status.warningSubtle,
+                    border: theme.colors.status.warningBorder,
+                    color: theme.colors.status.warning,
+                    icon: <Clock size={12} color={theme.colors.status.warning} />,
+                    label: t('pending', 'Pending'),
+                };
+        }
+    };
+
+    const headerRight = (
+        activeTab === 'my' && (
+            <HeaderIconButton
+                icon={showForm ? <X color={theme.colors.textPrimary} size={20} /> : <Plus color={theme.colors.brand} size={20} />}
+                onPress={() => {
+                    if (showForm) {
+                        setShowForm(false);
+                    } else {
+                        resetForm();
+                        setShowForm(true);
+                    }
+                }}
+                accessibilityLabel={showForm ? 'Close form' : 'Request change'}
+            />
+        )
+    );
+
+    const renderFooter = () => {
+        if (activeTab !== 'my') return undefined;
+
+        if (!showForm) {
+            return (
+                <AppButton
+                    title={t('request_day_off_change', 'Request Day-Off Change')}
+                    onPress={() => {
+                        resetForm();
+                        setShowForm(true);
+                    }}
+                    icon={<Plus color="#FFFFFF" size={18} />}
+                    size="lg"
+                />
+            );
+        }
+
+        return (
+            <View style={styles.footerRow}>
+                <AppButton
+                    title={t('cancel', 'Cancel')}
+                    onPress={() => setShowForm(false)}
+                    variant="outline"
+                    size="lg"
+                    style={styles.footerCancelBtn}
+                />
+                <AppButton
+                    title={t('submit_request', 'Submit Request')}
+                    onPress={handleSubmitForm}
+                    loading={submitMutation.isPending}
+                    icon={<Send color="#FFFFFF" size={18} />}
+                    size="lg"
+                    style={styles.footerSubmitBtn}
+                />
+            </View>
+        );
+    };
+
+    return (
+        <AppShell
+            title={t('day_off', 'Day Off')}
+            onBack={() => navigation.goBack()}
+            headerRight={headerRight}
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            footer={renderFooter()}
+        >
+            {/* Top Navigation Tabs */}
+            <View style={[styles.tabBar, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                <TouchableOpacity
+                    onPress={() => {
+                        setActiveTab('my');
+                        setShowForm(false);
+                    }}
+                    style={[styles.tabBtn, activeTab === 'my' && { borderBottomColor: theme.colors.primary, borderBottomWidth: 3 }]}
+                    activeOpacity={0.7}
+                    accessibilityRole="tab"
+                    accessibilityState={{ selected: activeTab === 'my' }}
+                >
+                    <Text style={[styles.tabBtnText, { color: activeTab === 'my' ? theme.colors.primary : theme.colors.textSecondary }]}>
+                        {t('tab_my_requests', 'My Requests')}
+                    </Text>
+                </TouchableOpacity>
+
+                {teamRequests.length > 0 && (
+                    <TouchableOpacity
+                        onPress={() => {
+                            setActiveTab('approvals');
+                            setShowForm(false);
+                        }}
+                        style={[styles.tabBtn, styles.tabBtnWithBadge, activeTab === 'approvals' && { borderBottomColor: theme.colors.primary, borderBottomWidth: 3 }]}
+                        activeOpacity={0.7}
+                        accessibilityRole="tab"
+                        accessibilityState={{ selected: activeTab === 'approvals' }}
+                    >
+                        <Text style={[styles.tabBtnText, { color: activeTab === 'approvals' ? theme.colors.primary : theme.colors.textSecondary }]}>
+                            {t('tab_approvals', 'Approvals')}
+                        </Text>
+                        <View style={[styles.badgePill, { backgroundColor: theme.colors.primary }]}>
+                            <Text style={styles.badgePillText}>{teamRequests.length}</Text>
+                        </View>
+                    </TouchableOpacity>
+                )}
+            </View>
+
+            {activeTab === 'my' ? (
+                <>
+                    {/* 1. Current Schedule Card */}
+                    <View style={[styles.scheduleCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                        <View style={styles.scheduleHeader}>
+                            <View style={[styles.scheduleIconWrapper, { backgroundColor: theme.colors.primarySubtle }]}>
+                                <Calendar color={theme.colors.primary} size={20} />
+                            </View>
+                            <View style={styles.scheduleTitleWrapper}>
+                                <Text style={[styles.scheduleCardTitle, { color: theme.colors.textPrimary }]}>
+                                    {t('current_schedule', 'Current Schedule')}
+                                </Text>
+                                <Text style={[styles.scheduleShiftName, { color: theme.colors.textSecondary }]}>
+                                    {info?.working_shift?.name || t('standard_shift', 'Standard Shift')}
+                                </Text>
+                            </View>
+                        </View>
+
+                        {/* Schedule Content */}
+                        {isInfoLoading ? (
+                            <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginVertical: 16 }} />
+                        ) : info?.day_off_frequency === 'specific_dates' ? (
+                            <View style={styles.specificChipsWrap}>
+                                {(info.day_off_specific_dates || []).map((d) => (
+                                    <View key={d} style={[styles.specificChip, { backgroundColor: theme.colors.primarySubtle }]}>
+                                        <Text style={[styles.specificChipText, { color: theme.colors.primary }]}>
+                                            {formatDateDisplay(d, 'standard')}
+                                        </Text>
+                                    </View>
+                                ))}
+                                {(!info.day_off_specific_dates || info.day_off_specific_dates.length === 0) && (
+                                    <Text style={[styles.emptyScheduleText, { color: theme.colors.textMuted }]}>
+                                        {t('no_specific_dates', 'No specific dates defined')}
+                                    </Text>
+                                )}
+                            </View>
+                        ) : (
+                            <View style={styles.weekGridWrap}>
+                                <View style={styles.weekDaysRow}>
+                                    {ALL_DAYS.map((d, i) => {
+                                        const isOff = (info?.resolved_days_off || []).some(
+                                            (dn) => dn.toLowerCase() === FULL_DAYS[i]
+                                        );
+                                        return (
+                                            <View key={d} style={styles.dayCol}>
+                                                <View
+                                                    style={[
+                                                        styles.daySquare,
+                                                        {
+                                                            backgroundColor: isOff
+                                                                ? theme.colors.primary
+                                                                : theme.colors.surfaceSubtle,
+                                                        },
+                                                    ]}
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            styles.daySquareText,
+                                                            {
+                                                                color: isOff ? '#FFFFFF' : theme.colors.textSecondary,
+                                                            },
+                                                        ]}
+                                                    >
+                                                        {t(d, d).slice(0, 3)}
+                                                    </Text>
+                                                </View>
+                                                <Text
+                                                    style={[
+                                                        styles.dayStatusSub,
+                                                        {
+                                                            color: isOff
+                                                                ? theme.colors.primary
+                                                                : theme.colors.textMuted,
+                                                        },
+                                                    ]}
+                                                >
+                                                    {isOff ? t('off', 'Off') : t('work', 'Work')}
+                                                </Text>
+                                            </View>
+                                        );
+                                    })}
+                                </View>
+
+                                {info?.day_off_frequency === 'monthly' && info?.day_off_weeks && (
+                                    <View style={[styles.monthlyNoteRow, { borderTopColor: theme.colors.border }]}>
+                                        <Text style={[styles.monthlyNoteText, { color: theme.colors.textSecondary }]}>
+                                            {t('occurs_on_weeks', 'Occurs on')}:{' '}
+                                            <Text style={{ color: theme.colors.primary, fontWeight: '800' }}>
+                                                {info.day_off_weeks
+                                                    .map((w) => (w === 5 ? t('last', 'Last') : `${w}${w === 1 ? 'st' : w === 2 ? 'nd' : w === 3 ? 'rd' : 'th'}`))
+                                                    .join(', ')}
+                                            </Text>
+                                        </Text>
+                                    </View>
+                                )}
+                            </View>
+                        )}
+                    </View>
+
+                    {/* 2. Interactive Request Change Form */}
+                    {showForm && (
+                        <View style={[styles.formCard, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}>
+                            <View style={styles.formHeader}>
+                                <View style={[styles.formIconWrapper, { backgroundColor: theme.colors.primarySubtle }]}>
+                                    <CalendarCheck color={theme.colors.primary} size={20} />
+                                </View>
+                                <Text style={[styles.formTitle, { color: theme.colors.textPrimary }]}>
+                                    {t('request_change', 'Request Day-Off Change')}
+                                </Text>
+                            </View>
+
+                            {/* Frequency Segmented Control */}
+                            <View style={[styles.segmentedRow, { backgroundColor: theme.colors.surfaceSubtle }]}>
+                                {(['weekly', 'monthly', 'specific_dates'] as const).map((f) => (
+                                    <TouchableOpacity
+                                        key={f}
+                                        onPress={() => setFrequency(f)}
+                                        style={[
+                                            styles.segmentedBtn,
+                                            frequency === f && [
+                                                styles.segmentedBtnActive,
+                                                { backgroundColor: theme.colors.surface },
+                                            ],
+                                        ]}
+                                        activeOpacity={0.8}
+                                    >
+                                        <Text
+                                            style={[
+                                                styles.segmentedBtnText,
+                                                {
+                                                    color:
+                                                        frequency === f
+                                                            ? theme.colors.primary
+                                                            : theme.colors.textSecondary,
+                                                },
+                                            ]}
+                                        >
+                                            {f === 'weekly' ? t('weekly', 'Weekly') : f === 'monthly' ? t('monthly', 'Monthly') : t('specific_dates', 'Specific')}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
+                            {/* Weekly / Monthly Day Selector */}
+                            {frequency !== 'specific_dates' && (
+                                <View style={styles.inputSection}>
+                                    <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+                                        {t('new_days_off', 'New Day(s) Off')}
+                                    </Text>
+                                    <View style={styles.daysToggleRow}>
+                                        {FULL_DAYS.map((day, i) => {
+                                            const dayKey = day.charAt(0).toUpperCase() + day.slice(1).toLowerCase();
+                                            const isSelected = requestedDaysOff.includes(dayKey);
+                                            return (
+                                                <TouchableOpacity
+                                                    key={day}
+                                                    onPress={() => toggleDay(day)}
+                                                    style={[
+                                                        styles.dayToggleBtn,
+                                                        {
+                                                            backgroundColor: isSelected
+                                                                ? theme.colors.primary
+                                                                : theme.colors.surfaceSubtle,
+                                                            borderColor: isSelected
+                                                                ? theme.colors.primary
+                                                                : theme.colors.border,
+                                                        },
+                                                    ]}
+                                                    activeOpacity={0.7}
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            styles.dayToggleBtnText,
+                                                            { color: isSelected ? '#FFFFFF' : theme.colors.textSecondary },
+                                                        ]}
+                                                    >
+                                                        {t(ALL_DAYS[i], ALL_DAYS[i]).slice(0, 3)}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                </View>
+                            )}
+
+                            {/* Monthly Weeks Selector */}
+                            {frequency === 'monthly' && (
+                                <View style={styles.inputSection}>
+                                    <Text style={[styles.sectionLabel, { color: theme.colors.textSecondary }]}>
+                                        {t('on_weeks', 'On Weeks of Month')}
+                                    </Text>
+                                    <View style={styles.weeksToggleRow}>
+                                        {[1, 2, 3, 4, 5].map((w) => {
+                                            const isSelected = weeksOfMonth.includes(w);
+                                            return (
+                                                <TouchableOpacity
+                                                    key={w}
+                                                    onPress={() => toggleWeek(w)}
+                                                    style={[
+                                                        styles.weekToggleBtn,
+                                                        {
+                                                            backgroundColor: isSelected
+                                                                ? theme.colors.status.purple
+                                                                : theme.colors.surfaceSubtle,
+                                                            borderColor: isSelected
+                                                                ? theme.colors.status.purple
+                                                                : theme.colors.border,
+                                                        },
+                                                    ]}
+                                                    activeOpacity={0.7}
+                                                >
+                                                    <Text
+                                                        style={[
+                                                            styles.weekToggleBtnText,
+                                                            { color: isSelected ? '#FFFFFF' : theme.colors.textSecondary },
+                                                        ]}
+                                                    >
+                                                        {w === 5 ? t('last', 'Last') : `${w}${w === 1 ? 'st' : w === 2 ? 'nd' : w === 3 ? 'rd' : 'th'}`}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            );
+                                        })}
+                                    </View>
+                                </View>
+                            )}
+
+                            {/* Specific Dates Selector */}
+                            {frequency === 'specific_dates' && (
+                                <View style={styles.inputSection}>
+                                    <NativeDatePickerField
+                                        label={t('add_dates', 'Add Specific Date')}
+                                        value={pickerDate}
+                                        onChange={addSpecificDate}
+                                    />
+                                    <View style={styles.specificChipsWrap}>
+                                        {specificDates.map((d) => (
+                                            <View key={d} style={[styles.addedDateChip, { backgroundColor: theme.colors.status.warningSubtle, borderColor: theme.colors.status.warningBorder }]}>
+                                                <Text style={[styles.addedDateChipText, { color: theme.colors.status.warning }]}>
+                                                    {formatDateDisplay(d, 'standard')}
+                                                </Text>
+                                                <TouchableOpacity
+                                                    onPress={() => removeSpecificDate(d)}
+                                                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                                >
+                                                    <Trash2 color={theme.colors.status.danger} size={13} />
+                                                </TouchableOpacity>
+                                            </View>
+                                        ))}
+                                        {specificDates.length === 0 && (
+                                            <Text style={[styles.emptyScheduleText, { color: theme.colors.textMuted }]}>
+                                                {t('no_dates_added', 'No specific dates added yet.')}
+                                            </Text>
+                                        )}
+                                    </View>
+                                </View>
+                            )}
+
+                            {/* Effective Range Dates */}
+                            <View style={styles.datesRow}>
+                                <View style={styles.dateCol}>
+                                    <NativeDatePickerField
+                                        label={t('effective_from', 'Effective From')}
+                                        value={effectiveFrom}
+                                        onChange={(d) => {
+                                            setEffectiveFrom(d);
+                                            if (effectiveTo && d > effectiveTo) {
+                                                setEffectiveTo(d);
+                                            }
+                                        }}
+                                    />
+                                </View>
+                                <View style={styles.dateCol}>
+                                    <NativeDatePickerField
+                                        label={`${t('effective_to', 'Effective To')} (${t('optional', 'Optional')})`}
+                                        value={effectiveTo}
+                                        onChange={setEffectiveTo}
+                                        minDate={effectiveFrom}
+                                        isClearable
+                                        placeholder={t('optional', 'Optional')}
+                                    />
+                                </View>
+                            </View>
+
+                            {/* Reason Multiline Input */}
+                            <AppInput
+                                label={t('reason_for_request', 'Reason for Request')}
+                                value={reason}
+                                onChangeText={setReason}
+                                placeholder={t('day_off_reason_placeholder', 'Why do you need this change?')}
+                                multiline
+                                numberOfLines={3}
+                                icon={<FileText color={theme.colors.textSecondary} size={18} />}
+                            />
+                        </View>
+                    )}
+
+                    {/* 3. Request History Feed */}
+                    <View style={styles.historySection}>
+                        <View style={styles.historyHeaderRow}>
+                            <Text style={[styles.historyTitle, { color: theme.colors.textSecondary }]}>
+                                {t('request_history', 'Request History')}
+                            </Text>
+                            <View style={[styles.countPill, { backgroundColor: theme.colors.primarySubtle }]}>
+                                <Text style={[styles.countPillText, { color: theme.colors.primary }]}>
+                                    {requests.length} {t('entries', 'Entries')}
+                                </Text>
+                            </View>
+                        </View>
+
+                        {isRequestsLoading ? (
+                            <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginVertical: 20 }} />
+                        ) : requests.length === 0 ? (
+                            <EmptyState
+                                icon={<Calendar color={theme.colors.textSecondary} size={36} />}
+                                title={t('no_history_yet', 'No Request History')}
+                                description={t('no_pending_requests_desc', 'Any day-off change requests you submit will appear here until they are reviewed.')}
+                                actionTitle={t('request_day_off_change', 'Request Change')}
+                                onAction={() => setShowForm(true)}
+                            />
+                        ) : (
+                            requests.map((req) => {
+                                const statusInfo = getStatusStyle(req.status);
+                                const currentDays = req.current_days_off || [];
+                                const requestedDays = req.requested_days_off || [];
+
+                                return (
+                                    <AppCard
+                                        key={req.id}
+                                        style={styles.historyCard}
+                                    >
+                                        {/* Status Header & Timestamps */}
+                                        <View style={styles.historyCardHeader}>
+                                            <StatusBadge status={req.status} label={statusInfo.label} size="sm" />
+                                            <View style={styles.dateBlock}>
+                                                <Text style={[styles.dateText, { color: theme.colors.textSecondary }]}>
+                                                    {formatDateDisplay(req.created_at, 'dayMonth')}
+                                                </Text>
+                                                <Text style={[styles.timeText, { color: theme.colors.textMuted }]}>
+                                                    {formatTimeDisplay(req.created_at)}
+                                                </Text>
+                                            </View>
+                                        </View>
+
+                                        {/* Processed timestamp if reviewed */}
+                                        {Boolean(req.actioned_at || req.approved_at) && (
+                                            <View style={[styles.processedRow, { backgroundColor: theme.colors.surfaceSubtle }]}>
+                                                <Text style={[styles.processedLabel, { color: theme.colors.textSecondary }]}>
+                                                    {t('processed_on', 'Processed On')}
+                                                </Text>
+                                                <Text style={[styles.processedValue, { color: theme.colors.textPrimary }]}>
+                                                    {formatDateDisplay(req.actioned_at || req.approved_at, 'standard')} â€¢ {formatTimeDisplay(req.actioned_at || req.approved_at)}
+                                                </Text>
+                                            </View>
+                                        )}
+
+                                        {/* Schedule Diff Arrow */}
+                                        <View style={styles.diffInlineRow}>
+                                            <View style={styles.diffSide}>
+                                                {currentDays.length > 0 ? (
+                                                    currentDays.map((d) => (
+                                                        <View key={d} style={[styles.dayChipSmall, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}>
+                                                            <Text style={[styles.dayChipSmallText, { color: theme.colors.textSecondary }]}>
+                                                                {t(d.toLowerCase(), d).slice(0, 3)}
+                                                            </Text>
+                                                        </View>
+                                                    ))
+                                                ) : (
+                                                    <Text style={[styles.emptyDiffText, { color: theme.colors.textMuted }]}>
+                                                        {t('no_day_off', 'None')}
+                                                    </Text>
+                                                )}
+                                            </View>
+
+                                            <ArrowRight color={theme.colors.textMuted} size={14} />
+
+                                            <View style={[styles.diffSide, { justifyContent: 'flex-end' }]}>
+                                                {req.frequency === 'specific_dates' ? (
+                                                    (req.specific_dates || []).map((d) => (
+                                                        <View key={d} style={[styles.dayChipSmall, { backgroundColor: theme.colors.status.warningSubtle, borderColor: theme.colors.status.warningBorder }]}>
+                                                            <Text style={[styles.dayChipSmallText, { color: theme.colors.status.warning }]}>
+                                                                {formatDateDisplay(d, 'dayMonth')}
+                                                            </Text>
+                                                        </View>
+                                                    ))
+                                                ) : (
+                                                    <>
+                                                        {requestedDays.map((d) => (
+                                                            <View key={d} style={[styles.dayChipSmall, { backgroundColor: theme.colors.primarySubtle, borderColor: theme.colors.primary }]}>
+                                                                <Text style={[styles.dayChipSmallText, { color: theme.colors.primary }]}>
+                                                                    {t(d.toLowerCase(), d).slice(0, 3)}
+                                                                </Text>
+                                                            </View>
+                                                        ))}
+                                                        {req.frequency === 'monthly' && req.weeks_of_month && (
+                                                            <View style={[styles.dayChipSmall, { backgroundColor: theme.colors.status.purpleSubtle, borderColor: theme.colors.status.purpleBorder }]}>
+                                                                <Text style={[styles.dayChipSmallText, { color: theme.colors.status.purple }]}>
+                                                                    W:{req.weeks_of_month.join(',')}
+                                                                </Text>
+                                                            </View>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </View>
+                                        </View>
+
+                                        {/* Reason Quote */}
+                                        {Boolean(req.reason) && (
+                                            <View style={[styles.historyReasonBox, { backgroundColor: theme.colors.surfaceSubtle }]}>
+                                                <Text style={[styles.historyReasonText, { color: theme.colors.textSecondary }]} numberOfLines={2}>
+                                                    "{req.reason}"
+                                                </Text>
+                                            </View>
+                                        )}
+
+                                        {/* Rejection Note */}
+                                        {Boolean(req.rejection_reason) && (
+                                            <View style={[styles.rejectionBox, { backgroundColor: theme.colors.status.dangerSubtle, borderColor: theme.colors.status.dangerBorder }]}>
+                                                <X color={theme.colors.status.danger} size={13} />
+                                                <Text style={[styles.rejectionText, { color: theme.colors.status.danger }]}>
+                                                    {req.rejection_reason}
+                                                </Text>
+                                            </View>
+                                        )}
+
+                                        {/* Cancel Pending Request Button */}
+                                        {req.status === 'pending' && (
+                                            <AppButton
+                                                title={t('cancel_request', 'Cancel Request')}
+                                                variant="destructive"
+                                                size="sm"
+                                                onPress={() => {
+                                                    setActionId(Number(req.id));
+                                                    setActionMode('cancel');
+                                                }}
+                                                fullWidth
+                                            />
+                                        )}
+                                    </AppCard>
+                                );
+                            })
+                        )}
+                    </View>
+                </>
+            ) : (
+                /* Approvals Tab for Managers */
+                <View style={styles.approvalsSection}>
+                    <View style={styles.historyHeaderRow}>
+                        <Text style={[styles.historyTitle, { color: theme.colors.textSecondary }]}>
+                            {t('pending_team_requests', 'Team Requests')}
+                        </Text>
+                        <View style={[styles.countPill, { backgroundColor: theme.colors.primarySubtle }]}>
+                            <Text style={[styles.countPillText, { color: theme.colors.primary }]}>
+                                {teamRequests.length} {t('pending', 'Pending')}
+                            </Text>
+                        </View>
+                    </View>
+
+                    {isTeamLoading ? (
+                        <ActivityIndicator size="small" color={theme.colors.primary} style={{ marginVertical: 20 }} />
+                    ) : teamRequests.length === 0 ? (
+                        <EmptyState
+                            icon={<CalendarCheck color={theme.colors.textSecondary} size={36} />}
+                            title={t('all_caught_up', 'All Caught Up! ðŸŽ‰')}
+                            description={t('no_pending_approvals_desc', 'There are no pending day-off requests from your team at this time.')}
+                        />
+                    ) : (
+                        teamRequests.map((req) => (
+                            <DayOffApprovalCard
+                                key={req.id}
+                                request={req}
+                                onApprove={(id) => {
+                                    setActionId(id);
+                                    setActionMode('approve');
+                                }}
+                                onReject={(id) => {
+                                    setActionId(id);
+                                    setActionMode('reject');
+                                }}
+                            />
+                        ))
+                    )}
+                </View>
+            )}
+
+            {/* Action Confirmation Modal */}
+            <DayOffActionModal
+                visible={Boolean(actionId && actionMode)}
+                mode={actionMode}
+                isLoading={approveMutation.isPending || rejectMutation.isPending || cancelMutation.isPending}
+                onClose={closeAction}
+                onConfirm={handleConfirmAction}
+            />
+        </AppShell>
+    );
+};
+
+const stylesheet = StyleSheet.create((theme) => ({
+    tabBar: {
+        flexDirection: 'row',
+        borderRadius: 12,
+        borderWidth: 1,
+        marginBottom: 12,
+        overflow: 'hidden',
+    },
+    tabBtn: {
+        flex: 1,
+        paddingVertical: 12,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    tabBtnWithBadge: {
+        flexDirection: 'row',
+        gap: 6,
+    },
+    tabBtnText: {
+        fontSize: 12,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+    },
+    badgePill: {
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 10,
+    },
+    badgePillText: {
+        color: '#FFFFFF',
+        fontSize: 10,
+        fontWeight: '800',
+    },
+    scheduleCard: {
+        borderRadius: 16,
+        borderWidth: 1,
+        padding: 16,
+        marginBottom: 12,
+    },
+    scheduleHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 12,
+        marginBottom: 12,
+    },
+    scheduleIconWrapper: {
+        width: 40,
+        height: 40,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    scheduleTitleWrapper: {
+        flex: 1,
+    },
+    scheduleCardTitle: {
+        fontSize: 14,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+    },
+    scheduleShiftName: {
+        fontSize: 11,
+        fontWeight: '600',
+        marginTop: 2,
+    },
+    weekGridWrap: {
+        width: '100%',
+    },
+    weekDaysRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 4,
+    },
+    dayCol: {
+        flex: 1,
+        alignItems: 'center',
+        gap: 4,
+    },
+    daySquare: {
+        width: '100%',
+        aspectRatio: 1,
+        borderRadius: 10,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    daySquareText: {
+        fontSize: 11,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+    },
+    dayStatusSub: {
+        fontSize: 9,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+    },
+    monthlyNoteRow: {
+        borderTopWidth: 1,
+        marginTop: 12,
+        paddingTop: 8,
+    },
+    monthlyNoteText: {
+        fontSize: 11,
+        fontWeight: '600',
+    },
+    specificChipsWrap: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 6,
+    },
+    specificChip: {
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 10,
+    },
+    specificChipText: {
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    emptyScheduleText: {
+        fontSize: 12,
+        fontStyle: 'italic',
+        marginVertical: 4,
+    },
+    formCard: {
+        borderRadius: 16,
+        borderWidth: 1,
+        padding: 16,
+        marginBottom: 16,
+    },
+    formHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginBottom: 12,
+    },
+    formIconWrapper: {
+        width: 36,
+        height: 36,
+        borderRadius: 12,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    formTitle: {
+        fontSize: 15,
+        fontWeight: '800',
+    },
+    segmentedRow: {
+        flexDirection: 'row',
+        borderRadius: 12,
+        padding: 4,
+        marginBottom: 16,
+    },
+    segmentedBtn: {
+        flex: 1,
+        paddingVertical: 8,
+        borderRadius: 9,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    segmentedBtnActive: {
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.1,
+        shadowRadius: 2,
+        elevation: 2,
+    },
+    segmentedBtnText: {
+        fontSize: 11,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+    },
+    inputSection: {
+        marginBottom: 14,
+    },
+    sectionLabel: {
+        fontSize: 11,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+        marginBottom: 8,
+    },
+    daysToggleRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        gap: 4,
+    },
+    dayToggleBtn: {
+        flex: 1,
+        aspectRatio: 1,
+        borderRadius: 10,
+        borderWidth: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    dayToggleBtnText: {
+        fontSize: 10,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+    },
+    weeksToggleRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 6,
+    },
+    weekToggleBtn: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 10,
+        borderWidth: 1,
+    },
+    weekToggleBtnText: {
+        fontSize: 11,
+        fontWeight: '800',
+    },
+    addedDateChip: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 10,
+        borderWidth: 1,
+    },
+    addedDateChipText: {
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    datesRow: {
+        flexDirection: 'row',
+        gap: 10,
+    },
+    dateCol: {
+        flex: 1,
+    },
+    footerRow: {
+        flexDirection: 'row',
+        gap: 12,
+        alignItems: 'center',
+        width: '100%',
+    },
+    footerCancelBtn: {
+        flex: 1,
+    },
+    footerSubmitBtn: {
+        flex: 2,
+    },
+    historySection: {
+        marginTop: 4,
+    },
+    historyHeaderRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 10,
+        paddingHorizontal: 4,
+    },
+    historyTitle: {
+        fontSize: 12,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+    countPill: {
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 8,
+    },
+    countPillText: {
+        fontSize: 10,
+        fontWeight: '800',
+    },
+    historyCard: {
+        borderRadius: 16,
+        borderWidth: 1,
+        padding: 16,
+        marginBottom: 12,
+    },
+    historyCardHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: 10,
+    },
+    statusPill: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 5,
+        paddingHorizontal: 8,
+        paddingVertical: 3,
+        borderRadius: 12,
+        borderWidth: 1,
+    },
+    statusPillText: {
+        fontSize: 10,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+    },
+    dateBlock: {
+        alignItems: 'flex-end',
+    },
+    dateText: {
+        fontSize: 11,
+        fontWeight: '700',
+    },
+    timeText: {
+        fontSize: 10,
+        fontWeight: '600',
+        marginTop: 1,
+    },
+    processedRow: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 10,
+        marginBottom: 10,
+    },
+    processedLabel: {
+        fontSize: 10,
+        fontWeight: '700',
+        textTransform: 'uppercase',
+    },
+    processedValue: {
+        fontSize: 10,
+        fontWeight: '700',
+    },
+    diffInlineRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: 8,
+        marginBottom: 10,
+    },
+    diffSide: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 4,
+        flex: 1,
+    },
+    dayChipSmall: {
+        paddingHorizontal: 6,
+        paddingVertical: 2,
+        borderRadius: 6,
+        borderWidth: 1,
+    },
+    dayChipSmallText: {
+        fontSize: 9,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+    },
+    emptyDiffText: {
+        fontSize: 10,
+        fontStyle: 'italic',
+    },
+    historyReasonBox: {
+        padding: 10,
+        borderRadius: 10,
+        marginBottom: 8,
+    },
+    historyReasonText: {
+        fontSize: 11,
+        lineHeight: 16,
+        fontStyle: 'italic',
+    },
+    rejectionBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+        padding: 8,
+        borderRadius: 10,
+        borderWidth: 1,
+        marginBottom: 8,
+    },
+    rejectionText: {
+        fontSize: 11,
+        fontWeight: '600',
+        flex: 1,
+    },
+    cancelRequestBtn: {
+        height: 36,
+        borderRadius: 10,
+        borderWidth: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginTop: 4,
+    },
+    cancelRequestBtnText: {
+        color: '#EF4444',
+        fontSize: 11,
+        fontWeight: '800',
+        textTransform: 'uppercase',
+    },
+    approvalsSection: {
+        marginTop: 4,
+    },
+    emptyCard: {
+        borderRadius: 16,
+        borderWidth: 1,
+        padding: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        marginTop: 8,
+    },
+    emptyTitle: {
+        fontSize: 15,
+        fontWeight: '700',
+        marginTop: 4,
+    },
+    emptySubtitle: {
+        fontSize: 12,
+        textAlign: 'center',
+        lineHeight: 17,
+        paddingHorizontal: 12,
+    },
+}));
+

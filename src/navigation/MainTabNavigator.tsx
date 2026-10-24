@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, TouchableOpacity, Platform } from 'react-native';
+import { View, Pressable, Platform } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { AppText as Text } from '../components/AppText';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
@@ -154,7 +154,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
             const res = await apiClient.get('/employee-app/bootstrap');
             return res.data;
         },
-        staleTime: 1000 * 60 * 3,
+        staleTime: 1000 * 60 * 5,
     });
 
     const unreadCount = typeof (bootstrapData?.notifications?.unread_count ?? bootstrapData?.unread_notifications_count) === 'number'
@@ -254,14 +254,16 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                     }
 
                     return (
-                        <TouchableOpacity
+                        <Pressable
                             key={route.key}
                             accessibilityRole="button"
                             accessibilityState={isFocused ? { selected: true } : {}}
                             onPress={onPress}
                             onLongPress={onLongPress}
-                            style={styles.heroTabButton}
-                            activeOpacity={0.85}
+                            style={({ pressed }: { pressed: boolean }) => [
+                                styles.heroTabButton,
+                                pressed && { opacity: 0.85, transform: [{ scale: 0.96 }] },
+                            ]}
                         >
                             <View
                                 style={[
@@ -284,21 +286,23 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                             >
                                 {dynamicHeroLabel}
                             </Text>
-                        </TouchableOpacity>
+                        </Pressable>
                     );
                 }
 
                 const showBadge = route.name === 'NotiTab' && unreadCount > 0;
 
                 return (
-                    <TouchableOpacity
+                    <Pressable
                         key={route.key}
                         accessibilityRole="button"
                         accessibilityState={isFocused ? { selected: true } : {}}
                         onPress={onPress}
                         onLongPress={onLongPress}
-                        style={styles.tabButton}
-                        activeOpacity={0.7}
+                        style={({ pressed }: { pressed: boolean }) => [
+                            styles.tabButton,
+                            pressed && { opacity: 0.7 },
+                        ]}
                     >
                         <View style={styles.tabIconWrapper}>
                             <IconComponent
@@ -327,17 +331,21 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                         >
                             {tabLabel}
                         </Text>
-                    </TouchableOpacity>
+                    </Pressable>
                 );
             })}
         </View>
     );
 }
 
+const MemoizedCustomTabBar = React.memo(CustomTabBar);
+
+const renderTabBar = (props: any) => <MemoizedCustomTabBar {...props} />;
+
 export function MainTabNavigator() {
     return (
         <Tab.Navigator
-            tabBar={(props: any) => <CustomTabBar {...props} />}
+            tabBar={renderTabBar}
             screenOptions={{
                 headerShown: false,
             }}

@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, TouchableOpacity, Image } from 'react-native';
+import { View, Pressable, Image } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Cake, PartyPopper, ChevronRight } from 'lucide-react-native';
 import { AppText as Text } from '../AppText';
@@ -56,11 +56,15 @@ export const CelebrationNotificationHeader: React.FC<CelebrationNotificationHead
                     const avatarUrl = person.profile_image_url;
 
                     return (
-                        <TouchableOpacity
+                        <Pressable
                             key={`${person.id}-${person.type || 'celeb'}-${index}`}
-                            style={[styles.celebrantRow, !isLast && styles.rowDivider]}
+                            style={({ pressed }: { pressed: boolean }) => [
+                                styles.celebrantRow,
+                                !isLast && styles.rowDivider,
+                                pressed && { opacity: 0.75, backgroundColor: theme.colors.surfaceSubtle },
+                            ]}
                             onPress={() => onCelebrantPress(person)}
-                            activeOpacity={0.75}
+                            accessibilityRole="button"
                         >
                             {/* Avatar with corner milestone badge */}
                             <View style={styles.avatarWrapper}>
@@ -124,7 +128,7 @@ export const CelebrationNotificationHeader: React.FC<CelebrationNotificationHead
                             </View>
 
                             <ChevronRight color={theme.colors.textSecondary} size={16} />
-                        </TouchableOpacity>
+                        </Pressable>
                     );
                 })}
             </View>

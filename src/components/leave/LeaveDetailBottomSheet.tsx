@@ -1,5 +1,5 @@
 import React, { FC } from 'react';
-import { View, TouchableOpacity, Linking } from 'react-native';
+import { View, Pressable, Linking } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import {
     Calendar,
@@ -62,41 +62,47 @@ export const LeaveDetailBottomSheet: FC<LeaveDetailBottomSheetProps> = ({
         <View style={styles.detailFooterContainer}>
             {isManagerView ? (
                 <View style={styles.detailManagerActionRow}>
-                    <TouchableOpacity
-                        style={styles.detailRejectBtn}
+                    <Pressable
+                        style={({ pressed }: { pressed: boolean }) => [
+                            styles.detailRejectBtn,
+                            pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+                        ]}
                         onPress={() => {
                             onClose();
                             onRejectRequest(item);
                         }}
-                        activeOpacity={0.85}
                         accessibilityRole="button"
                         accessibilityLabel={t('reject', 'Reject')}
                     >
                         <X size={16} color={theme.colors.status.danger} />
                         <Text style={styles.detailRejectBtnText}>{t('reject', 'Reject')}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                        style={styles.detailApproveBtn}
+                    </Pressable>
+                    <Pressable
+                        style={({ pressed }: { pressed: boolean }) => [
+                            styles.detailApproveBtn,
+                            pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+                        ]}
                         onPress={() => onApproveRequest(item.id)}
-                        activeOpacity={0.85}
                         accessibilityRole="button"
                         accessibilityLabel={t('approve', 'Approve')}
                     >
                         <Check size={16} color="#FFFFFF" />
                         <Text style={styles.detailApproveBtnText}>{t('approve', 'Approve')}</Text>
-                    </TouchableOpacity>
+                    </Pressable>
                 </View>
             ) : (
-                <TouchableOpacity
-                    style={styles.detailCancelBtn}
+                <Pressable
+                    style={({ pressed }: { pressed: boolean }) => [
+                        styles.detailCancelBtn,
+                        pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+                    ]}
                     onPress={() => onCancelRequest(item.id)}
-                    activeOpacity={0.85}
                     accessibilityRole="button"
                     accessibilityLabel={t('cancel_leave_request', 'Cancel Leave Application')}
                 >
                     <Ban size={18} color={theme.colors.status.danger} />
                     <Text style={styles.detailCancelBtnText}>{t('cancel_leave_request', 'Cancel Leave Application')}</Text>
-                </TouchableOpacity>
+                </Pressable>
             )}
         </View>
     ) : null;
@@ -203,11 +209,13 @@ export const LeaveDetailBottomSheet: FC<LeaveDetailBottomSheetProps> = ({
                         <Text style={styles.detailSectionTitle}>{t('supporting_documents', 'Supporting Documents')}</Text>
                         <View style={styles.detailAttachmentsList}>
                             {item.attachments.map((attUrl, idx) => (
-                                <TouchableOpacity
+                                <Pressable
                                     key={idx}
-                                    style={styles.detailAttachmentItem}
+                                    style={({ pressed }: { pressed: boolean }) => [
+                                        styles.detailAttachmentItem,
+                                        pressed && { opacity: 0.7, backgroundColor: theme.colors.surfaceSubtle },
+                                    ]}
                                     onPress={() => handleAttachmentPress(attUrl)}
-                                    activeOpacity={0.7}
                                     accessibilityRole="button"
                                     accessibilityLabel={`${t('document', 'Document')} #${idx + 1}`}
                                 >
@@ -218,7 +226,7 @@ export const LeaveDetailBottomSheet: FC<LeaveDetailBottomSheetProps> = ({
                                         </Text>
                                     </View>
                                     <ExternalLink size={14} color={theme.colors.textSecondary} />
-                                </TouchableOpacity>
+                                </Pressable>
                             ))}
                         </View>
                     </View>

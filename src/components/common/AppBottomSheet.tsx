@@ -2,25 +2,24 @@ import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Modal,
-    TouchableOpacity,
+    Pressable,
     Animated,
     PanResponder,
     useWindowDimensions,
     Dimensions,
     Platform,
-    StyleSheet,
     BackHandler,
     ScrollView,
     ActivityIndicator,
     Keyboard,
     EmitterSubscription,
 } from 'react-native';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
 import { X } from 'lucide-react-native';
 import { AppText as Text } from '../AppText';
 import { useAppTheme } from '../../context/ThemeContext';
-import { lightTheme, darkTheme } from '../../styles/theme';
 
 export const BottomSheetContext = React.createContext<boolean>(false);
 
@@ -79,7 +78,8 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
     const { height: windowHeight } = useWindowDimensions();
     const screenHeight = Dimensions.get('screen').height || windowHeight;
     const { isDark } = useAppTheme();
-    const theme = isDark ? darkTheme : lightTheme;
+    const { theme } = useUnistyles();
+    const styles = stylesheet;
     const insets = useSafeAreaInsets();
 
     const defaultBackdropColor = isDark ? 'rgba(0, 0, 0, 0.72)' : 'rgba(0, 0, 0, 0.55)';
@@ -339,16 +339,19 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                             <View style={styles.headerRightActions}>
                                 {headerRight}
                                 {showCloseButton && (
-                                    <TouchableOpacity
-                                        style={[styles.closeButton, { backgroundColor: theme.colors.surfaceSubtle }]}
+                                    <Pressable
+                                        style={({ pressed }: { pressed: boolean }) => [
+                                            styles.closeButton,
+                                            { backgroundColor: theme.colors.surfaceSubtle },
+                                            pressed && { opacity: 0.6 },
+                                        ]}
                                         onPress={handleDismiss}
                                         hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-                                        activeOpacity={0.7}
                                         accessibilityLabel="Close sheet"
                                         accessibilityRole="button"
                                     >
                                         <X color={theme.colors.textSecondary} size={18} />
-                                    </TouchableOpacity>
+                                    </Pressable>
                                 )}
                             </View>
                         </View>
@@ -402,8 +405,8 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                             footer
                         ) : (
                             <View style={styles.actionButtonGroup}>
-                                <TouchableOpacity
-                                    style={[
+                                <Pressable
+                                    style={({ pressed }: { pressed: boolean }) => [
                                         styles.sheetPrimaryButton,
                                         {
                                             backgroundColor: primaryButtonVariant === 'destructive'
@@ -413,10 +416,10 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                                                 : theme.colors.primary,
                                         },
                                         (primaryButtonDisabled || primaryButtonLoading) && styles.sheetButtonDisabled,
+                                        pressed && !primaryButtonDisabled && !primaryButtonLoading && { opacity: 0.85, transform: [{ scale: 0.99 }] },
                                     ]}
                                     onPress={onPrimaryButtonPress}
                                     disabled={primaryButtonDisabled || primaryButtonLoading}
-                                    activeOpacity={0.85}
                                 >
                                     {primaryButtonLoading ? (
                                         <ActivityIndicator
@@ -440,24 +443,24 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                                             </Text>
                                         </View>
                                     )}
-                                </TouchableOpacity>
+                                </Pressable>
 
                                 {secondaryButtonTitle && onSecondaryButtonPress && (
-                                    <TouchableOpacity
-                                        style={[
+                                    <Pressable
+                                        style={({ pressed }: { pressed: boolean }) => [
                                             styles.sheetSecondaryButton,
                                             {
                                                 backgroundColor: theme.colors.surfaceSubtle,
                                                 borderColor: theme.colors.border,
                                             },
+                                            pressed && { opacity: 0.75 },
                                         ]}
                                         onPress={onSecondaryButtonPress}
-                                        activeOpacity={0.75}
                                     >
                                         <Text style={[styles.sheetSecondaryButtonText, { color: theme.colors.textPrimary }]}>
                                             {secondaryButtonTitle}
                                         </Text>
-                                    </TouchableOpacity>
+                                    </Pressable>
                                 )}
                             </View>
                         )}
@@ -487,9 +490,8 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                         },
                     ]}
                 >
-                    <TouchableOpacity
+                    <Pressable
                         style={StyleSheet.absoluteFill}
-                        activeOpacity={1}
                         onPress={handleDismiss}
                         accessibilityLabel="Dismiss modal backdrop"
                         accessibilityRole="button"
@@ -509,7 +511,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
     );
 };
 
-const styles = StyleSheet.create({
+const stylesheet = StyleSheet.create((theme) => ({
     modalOverlay: {
         flex: 1,
         width: '100%',
@@ -676,4 +678,4 @@ const styles = StyleSheet.create({
     sheetButtonDisabled: {
         opacity: 0.5,
     },
-});
+}));

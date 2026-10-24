@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback, useContext } from 'react';
 import {
     View,
-    TouchableOpacity,
+    Pressable,
     StyleSheet,
 } from 'react-native';
 import { AppText as Text } from '../AppText';
@@ -161,17 +161,18 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                 {COMMON_PRESETS.map((p) => {
                     const isCurrent = currentTime24 === p;
                     return (
-                        <TouchableOpacity
+                        <Pressable
                             key={p}
                             onPress={() => handlePreset(p)}
-                            style={[
+                            style={({ pressed }: { pressed: boolean }) => [
                                 styles.presetChip,
                                 {
                                     backgroundColor: isCurrent ? theme.colors.brand : theme.colors.surfaceSubtle,
                                     borderColor: isCurrent ? theme.colors.brand : theme.colors.border,
                                 },
+                                pressed && { opacity: 0.8, transform: [{ scale: 0.96 }] },
                             ]}
-                            activeOpacity={0.75}
+                            accessibilityRole="button"
                         >
                             <Text
                                 style={[
@@ -181,7 +182,7 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                             >
                                 {formatTimeDisplay(p)}
                             </Text>
-                        </TouchableOpacity>
+                        </Pressable>
                     );
                 })}
             </View>
@@ -190,15 +191,19 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
             <View style={styles.stepperContainer}>
                 {/* Hours Column */}
                 <View style={styles.stepperCol}>
-                    <TouchableOpacity
+                    <Pressable
                         onPress={() => stepHour(1)}
-                        style={[styles.stepperArrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
+                        style={({ pressed }: { pressed: boolean }) => [
+                            styles.stepperArrowBtn,
+                            { backgroundColor: theme.colors.surfaceSubtle },
+                            pressed && { opacity: 0.7, transform: [{ scale: 0.92 }] },
+                        ]}
                         accessibilityRole="button"
                         accessibilityLabel="Increment hour"
-                        activeOpacity={0.7}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                         <ChevronUp color={theme.colors.textPrimary} size={22} />
-                    </TouchableOpacity>
+                    </Pressable>
 
                     <View style={[styles.stepperValueBox, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}>
                         <Text style={[styles.stepperValueText, { color: theme.colors.textPrimary }]}>
@@ -206,15 +211,19 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                         </Text>
                     </View>
 
-                    <TouchableOpacity
+                    <Pressable
                         onPress={() => stepHour(-1)}
-                        style={[styles.stepperArrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
+                        style={({ pressed }: { pressed: boolean }) => [
+                            styles.stepperArrowBtn,
+                            { backgroundColor: theme.colors.surfaceSubtle },
+                            pressed && { opacity: 0.7, transform: [{ scale: 0.92 }] },
+                        ]}
                         accessibilityRole="button"
                         accessibilityLabel="Decrement hour"
-                        activeOpacity={0.7}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                         <ChevronDown color={theme.colors.textPrimary} size={22} />
-                    </TouchableOpacity>
+                    </Pressable>
 
                     <Text style={[styles.stepperUnitLabel, { color: theme.colors.textSecondary }]}>
                         HOUR
@@ -225,15 +234,19 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
 
                 {/* Minutes Column */}
                 <View style={styles.stepperCol}>
-                    <TouchableOpacity
+                    <Pressable
                         onPress={() => stepMinute(5)}
-                        style={[styles.stepperArrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
+                        style={({ pressed }: { pressed: boolean }) => [
+                            styles.stepperArrowBtn,
+                            { backgroundColor: theme.colors.surfaceSubtle },
+                            pressed && { opacity: 0.7, transform: [{ scale: 0.92 }] },
+                        ]}
                         accessibilityRole="button"
                         accessibilityLabel="Increment minutes by 5"
-                        activeOpacity={0.7}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                         <ChevronUp color={theme.colors.textPrimary} size={22} />
-                    </TouchableOpacity>
+                    </Pressable>
 
                     <View style={[styles.stepperValueBox, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}>
                         <Text style={[styles.stepperValueText, { color: theme.colors.textPrimary }]}>
@@ -241,15 +254,19 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                         </Text>
                     </View>
 
-                    <TouchableOpacity
+                    <Pressable
                         onPress={() => stepMinute(-5)}
-                        style={[styles.stepperArrowBtn, { backgroundColor: theme.colors.surfaceSubtle }]}
+                        style={({ pressed }: { pressed: boolean }) => [
+                            styles.stepperArrowBtn,
+                            { backgroundColor: theme.colors.surfaceSubtle },
+                            pressed && { opacity: 0.7, transform: [{ scale: 0.92 }] },
+                        ]}
                         accessibilityRole="button"
                         accessibilityLabel="Decrement minutes by 5"
-                        activeOpacity={0.7}
+                        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                     >
                         <ChevronDown color={theme.colors.textPrimary} size={22} />
-                    </TouchableOpacity>
+                    </Pressable>
 
                     <Text style={[styles.stepperUnitLabel, { color: theme.colors.textSecondary }]}>
                         MIN
@@ -259,13 +276,13 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                 {/* AM / PM Segmented Control */}
                 <View style={styles.periodCol}>
                     <View style={[styles.periodSegmentContainer, { backgroundColor: theme.colors.surfaceSubtle, borderColor: theme.colors.border }]}>
-                        <TouchableOpacity
+                        <Pressable
                             onPress={() => handleSetPeriod('AM')}
-                            style={[
+                            style={({ pressed }: { pressed: boolean }) => [
                                 styles.periodSegmentBtn,
                                 period === 'AM' && [styles.periodSegmentBtnActive, { backgroundColor: theme.colors.brand }],
+                                pressed && { opacity: 0.8 },
                             ]}
-                            activeOpacity={0.8}
                             accessibilityRole="button"
                             accessibilityState={{ selected: period === 'AM' }}
                         >
@@ -277,15 +294,15 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                             >
                                 AM
                             </Text>
-                        </TouchableOpacity>
+                        </Pressable>
 
-                        <TouchableOpacity
+                        <Pressable
                             onPress={() => handleSetPeriod('PM')}
-                            style={[
+                            style={({ pressed }: { pressed: boolean }) => [
                                 styles.periodSegmentBtn,
                                 period === 'PM' && [styles.periodSegmentBtnActive, { backgroundColor: theme.colors.brand }],
+                                pressed && { opacity: 0.8 },
                             ]}
-                            activeOpacity={0.8}
                             accessibilityRole="button"
                             accessibilityState={{ selected: period === 'PM' }}
                         >
@@ -297,7 +314,7 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                             >
                                 PM
                             </Text>
-                        </TouchableOpacity>
+                        </Pressable>
                     </View>
 
                     <Text style={[styles.stepperUnitLabel, { color: theme.colors.textSecondary }]}>
@@ -311,20 +328,22 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                 {MINUTE_PRESETS.map((m) => {
                     const isMatch = minute === m;
                     return (
-                        <TouchableOpacity
+                        <Pressable
                             key={m}
                             onPress={() => {
                                 setMinute(m);
                                 Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
                             }}
-                            style={[
+                            style={({ pressed }: { pressed: boolean }) => [
                                 styles.minuteChip,
                                 {
                                     backgroundColor: isMatch ? theme.colors.brandSubtle : theme.colors.surfaceSubtle,
                                     borderColor: isMatch ? theme.colors.brand : theme.colors.border,
                                 },
+                                pressed && { opacity: 0.8, transform: [{ scale: 0.94 }] },
                             ]}
-                            activeOpacity={0.7}
+                            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                            accessibilityRole="button"
                         >
                             <Text
                                 style={[
@@ -334,7 +353,7 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                             >
                                 :{m < 10 ? `0${m}` : m}
                             </Text>
-                        </TouchableOpacity>
+                        </Pressable>
                     );
                 })}
             </View>
@@ -349,12 +368,11 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                 </Text>
             )}
 
-            <TouchableOpacity
+            <Pressable
                 onPress={handlePress}
-                activeOpacity={0.75}
                 accessibilityRole="button"
                 accessibilityLabel={`${label || 'Select Time'}: ${formattedDisplay}`}
-                style={[
+                style={({ pressed }: { pressed: boolean }) => [
                     styles.fieldWrapper,
                     {
                         backgroundColor: theme.colors.surface,
@@ -364,6 +382,7 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                             ? theme.colors.brand
                             : theme.colors.border,
                     },
+                    pressed && { opacity: 0.8 },
                 ]}
             >
                 <View style={styles.fieldContent}>
@@ -387,7 +406,7 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                         <ChevronDown size={17} color={theme.colors.textSecondary} />
                     </View>
                 )}
-            </TouchableOpacity>
+            </Pressable>
 
             {error && (
                 <Text style={[styles.errorText, { color: theme.colors.status.danger }]}>
@@ -408,15 +427,19 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                 >
                     {renderPickerControls()}
 
-                    <TouchableOpacity
+                    <Pressable
                         onPress={handleConfirm}
-                        style={[styles.confirmBtn, { backgroundColor: theme.colors.brand, marginTop: 12 }]}
-                        activeOpacity={0.85}
+                        style={({ pressed }: { pressed: boolean }) => [
+                            styles.confirmBtn,
+                            { backgroundColor: theme.colors.brand, marginTop: 12 },
+                            pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+                        ]}
+                        accessibilityRole="button"
                     >
                         <Text style={styles.confirmBtnText}>
                             Set {modalDisplayTime}
                         </Text>
-                    </TouchableOpacity>
+                    </Pressable>
                 </View>
             )}
 
@@ -427,15 +450,19 @@ export const NativeTimePickerField: React.FC<NativeTimePickerFieldProps> = ({
                     onClose={() => setModalVisible(false)}
                     title={label || 'Select Time'}
                     footer={
-                        <TouchableOpacity
+                        <Pressable
                             onPress={handleConfirm}
-                            style={[styles.confirmBtn, { backgroundColor: theme.colors.brand }]}
-                            activeOpacity={0.85}
+                            style={({ pressed }: { pressed: boolean }) => [
+                                styles.confirmBtn,
+                                { backgroundColor: theme.colors.brand },
+                                pressed && { opacity: 0.85, transform: [{ scale: 0.98 }] },
+                            ]}
+                            accessibilityRole="button"
                         >
                             <Text style={styles.confirmBtnText}>
                                 Select {modalDisplayTime}
                             </Text>
-                        </TouchableOpacity>
+                        </Pressable>
                     }
                 >
                     {renderPickerControls()}

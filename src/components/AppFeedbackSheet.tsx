@@ -6,7 +6,7 @@ import {
     Alert,
     Platform,
     Dimensions,
-    TouchableOpacity,
+    Pressable,
     StyleSheet,
     Keyboard,
     ScrollView,
@@ -91,15 +91,16 @@ export const AppFeedbackSheet: React.FC<AppFeedbackSheetProps> = ({ visible, onC
             scrollViewRef={scrollViewRef}
             title={t('app_feedback', 'App Feedback')}
             footer={
-                <TouchableOpacity
-                    style={[
+                <Pressable
+                    style={({ pressed }: { pressed: boolean }) => [
                         styles.submitBtn,
                         { backgroundColor: primaryColor },
                         (!message.trim() || isSubmitting) && styles.submitBtnDisabled,
+                        pressed && message.trim() && !isSubmitting && { opacity: 0.85, transform: [{ scale: 0.98 }] },
                     ]}
                     onPress={handleSubmit}
                     disabled={!message.trim() || isSubmitting}
-                    activeOpacity={0.85}
+                    accessibilityRole="button"
                 >
                     {isSubmitting ? (
                         <ActivityIndicator color="#FFFFFF" size="small" />
@@ -109,7 +110,7 @@ export const AppFeedbackSheet: React.FC<AppFeedbackSheetProps> = ({ visible, onC
                             <Text style={styles.submitBtnText}>{t('send_feedback', 'Send Feedback')}</Text>
                         </>
                     )}
-                </TouchableOpacity>
+                </Pressable>
             }
         >
             {/* Hero Header - Adaptive between full view and compact typing mode */}

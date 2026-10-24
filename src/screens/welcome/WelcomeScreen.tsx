@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
     View,
-    TouchableOpacity,
+    Pressable,
     StatusBar,
-    StyleSheet,
     Image,
     Platform,
     ScrollView,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useUnistyles } from 'react-native-unistyles';
+import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 
 import * as Haptics from 'expo-haptics';
 import {
@@ -32,6 +31,7 @@ import { ENV } from '../../config/env';
 export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const { isDark, toggleTheme } = useAppTheme();
     const { theme } = useUnistyles();
+    const styles = stylesheet;
     const { t, locale, setLocale } = useTranslation();
     const { hasCompletedOnboarding } = useAuth();
 
@@ -103,7 +103,7 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     };
 
     return (
-        <SafeAreaView {...({ style: [styles.container, { backgroundColor: theme.colors.background }] } as any)}>
+        <SafeAreaView {...({ style: styles.container } as any)}>
             <StatusBar
                 barStyle={isDark ? 'light-content' : 'dark-content'}
                 backgroundColor={theme.colors.background}
@@ -117,41 +117,37 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                 {/* Top Utility Bar */}
                 <View style={styles.topBar}>
                     {/* Language Switcher */}
-                    <TouchableOpacity
-                        style={[
+                    <Pressable
+                        style={({ pressed }: { pressed: boolean }) => [
                             styles.utilityButton,
-                            {
-                                backgroundColor: theme.colors.surface,
-                                borderColor: theme.colors.border,
-                            },
+                            pressed && styles.buttonPressed,
                         ]}
                         onPress={toggleLanguage}
-                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel="Switch language"
                     >
                         <Globe size={16} color={theme.colors.textPrimary} />
-                        <AppText style={[styles.utilityButtonText, { color: theme.colors.textPrimary }]}>
+                        <AppText style={styles.utilityButtonText}>
                             {locale === 'en' ? 'ភាសាខ្មែរ' : 'English'}
                         </AppText>
-                    </TouchableOpacity>
+                    </Pressable>
 
                     {/* Theme Mode Switcher */}
-                    <TouchableOpacity
-                        style={[
+                    <Pressable
+                        style={({ pressed }: { pressed: boolean }) => [
                             styles.iconButton,
-                            {
-                                backgroundColor: theme.colors.surface,
-                                borderColor: theme.colors.border,
-                            },
+                            pressed && styles.buttonPressed,
                         ]}
                         onPress={toggleTheme}
-                        activeOpacity={0.7}
+                        accessibilityRole="button"
+                        accessibilityLabel="Toggle dark/light theme"
                     >
                         {isDark ? (
                             <Sun size={18} color="#FBBF24" />
                         ) : (
                             <Moon size={18} color="#6366F1" />
                         )}
-                    </TouchableOpacity>
+                    </Pressable>
                 </View>
 
                 {/* Hero / Brand Section */}
@@ -165,16 +161,16 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                     </View>
 
                     <View style={styles.brandTitleContainer}>
-                        <AppText style={[styles.brandTitle, { color: theme.colors.textPrimary }]}>
+                        <AppText style={styles.brandTitle}>
                             {ENV.APP_NAME || 'SCCG Mobile App'}
                         </AppText>
                     </View>
 
                     <View>
-                        <AppText style={[styles.heroHeadline, { color: theme.colors.textPrimary }]}>
+                        <AppText style={styles.heroHeadline}>
                             {t('welcome_title')}
                         </AppText>
-                        <AppText style={[styles.heroSubtitle, { color: theme.colors.textSecondary }]}>
+                        <AppText style={styles.heroSubtitle}>
                             {t('welcome_subtitle')}
                         </AppText>
                     </View>
@@ -185,10 +181,9 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                     {/* Legal Confirmation Checkbox & Links Row */}
                     <View style={styles.legalContainer}>
                         <View style={styles.legalCheckboxRow}>
-                            <TouchableOpacity
+                            <Pressable
                                 onPress={toggleTermsAcceptance}
-                                activeOpacity={0.75}
-                                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
                                 accessibilityRole="checkbox"
                                 accessibilityState={{ checked: isTermsAccepted }}
                                 accessibilityLabel={t('legal_agree_prefix')}
@@ -196,33 +191,23 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                                 <View
                                     style={[
                                         styles.checkbox,
-                                        {
-                                            borderColor: validationError
-                                                ? theme.colors.status.danger
-                                                : isTermsAccepted
-                                                ? theme.colors.primary
-                                                : theme.colors.borderStrong,
-                                            backgroundColor: isTermsAccepted
-                                                ? theme.colors.primary
-                                                : isDark
-                                                ? '#1F2430'
-                                                : '#FFFFFF',
-                                        },
+                                        isTermsAccepted && styles.checkboxChecked,
+                                        validationError && styles.checkboxError,
                                     ]}
                                 >
                                     {isTermsAccepted && (
                                         <Check size={13} color="#FFFFFF" strokeWidth={3} />
                                     )}
                                 </View>
-                            </TouchableOpacity>
+                            </Pressable>
 
                             <View style={styles.legalTextContainer}>
-                                <AppText style={[styles.legalText, { color: theme.colors.textSecondary }]}>
+                                <AppText style={styles.legalText}>
                                     <AppText onPress={toggleTermsAcceptance}>
                                         {t('legal_agree_prefix', 'I have read and agree to the')}{' '}
                                     </AppText>
                                     <AppText
-                                        style={[styles.legalLink, { color: theme.colors.primary }]}
+                                        style={styles.legalLink}
                                         onPress={() => setLegalSheetType('terms')}
                                     >
                                         {t('terms_of_service', 'Terms of Service')}
@@ -231,7 +216,7 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                                         {' '}{t('legal_agree_and', 'and')}{' '}
                                     </AppText>
                                     <AppText
-                                        style={[styles.legalLink, { color: theme.colors.primary }]}
+                                        style={styles.legalLink}
                                         onPress={() => setLegalSheetType('privacy')}
                                     >
                                         {t('privacy_policy', 'Privacy Policy')}
@@ -246,7 +231,7 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                         {/* Inline Error Notice */}
                         {validationError && (
                             <View style={styles.validationNotice}>
-                                <AppText style={[styles.validationText, { color: theme.colors.status.danger }]}>
+                                <AppText style={styles.validationText}>
                                     {t('legal_terms_required', 'Please agree to the Terms of Service & Privacy Policy to continue.')}
                                 </AppText>
                             </View>
@@ -254,49 +239,49 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                     </View>
 
                     {/* Primary Button */}
-                    <TouchableOpacity
-                        style={[
+                    <Pressable
+                        style={({ pressed }: { pressed: boolean }) => [
                             styles.primaryButton,
-                            { backgroundColor: theme.colors.primary, shadowColor: theme.colors.brand },
+                            pressed && styles.primaryButtonPressed,
                         ]}
                         onPress={handleGetStarted}
-                        activeOpacity={0.85}
+                        accessibilityRole="button"
                     >
-                        <AppText style={[styles.primaryButtonText, { color: theme.colors.onPrimary }]}>
+                        <AppText style={styles.primaryButtonText}>
                             {t('get_started')}
                         </AppText>
                         <ArrowRight size={18} color={theme.colors.onPrimary} />
-                    </TouchableOpacity>
+                    </Pressable>
 
                     {/* Secondary Button (Sign In) */}
-                    <TouchableOpacity
-                        style={[
+                    <Pressable
+                        style={({ pressed }: { pressed: boolean }) => [
                             styles.secondaryButton,
-                            {
-                                backgroundColor: theme.colors.surface,
-                                borderColor: theme.colors.border,
-                            },
+                            pressed && styles.buttonPressed,
                         ]}
                         onPress={handleSignIn}
-                        activeOpacity={0.75}
+                        accessibilityRole="button"
                     >
                         <LogIn size={18} color={theme.colors.textPrimary} />
-                        <AppText style={[styles.secondaryButtonText, { color: theme.colors.textPrimary }]}>
+                        <AppText style={styles.secondaryButtonText}>
                             {t('sign_in')}
                         </AppText>
-                    </TouchableOpacity>
+                    </Pressable>
 
                     {/* QR Code Quick Login */}
-                    <TouchableOpacity
-                        style={styles.qrButton}
+                    <Pressable
+                        style={({ pressed }: { pressed: boolean }) => [
+                            styles.qrButton,
+                            pressed && { opacity: 0.6 },
+                        ]}
                         onPress={handleQrLogin}
-                        activeOpacity={0.7}
+                        accessibilityRole="button"
                     >
                         <QrCode size={16} color={theme.colors.textSecondary} />
-                        <AppText style={[styles.qrButtonText, { color: theme.colors.textSecondary }]}>
+                        <AppText style={styles.qrButtonText}>
                             {t('scan_qr_login')}
                         </AppText>
-                    </TouchableOpacity>
+                    </Pressable>
                 </View>
             </ScrollView>
 
@@ -312,9 +297,10 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     );
 };
 
-const styles = StyleSheet.create({
+const stylesheet = StyleSheet.create((theme) => ({
     container: {
         flex: 1,
+        backgroundColor: theme.colors.background,
     },
     scrollContent: {
         flexGrow: 1,
@@ -336,19 +322,28 @@ const styles = StyleSheet.create({
         paddingVertical: 8,
         borderRadius: 20,
         borderWidth: 1,
+        backgroundColor: theme.colors.surface,
+        borderColor: theme.colors.border,
         gap: 6,
     },
     utilityButtonText: {
         fontSize: 13,
         fontWeight: '600',
+        color: theme.colors.textPrimary,
     },
     iconButton: {
         width: 38,
         height: 38,
         borderRadius: 19,
         borderWidth: 1,
+        backgroundColor: theme.colors.surface,
+        borderColor: theme.colors.border,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    buttonPressed: {
+        opacity: 0.75,
+        transform: [{ scale: 0.98 }],
     },
     heroSection: {
         alignItems: 'center',
@@ -373,6 +368,7 @@ const styles = StyleSheet.create({
         fontSize: 22,
         fontWeight: '800',
         letterSpacing: -0.3,
+        color: theme.colors.textPrimary,
     },
     heroHeadline: {
         fontSize: 26,
@@ -380,12 +376,14 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         lineHeight: 34,
         marginBottom: 12,
+        color: theme.colors.textPrimary,
     },
     heroSubtitle: {
         fontSize: 14,
         lineHeight: 22,
         textAlign: 'center',
         paddingHorizontal: 16,
+        color: theme.colors.textSecondary,
     },
     actionsSection: {
         width: '100%',
@@ -399,11 +397,28 @@ const styles = StyleSheet.create({
         minHeight: 52,
         paddingVertical: 12,
         borderRadius: 14,
+        backgroundColor: theme.colors.primary,
         gap: 8,
+        ...Platform.select({
+            ios: {
+                shadowColor: theme.colors.brand,
+                shadowOffset: { width: 0, height: 4 },
+                shadowOpacity: 0.28,
+                shadowRadius: 8,
+            },
+            android: {
+                elevation: 4,
+            },
+        }),
+    },
+    primaryButtonPressed: {
+        opacity: 0.9,
+        transform: [{ scale: 0.99 }],
     },
     primaryButtonText: {
         fontSize: 16,
         fontWeight: '700',
+        color: theme.colors.onPrimary,
     },
     secondaryButton: {
         flexDirection: 'row',
@@ -413,11 +428,14 @@ const styles = StyleSheet.create({
         paddingVertical: 12,
         borderRadius: 14,
         borderWidth: 1,
+        backgroundColor: theme.colors.surface,
+        borderColor: theme.colors.border,
         gap: 8,
     },
     secondaryButtonText: {
         fontSize: 15,
         fontWeight: '600',
+        color: theme.colors.textPrimary,
     },
     qrButton: {
         flexDirection: 'row',
@@ -430,6 +448,7 @@ const styles = StyleSheet.create({
     qrButtonText: {
         fontSize: 13,
         fontWeight: '500',
+        color: theme.colors.textSecondary,
     },
     legalContainer: {
         width: '100%',
@@ -445,10 +464,19 @@ const styles = StyleSheet.create({
         width: 20,
         height: 20,
         borderRadius: 6,
-        borderWidth: 1,
+        borderWidth: 1.5,
+        borderColor: theme.colors.borderStrong,
+        backgroundColor: theme.colors.surface,
         justifyContent: 'center',
         alignItems: 'center',
         flexShrink: 0,
+    },
+    checkboxChecked: {
+        borderColor: theme.colors.primary,
+        backgroundColor: theme.colors.primary,
+    },
+    checkboxError: {
+        borderColor: theme.colors.status.danger,
     },
     legalTextContainer: {
         flex: 1,
@@ -456,10 +484,12 @@ const styles = StyleSheet.create({
     legalText: {
         fontSize: 12.5,
         lineHeight: 18,
+        color: theme.colors.textSecondary,
     },
     legalLink: {
         fontWeight: '700',
         textDecorationLine: 'underline',
+        color: theme.colors.primary,
     },
     validationNotice: {
         marginTop: 6,
@@ -469,5 +499,6 @@ const styles = StyleSheet.create({
         fontSize: 12,
         fontWeight: '600',
         lineHeight: 16,
+        color: theme.colors.status.danger,
     },
-});
+}));

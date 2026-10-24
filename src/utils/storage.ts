@@ -100,16 +100,26 @@ export const appStorage = {
     },
 };
 
-// Sensitive keys that must always use SecureStore
-const SENSITIVE_KEYS = new Set(['hrms_employee_auth_token']);
+// Sensitive keys that must always use SecureStore (Hardware-backed encrypted storage)
+const SENSITIVE_KEYS = new Set(['hrms_employee_auth_token', 'hrms_employee_user_data']);
 
 /**
- * Unified storage router for backward compatibility
+ * Unified storage router with automatic encryption for sensitive credentials and user models
  */
 export const storage = {
     async getItem(key: string): Promise<string | null> {
         if (SENSITIVE_KEYS.has(key)) {
-            return secureStorage.getItem(key);
+            const secureVal = await secureStorage.getItem(key);
+            if (secureVal !== null) return secureVal;
+            // Migration fallback: check appStorage for legacy unencrypted session
+            const legacyVal = await appStorage.getItem(key);
+            if (legacyVal !== null) {
+                // Automatically promote to secureStorage and clean up unencrypted copy
+                await secureStorage.setItem(key, legacyVal);
+                await appStorage.removeItem(key);
+                return legacyVal;
+            }
+            return null;
         }
         // First check appStorage; if migrating, fallback to secureStorage
         const val = await appStorage.getItem(key);
@@ -119,6 +129,8 @@ export const storage = {
 
     async setItem(key: string, value: string): Promise<void> {
         if (SENSITIVE_KEYS.has(key)) {
+            // Guarantee unencrypted legacy copy is erased when new sensitive item is set
+            await appStorage.removeItem(key);
             return secureStorage.setItem(key, value);
         }
         return appStorage.setItem(key, value);
@@ -126,7 +138,11 @@ export const storage = {
 
     async removeItem(key: string): Promise<void> {
         if (SENSITIVE_KEYS.has(key)) {
-            return secureStorage.removeItem(key);
+            await Promise.all([
+                secureStorage.removeItem(key),
+                appStorage.removeItem(key),
+            ]);
+            return;
         }
         await Promise.all([
             appStorage.removeItem(key),

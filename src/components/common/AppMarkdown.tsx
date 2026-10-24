@@ -2,7 +2,6 @@ import React from 'react';
 import {
     View,
     StyleSheet,
-    TouchableOpacity,
     Linking,
 } from 'react-native';
 import { AppText as Text } from '../AppText';

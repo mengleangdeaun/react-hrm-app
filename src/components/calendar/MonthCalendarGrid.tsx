@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { View, TouchableOpacity } from 'react-native';
+import { View, Pressable } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { AppText as Text } from '../AppText';
 import {
@@ -151,8 +151,8 @@ export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
                                 !isCurrentMonth && styles.dayCellInactive,
                             ]}
                         >
-                            <TouchableOpacity
-                                style={[
+                            <Pressable
+                                style={({ pressed }: { pressed: boolean }) => [
                                     styles.dayCellInner,
                                     isSelected && {
                                         backgroundColor: primaryColor,
@@ -164,9 +164,9 @@ export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
                                         borderWidth: 1.5,
                                         borderColor: primaryColor,
                                     },
+                                    pressed && { opacity: 0.75, transform: [{ scale: 0.94 }] },
                                 ]}
                                 onPress={() => onSelectDate(date)}
-                                activeOpacity={0.7}
                                 accessibilityRole="button"
                                 accessibilityLabel={`${formatDateDisplay(date, 'full')}${statusDescriptions ? `, ${statusDescriptions}` : ''}${isSelected ? ', selected' : ''}`}
                                 accessibilityState={{ selected: isSelected }}
@@ -223,7 +223,7 @@ export const MonthCalendarGrid: React.FC<MonthCalendarGridProps> = ({
                                         )}
                                     </View>
                                 )}
-                            </TouchableOpacity>
+                            </Pressable>
                         </View>
                     );
                 })}
