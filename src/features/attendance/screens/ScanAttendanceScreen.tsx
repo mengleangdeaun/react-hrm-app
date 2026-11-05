@@ -68,8 +68,11 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
     const { evaluateGuard, reasonPresets, shiftPhase } = useAttendanceGuard();
     const routeReason = route?.params?.reason;
     const [activeReason, setActiveReason] = useState<string>(routeReason || '');
-    // guardReady starts false so camera never mounts before the guard check runs
-    const [guardReady, setGuardReady] = useState<boolean>(false);
+    // Synchronously check guard so camera does not unmount/flash when no reason is needed
+    const [guardReady, setGuardReady] = useState<boolean>(() => {
+        const initialGuard = evaluateGuard(new Date());
+        return !(initialGuard.require_reason && (initialGuard.type === 'late' || initialGuard.type === 'early_departure') && !routeReason);
+    });
 
     const isFocused = useIsFocused();
     const [isSuccess, setIsSuccess] = useState<boolean>(false);
@@ -136,15 +139,14 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
             setActiveReason(paramReason);
 
             // -- Issue 2 Fix: Evaluate guard BEFORE activating the camera.
-            // guardReady starts false, so the camera is not mounted yet.
-            // We check here whether a reason is mandatory for the current punch type.
-            setGuardReady(false);
+            // Check here whether a reason is mandatory for the current punch type.
             const guard = evaluateGuardRef.current(new Date());
             if (!paramReason && guard.require_reason && (guard.type === 'late' || guard.type === 'early_departure')) {
                 // Reason is required — show modal first. Camera stays off (guardReady = false).
                 setReasonType(guard.type);
                 setDelayMinutes(guard.minutes);
                 setReasonModalVisible(true);
+                setGuardReady(false);
             } else {
                 // No guard needed — allow camera to mount immediately.
                 setGuardReady(true);

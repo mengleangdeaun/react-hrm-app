@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useMemo, useCallback } from 'react';
+import { Appearance } from 'react-native';
 import { UnistylesRuntime } from 'react-native-unistyles';
 import { storage } from '../utils/storage';
 import { lightTheme, darkTheme } from '../styles/theme';
@@ -34,9 +35,13 @@ const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const FontSizeContext = createContext<FontSizeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(
-        (UnistylesRuntime.themeName as 'light' | 'dark') || 'light'
-    );
+    const [currentTheme, setCurrentTheme] = useState<'light' | 'dark'>(() => {
+        const unistylesTheme = UnistylesRuntime.themeName as 'light' | 'dark';
+        if (unistylesTheme === 'light' || unistylesTheme === 'dark') {
+            return unistylesTheme;
+        }
+        return Appearance.getColorScheme() === 'dark' ? 'dark' : 'light';
+    });
     const [fontSizeId, setFontSizeState] = useState<FontSizeScaleId>('medium');
 
     useEffect(() => {
@@ -46,8 +51,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const loadSavedTheme = async () => {
         try {
             const savedTheme = await storage.getItem(THEME_KEY);
+            const systemScheme = Appearance.getColorScheme() === 'dark' ? 'dark' : 'light';
             const activeTheme: 'light' | 'dark' =
-                savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : 'light';
+                savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : systemScheme;
             UnistylesRuntime.setTheme(activeTheme);
             setCurrentTheme(activeTheme);
 

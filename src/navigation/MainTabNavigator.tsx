@@ -52,8 +52,9 @@ const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
 function DashboardStack() {
+    const { theme } = useUnistyles();
     return (
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.colors.background } }}>
             <Stack.Screen name="DashboardMain" component={DashboardScreen} />
             <Stack.Screen name="History" component={HistoryScreen} />
             <Stack.Screen name="LeaveList" component={LeaveListScreen} />
@@ -75,8 +76,9 @@ function DashboardStack() {
 }
 
 function CalendarStack() {
+    const { theme } = useUnistyles();
     return (
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.colors.background } }}>
             <Stack.Screen name="ScheduleCalendarMain" component={ScheduleCalendarScreen} />
             <Stack.Screen name="CreateLeave" component={CreateLeaveScreen} />
             <Stack.Screen name="LeaveList" component={LeaveListScreen} />
@@ -85,8 +87,9 @@ function CalendarStack() {
 }
 
 function NotificationStack() {
+    const { theme } = useUnistyles();
     return (
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.colors.background } }}>
             <Stack.Screen name="NotificationList" component={NotificationListScreen} />
             <Stack.Screen name="AnnouncementDetail" component={AnnouncementDetailScreen} />
             <Stack.Screen name="LeaveList" component={LeaveListScreen} />
@@ -101,8 +104,9 @@ function NotificationStack() {
 }
 
 function ProfileStack() {
+    const { theme } = useUnistyles();
     return (
-        <Stack.Navigator screenOptions={{ headerShown: false }}>
+        <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.colors.background } }}>
             <Stack.Screen name="ProfileMain" component={ProfileScreen} />
             <Stack.Screen name="Settings" component={SettingsScreen} />
             <Stack.Screen name="OnboardingTour" component={OnboardingScreen} />
@@ -343,16 +347,24 @@ const MemoizedCustomTabBar = React.memo(CustomTabBar);
 const renderTabBar = (props: any) => <MemoizedCustomTabBar {...props} />;
 
 export function MainTabNavigator() {
+    const { theme } = useUnistyles();
     return (
         <Tab.Navigator
             tabBar={renderTabBar}
             screenOptions={{
                 headerShown: false,
+                sceneStyle: { backgroundColor: theme.colors.background },
             }}
         >
             <Tab.Screen name="HomeTab" component={DashboardStack} />
             <Tab.Screen name="CalendarTab" component={CalendarStack} />
-            <Tab.Screen name="ScanTab" component={ScanAttendanceScreen} />
+            <Tab.Screen
+                name="ScanTab"
+                component={ScanAttendanceScreen}
+                options={{
+                    tabBarStyle: { display: 'none' },
+                }}
+            />
             <Tab.Screen name="NotiTab" component={NotificationStack} />
             <Tab.Screen name="ProfileTab" component={ProfileStack} />
         </Tab.Navigator>

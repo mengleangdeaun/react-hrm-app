@@ -99,7 +99,9 @@ const OnboardingSlideItem = React.memo<{
     width: number;
     title: string;
     description: string;
-}>(({ item, width, title, description }) => {
+    isDark: boolean;
+}>(({ item, width, title, description, isDark }) => {
+    const { theme } = useUnistyles();
     const IllustrationComponent = item.illustration;
     const illustrationSize = Math.min(width * 0.72, 260);
     const styles = stylesheet;
@@ -112,7 +114,7 @@ const OnboardingSlideItem = React.memo<{
                 bounces={false}
             >
                 <View style={styles.illustrationWrapper}>
-                    <IllustrationComponent size={illustrationSize} />
+                    <IllustrationComponent size={illustrationSize} isDark={isDark} />
                 </View>
 
                 <View style={styles.textContent}>
@@ -247,9 +249,10 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                 width={width}
                 title={t(item.titleKey)}
                 description={t(item.descKey)}
+                isDark={isDark}
             />
         ),
-        [width, t]
+        [width, t, isDark]
     );
 
     const keyExtractor = useCallback((item: SlideItem) => item.id, []);
@@ -331,6 +334,7 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
             <Animated.FlatList
                 ref={flatListRef}
                 data={SLIDES}
+                extraData={isDark}
                 keyExtractor={keyExtractor}
                 horizontal
                 pagingEnabled

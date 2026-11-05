@@ -1,5 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { AppShell } from '../../../components/common/AppShell';
 import { DashboardSkeleton } from '../../../components/common/Skeletons';
 import { useAppTheme } from '../../../context/ThemeContext';
@@ -85,7 +86,15 @@ export const DashboardScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                         out2={out2}
                         proactiveStatus={proactiveStatus}
                         shiftPhase={shiftPhase}
-                        onScanPress={() => navigation.navigate('ScanTab')}
+                        onScanPress={() => {
+                            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+                            const parentNav = navigation.getParent();
+                            if (parentNav) {
+                                parentNav.navigate('ScanTab');
+                            } else {
+                                navigation.navigate('ScanTab');
+                            }
+                        }}
                     />
 
                     {/* Dynamic Quick Access Menu */}
