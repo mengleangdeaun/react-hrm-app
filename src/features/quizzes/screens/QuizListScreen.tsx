@@ -310,7 +310,6 @@ export const QuizListScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                     data={isLoading || isError ? [] : currentData}
                     renderItem={renderItem}
                     keyExtractor={keyExtractor}
-                    estimatedItemSize={175}
                     ListEmptyComponent={emptyComponent}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.listContent}

@@ -1,15 +1,11 @@
 import React, { useState } from 'react';
 import {
     View,
-    ScrollView,
     Pressable,
-    StatusBar,
     Alert,
     ActivityIndicator,
-    RefreshControl,
 } from 'react-native';
 import { Image } from 'expo-image';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import * as ImagePicker from 'expo-image-picker';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -20,7 +16,7 @@ import { profileApi, ProfileData } from '../../../api/profile';
 import { queryKeys } from '../../../api/queryKeys';
 import { AppText as Text } from '../../../components/AppText';
 import { AppShell } from '../../../components/common/AppShell';
-import { AppHeader, HeaderIconButton } from '../../../components/common/AppHeader';
+import { HeaderIconButton } from '../../../components/common/AppHeader';
 import {
     Mail,
     Phone,
@@ -45,7 +41,6 @@ const formatDate = (dateStr: string | null | undefined): string => {
 };
 
 export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-    const insets = useSafeAreaInsets();
     const { user, logout } = useAuth();
     const { isDark, toggleTheme, primaryColor } = useAppTheme();
     const { t } = useTranslation();
@@ -115,7 +110,7 @@ export const ProfileScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     const handleLogoutConfirm = () => {
         Alert.alert(t('sign_out', 'Sign Out'), 'Are you sure you want to sign out of your HR account?', [
             { text: t('cancel', 'Cancel'), style: 'cancel' },
-            { text: t('sign_out', 'Sign Out'), style: 'destructive', onPress: logout },
+            { text: t('sign_out', 'Sign Out'), style: 'destructive', onPress: () => logout() },
         ]);
     };
 

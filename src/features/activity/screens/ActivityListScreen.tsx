@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
+import React, { useState, useRef, useCallback, useMemo, memo } from 'react';
 import {
     View,
     ScrollView,
@@ -6,7 +6,6 @@ import {
     TouchableOpacity,
     Modal,
     Platform,
-    Linking,
     Alert,
     ActivityIndicator,
     useWindowDimensions,
@@ -24,7 +23,7 @@ import { AppText as Text } from '../../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { format, formatDateDisplay, formatTimeDisplay } from '../../../utils/dateTime';
-import { useQuery, useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query';
 import { activityApi, ActivityItem, OFFICIAL_ACTIVITY_TYPES } from '../../../api/activity';
 import { queryKeys } from '../../../api/queryKeys';
 import { useAppTheme } from '../../../context/ThemeContext';
@@ -38,12 +37,9 @@ import { ENV } from '../../../config/env';
 import {
     Plus,
     Activity as ActivityIcon,
-    Calendar,
     MapPin,
     Filter,
     X,
-    Check,
-    CheckCircle2,
     Clock,
     AlertCircle,
     FileText,
@@ -196,38 +192,6 @@ const ActivityCard = memo(({
 
     const CatIcon = CATEGORY_ICONS[item.activity_type] || ActivityIcon;
 
-    const statusConfig = useMemo(() => {
-        const status = item.status || 'submitted';
-        switch (status) {
-            case 'approved':
-                return {
-                    bg: 'rgba(16, 185, 129, 0.12)',
-                    border: 'rgba(16, 185, 129, 0.28)',
-                    text: theme.colors.status.success,
-                    label: t('approved', 'APPROVED'),
-                    Icon: CheckCircle2,
-                };
-            case 'rejected':
-                return {
-                    bg: 'rgba(220, 38, 38, 0.12)',
-                    border: 'rgba(220, 38, 38, 0.28)',
-                    text: theme.colors.status.danger,
-                    label: t('rejected', 'REJECTED'),
-                    Icon: AlertCircle,
-                };
-            default:
-                return {
-                    bg: 'rgba(245, 158, 11, 0.12)',
-                    border: 'rgba(245, 158, 11, 0.28)',
-                    text: '#F59E0B',
-                    label: t('submitted', 'SUBMITTED'),
-                    Icon: Clock,
-                };
-        }
-    }, [item.status, theme, t]);
-
-    const StatusIcon = statusConfig.Icon;
-
     return (
         <View style={styles.card}>
             {/* 1. Hero Image Banner (Full Card Width) */}
@@ -375,12 +339,11 @@ const ActivityCard = memo(({
 
 export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
-    const { isDark, primaryColor } = useAppTheme();
+    const { primaryColor } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
     const { width: screenWidth, height: screenHeight } = useWindowDimensions();
     const cardImageWidth = Math.max(screenWidth - 32, 280);
-    const modalImageWidth = screenWidth;
     const modalImageHeight = Math.round(screenHeight * 0.72);
     const styles = stylesheet;
     const queryClient = useQueryClient();
@@ -483,11 +446,6 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
         return months;
     };
 
-    const formatActivityDateTime = (rawStr?: string) => {
-        if (!rawStr) return 'Recent';
-        return `${formatDateDisplay(rawStr, 'dayMonth')} • ${formatTimeDisplay(rawStr)}`;
-    };
-
     const handleSaveImage = async (url: string) => {
         if (!url) return;
         if (savingUrl) return;
@@ -554,40 +512,6 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
             );
         } finally {
             setSavingUrl(null);
-        }
-    };
-
-    const formatCategoryName = (typeStr: string) => {
-        if (!typeStr) return t('activity', 'Activity');
-        return typeStr;
-    };
-
-    const getStatusStyle = (status: string) => {
-        switch (status) {
-            case 'approved':
-                return {
-                    bg: 'rgba(16, 185, 129, 0.1)',
-                    border: 'rgba(16, 185, 129, 0.2)',
-                    text: theme.colors.status.success,
-                    label: t('approved', 'APPROVED'),
-                    Icon: CheckCircle2,
-                };
-            case 'rejected':
-                return {
-                    bg: 'rgba(239, 68, 68, 0.1)',
-                    border: 'rgba(239, 68, 68, 0.2)',
-                    text: theme.colors.status.danger,
-                    label: t('rejected', 'REJECTED'),
-                    Icon: AlertCircle,
-                };
-            default:
-                return {
-                    bg: 'rgba(245, 158, 11, 0.1)',
-                    border: 'rgba(245, 158, 11, 0.2)',
-                    text: '#F59E0B',
-                    label: t('submitted', 'SUBMITTED'),
-                    Icon: Clock,
-                };
         }
     };
 
@@ -774,7 +698,6 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                 data={isLoading ? [] : activities}
                 keyExtractor={keyExtractor}
                 renderItem={renderItem}
-                estimatedItemSize={380}
                 contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(16, insets.bottom + 8) }]}
                 showsVerticalScrollIndicator={false}
                 ListHeaderComponent={listHeader}
@@ -945,7 +868,7 @@ export const ActivityListScreen: React.FC<{ navigation: any }> = ({ navigation }
                                 <View />
                             )}
 
-                            <TouchableOpacity
+                            <TouchableOpacity hitSlop={2}
                                 style={styles.previewModalCloseBtn}
                                 onPress={closePreviewModal}
                                 activeOpacity={0.8}
@@ -1152,7 +1075,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         gap: 8,
     },
     activeMonthChipText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 13,
         fontWeight: '700',
     },
@@ -1198,7 +1121,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textPrimary,
     },
     monthPillTextSelected: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontWeight: '700',
     },
     tabItemTextActive: {
@@ -1261,7 +1184,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: theme.borderRadius.md,
     },
     createFirstBtnText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontWeight: '700',
         fontSize: 14,
         marginLeft: theme.spacing.xs + 2,
@@ -1327,7 +1250,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         zIndex: 10,
     },
     photoCountBadgeText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 11,
         fontWeight: '700',
     },
@@ -1345,7 +1268,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         gap: 5,
     },
     saveBtnOverlayText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 11,
         fontWeight: '700',
         marginLeft: 2,
@@ -1536,7 +1459,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderColor: 'rgba(255, 255, 255, 0.2)',
     },
     previewModalCounterText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 12,
         fontWeight: '700',
     },
@@ -1564,7 +1487,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         paddingHorizontal: theme.spacing.xl,
     },
     previewModalErrorText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 14,
         fontWeight: '600',
         textAlign: 'center',
@@ -1589,7 +1512,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderColor: 'rgba(255, 255, 255, 0.25)',
     },
     previewModalBottomCloseText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 13,
         fontWeight: '700',
         marginLeft: 6,
@@ -1603,7 +1526,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: theme.borderRadius.full,
     },
     previewModalSaveText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 13,
         fontWeight: '700',
         marginLeft: 6,

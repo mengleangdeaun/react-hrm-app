@@ -17,7 +17,6 @@ import {
     Send,
     Cake,
     PartyPopper,
-    Sparkles,
     Check,
     CheckCircle2,
     ChevronRight,
@@ -75,7 +74,7 @@ export const CelebrationWishScreen: React.FC<{ navigation: any; route: any }> = 
     navigation,
     route,
 }) => {
-    const { isDark, primaryColor } = useAppTheme();
+    const { primaryColor } = useAppTheme();
     const { user } = useAuth();
     const { t, locale } = useTranslation();
     const { theme } = useUnistyles();
@@ -84,7 +83,6 @@ export const CelebrationWishScreen: React.FC<{ navigation: any; route: any }> = 
 
     const paramCelebrant: CelebrantItem | undefined = route?.params?.celebrant;
     const targetCelebrantId = route?.params?.id || route?.params?.celebrantId;
-    const targetType = route?.params?.type;
 
     // Fetch active celebrants for today
     const {

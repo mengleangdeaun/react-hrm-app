@@ -1,9 +1,8 @@
-import React, { useState, useRef, useCallback, memo } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View,
     TouchableOpacity,
     RefreshControl,
-    Modal,
     ScrollView,
 } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
@@ -11,29 +10,20 @@ import { AppText as Text } from '../../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useFocusEffect } from '@react-navigation/native';
 import { AppShell } from '../../../components/common/AppShell';
 import { HeaderIconButton } from '../../../components/common/AppHeader';
 import { AttendanceHistorySkeleton } from '../../../components/common/Skeletons';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { AppBottomSheet } from '../../../components/common/AppBottomSheet';
-import { StatusBadge } from '../../../components/common/StatusBadge';
 import { attendanceApi, HistoryRecord } from '../../../api/attendance';
 import { queryKeys } from '../../../api/queryKeys';
 import * as Haptics from 'expo-haptics';
 import { useAppTheme } from '../../../context/ThemeContext';
 import {
-    Calendar,
-    Check,
-    CheckCircle2,
     AlertTriangle,
-    ArrowDownLeft,
-    ArrowUpRight,
     Filter,
     X,
     Clock,
-    Sparkles,
-    Coffee,
     LayoutList,
     AlarmClockCheck,
     AlarmClockOff,
@@ -41,7 +31,7 @@ import {
     Timer,
     Hourglass,
 } from 'lucide-react-native';
-import { format, formatDateDisplay, formatTimeDisplay } from '../../../utils/dateTime';
+import { format, formatDateDisplay } from '../../../utils/dateTime';
 
 import { useTranslation } from '../../../context/LanguageContext';
 import { HistoryItemCard } from '../components/HistoryItemCard';
@@ -57,7 +47,7 @@ export const AUDIT_CATEGORIES = [
 
 export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
-    const { isDark, primaryColor } = useAppTheme();
+    const { primaryColor } = useAppTheme();
     const { t, locale } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
@@ -259,7 +249,6 @@ export const HistoryScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                     data={isLoading ? [] : historyLogs}
                     keyExtractor={keyExtractor}
                     renderItem={renderItem}
-                    estimatedItemSize={140}
                     contentContainerStyle={[styles.listContent, { paddingBottom: Math.max(16, insets.bottom + 8) }]}
                     showsVerticalScrollIndicator={false}
                     ListHeaderComponent={listHeader}
@@ -435,7 +424,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         gap: 8,
     },
     activeMonthChipText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 13,
         fontWeight: '700',
     },
@@ -723,7 +712,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textPrimary,
     },
     monthPillTextSelected: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontWeight: '700',
     },
     quickFilterCol: {
@@ -787,7 +776,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         width: '100%',
     },
     applyFilterBtnText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 15,
         fontWeight: '700',
     },

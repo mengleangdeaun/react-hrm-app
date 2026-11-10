@@ -30,28 +30,28 @@ import { queryKeys } from '../api/queryKeys';
 // `getComponent`, so its module (and its imports) is evaluated the first time the user opens it
 // instead of during app start. On 2-3 GB Android devices this removes most of the JS work
 // between the splash screen and the first interactive dashboard frame.
-import { DashboardScreen } from '../screens/dashboard/DashboardScreen';
+import { DashboardScreen } from '../features/dashboard/screens/DashboardScreen';
 
 const lazyScreens = {
-    ScanAttendance: () => require('../screens/attendance/ScanAttendanceScreen').ScanAttendanceScreen,
-    History: () => require('../screens/attendance/HistoryScreen').HistoryScreen,
-    ScheduleCalendar: () => require('../screens/calendar/ScheduleCalendarScreen').ScheduleCalendarScreen,
-    Profile: () => require('../screens/profile/ProfileScreen').ProfileScreen,
-    Settings: () => require('../screens/profile/SettingsScreen').SettingsScreen,
-    LeaveList: () => require('../screens/leave/LeaveListScreen').LeaveListScreen,
-    CreateLeave: () => require('../screens/leave/CreateLeaveScreen').CreateLeaveScreen,
-    DayOff: () => require('../screens/leave/DayOffScreen').DayOffScreen,
-    ActivityList: () => require('../screens/activity/ActivityListScreen').ActivityListScreen,
-    CreateActivity: () => require('../screens/activity/CreateActivityScreen').CreateActivityScreen,
-    SubordinateNotices: () => require('../screens/notices/SubordinateNoticesScreen').SubordinateNoticesScreen,
-    Feedback: () => require('../screens/notices/FeedbackScreen').FeedbackScreen,
-    NotificationList: () => require('../screens/notifications/NotificationListScreen').NotificationListScreen,
-    AnnouncementDetail: () => require('../screens/notifications/AnnouncementDetailScreen').AnnouncementDetailScreen,
-    CelebrationWish: () => require('../screens/celebrations/CelebrationWishScreen').CelebrationWishScreen,
-    WishesInbox: () => require('../screens/celebrations/WishesInboxScreen').WishesInboxScreen,
-    QuizList: () => require('../screens/quizzes/QuizListScreen').QuizListScreen,
-    TakeQuiz: () => require('../screens/quizzes/TakeQuizScreen').TakeQuizScreen,
-    QuizResult: () => require('../screens/quizzes/QuizResultScreen').QuizResultScreen,
+    ScanAttendance: () => require('../features/attendance/screens/ScanAttendanceScreen').ScanAttendanceScreen,
+    History: () => require('../features/attendance/screens/HistoryScreen').HistoryScreen,
+    ScheduleCalendar: () => require('../features/calendar/screens/ScheduleCalendarScreen').ScheduleCalendarScreen,
+    Profile: () => require('../features/profile/screens/ProfileScreen').ProfileScreen,
+    Settings: () => require('../features/profile/screens/SettingsScreen').SettingsScreen,
+    LeaveList: () => require('../features/leave/screens/LeaveListScreen').LeaveListScreen,
+    CreateLeave: () => require('../features/leave/screens/CreateLeaveScreen').CreateLeaveScreen,
+    DayOff: () => require('../features/leave/screens/DayOffScreen').DayOffScreen,
+    ActivityList: () => require('../features/activity/screens/ActivityListScreen').ActivityListScreen,
+    CreateActivity: () => require('../features/activity/screens/CreateActivityScreen').CreateActivityScreen,
+    SubordinateNotices: () => require('../features/notices/screens/SubordinateNoticesScreen').SubordinateNoticesScreen,
+    Feedback: () => require('../features/notices/screens/FeedbackScreen').FeedbackScreen,
+    NotificationList: () => require('../features/notifications/screens/NotificationListScreen').NotificationListScreen,
+    AnnouncementDetail: () => require('../features/notifications/screens/AnnouncementDetailScreen').AnnouncementDetailScreen,
+    CelebrationWish: () => require('../features/celebrations/screens/CelebrationWishScreen').CelebrationWishScreen,
+    WishesInbox: () => require('../features/celebrations/screens/WishesInboxScreen').WishesInboxScreen,
+    QuizList: () => require('../features/quizzes/screens/QuizListScreen').QuizListScreen,
+    TakeQuiz: () => require('../features/quizzes/screens/TakeQuizScreen').TakeQuizScreen,
+    QuizResult: () => require('../features/quizzes/screens/QuizResultScreen').QuizResultScreen,
     Onboarding: () => require('../screens/onboarding/OnboardingScreen').OnboardingScreen,
 } as const;
 
@@ -270,7 +270,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                     } else if (shiftPhase === 'break') {
                         HeroIcon = Sun;
                         dynamicHeroLabel = t('back_in', 'Back');
-                        heroColor = '#F59E0B';
+                        heroColor = theme.colors.solid.warning;
                     } else if (shiftPhase === 'session2') {
                         HeroIcon = Moon;
                         dynamicHeroLabel = t('clock_out', 'Out');
@@ -278,7 +278,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                     } else if (shiftPhase === 'done') {
                         HeroIcon = CheckCircle2;
                         dynamicHeroLabel = t('completed', 'Done');
-                        heroColor = '#10B981';
+                        heroColor = theme.colors.solid.success;
                     }
 
                     return (
@@ -303,7 +303,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                                     },
                                 ]}
                             >
-                                <HeroIcon color="#FFFFFF" size={24} strokeWidth={2.4} />
+                                <HeroIcon color={theme.colors.onSolid} size={24} strokeWidth={2.4} />
                             </View>
                             <Text
                                 variant="nav"
@@ -409,7 +409,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         alignItems: 'center',
         ...Platform.select({
             ios: {
-                shadowColor: '#000',
+                shadowColor: theme.colors.shadow,
                 shadowOffset: { width: 0, height: -2 },
                 shadowOpacity: 0.05,
                 shadowRadius: 5,
@@ -439,7 +439,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         minWidth: 16,
         height: 16,
         borderRadius: 8,
-        backgroundColor: '#EF4444',
+        backgroundColor: theme.colors.solid.danger,
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 3,
@@ -447,7 +447,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderColor: theme.colors.surface,
     },
     badgeText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 9,
         fontWeight: '800',
         lineHeight: 11,

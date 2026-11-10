@@ -101,18 +101,3 @@ export async function deleteVaultAttachment(vaultUri: string): Promise<void> {
 export async function deleteVaultAttachments(vaultUris: string[]): Promise<void> {
     await Promise.all(vaultUris.map((uri) => deleteVaultAttachment(uri)));
 }
-
-/**
- * Clears the entire offline vault folder.
- */
-export async function clearVault(): Promise<void> {
-    if (Platform.OS === 'web' || !FileSystem.documentDirectory) return;
-    try {
-        const dirInfo = await FileSystem.getInfoAsync(VAULT_FOLDER);
-        if (dirInfo.exists) {
-            await FileSystem.deleteAsync(VAULT_FOLDER, { idempotent: true });
-        }
-    } catch (e) {
-        console.warn('[attachmentVault] Failed to clear vault:', e);
-    }
-}

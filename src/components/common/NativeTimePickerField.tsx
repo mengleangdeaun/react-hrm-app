@@ -7,7 +7,7 @@ import {
 import { AppText as Text } from '../AppText';
 import { AppBottomSheet, BottomSheetContext } from './AppBottomSheet';
 import * as Haptics from 'expo-haptics';
-import { Clock, ChevronUp, ChevronDown, Check } from 'lucide-react-native';
+import { Clock, ChevronUp, ChevronDown } from 'lucide-react-native';
 import { useUnistyles } from 'react-native-unistyles';
 import { formatTimeDisplay } from '../../utils/dateTime';
 

@@ -115,7 +115,7 @@ export const AppInput: React.FC<AppInputProps> = ({
                     editable={editable}
                     accessibilityLabel={label || placeholder || 'Input'}
                     accessibilityState={{ disabled: !editable }}
-                    accessibilityInvalid={hasError}
+                    aria-invalid={hasError}
                     onFocus={(e: any) => {
                         setIsFocused(true);
                         onFocus?.(e);

@@ -122,7 +122,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     avatarText: {
         fontSize: 20,
         fontWeight: '800',
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
     greetingTextContainer: {
         marginLeft: theme.spacing.sm + 4,

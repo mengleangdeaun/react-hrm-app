@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { AppText as Text } from '../../../components/AppText';
 import { Send, MessageSquare, Check } from 'lucide-react-native';
-import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { StyleSheet } from 'react-native-unistyles';
 import { AppShell } from '../../../components/common/AppShell';
 import { AppCard } from '../../../components/common/AppCard';
 import { AppInput } from '../../../components/common/AppInput';

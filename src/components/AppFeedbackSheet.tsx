@@ -9,7 +9,6 @@ import {
     Pressable,
     StyleSheet,
     Keyboard,
-    ScrollView,
 } from 'react-native';
 import { MessageSquare, Send, Smartphone } from 'lucide-react-native';
 import { useAppTheme } from '../context/ThemeContext';

@@ -34,6 +34,30 @@ export const lightTheme = {
     info: '#2563EB',
     disabled: '#E2E8F0',
 
+    // 5. Fixed fills & foregrounds
+    // `solid.*` are filled backgrounds that always carry `onSolid` (white) content - badges, banners,
+    // the scan button. They are identical in both themes on purpose: the lighter dark-mode status
+    // colours above are tuned for text on dark surfaces and fail contrast behind white text.
+    onSolid: '#FFFFFF',
+    solid: {
+      success: '#10B981',
+      warning: '#F59E0B',
+      danger: '#EF4444',
+      info: '#2563EB',
+      neutral: '#4B5563',
+    },
+    // Text on the matching `status.*Subtle` tint (AA contrast in both themes)
+    statusText: {
+      success: '#047857',
+      warning: '#B45309',
+      danger: '#B91C1C',
+      info: '#1D4ED8',
+    },
+    neutralSubtle: 'rgba(100, 116, 139, 0.12)',
+    skeleton: '#E2E8F0',
+    scrim: 'rgba(0, 0, 0, 0.55)',
+    shadow: '#000000',
+
     status: {
       success: '#10B981',
       successSubtle: 'rgba(16, 185, 129, 0.10)',
@@ -116,6 +140,7 @@ export const lightTheme = {
     buttonHeight: 50,
     inputHeight: 48,
     iconButton: 38,
+    // Minimum tappable area (Apple HIG 44pt / Material 48dp). Smaller visuals extend it with hitSlop.
     touchTargetMin: 44,
     headerHeight: 52,
     tabBarHeight: 56,
@@ -157,6 +182,26 @@ export const darkTheme = {
     error: '#F87171',
     info: '#60A5FA',
     disabled: '#333333',
+
+    // 5. Fixed fills & foregrounds (see lightTheme)
+    onSolid: '#FFFFFF',
+    solid: {
+      success: '#10B981',
+      warning: '#F59E0B',
+      danger: '#EF4444',
+      info: '#2563EB',
+      neutral: '#374151',
+    },
+    statusText: {
+      success: '#34D399',
+      warning: '#FBBF24',
+      danger: '#F87171',
+      info: '#60A5FA',
+    },
+    neutralSubtle: 'rgba(255, 255, 255, 0.08)',
+    skeleton: '#2E2E2E',
+    scrim: 'rgba(0, 0, 0, 0.72)',
+    shadow: '#000000',
 
     status: {
       success: '#34D399',

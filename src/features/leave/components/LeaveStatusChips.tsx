@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, ScrollView, TouchableOpacity } from 'react-native';
 import * as Haptics from 'expo-haptics';
-import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { StyleSheet } from 'react-native-unistyles';
 import { AppText as Text } from '../../../components/AppText';
 import { useTranslation } from '../../../context/LanguageContext';
 
@@ -24,7 +24,6 @@ export const LeaveStatusChips: React.FC<LeaveStatusChipsProps> = ({
     statusCounts,
 }) => {
     const { t } = useTranslation();
-    const { theme } = useUnistyles();
     const styles = stylesheet;
 
     const handlePress = (status: LeaveStatusFilterType) => {
@@ -131,7 +130,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textSecondary,
     },
     statusChipTextActive: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
     statusChipBadge: {
         minWidth: 18,
@@ -151,24 +150,24 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textSecondary,
     },
     statusChipBadgeTextActive: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
     statusChipDotPending: {
         width: 7,
         height: 7,
         borderRadius: 3.5,
-        backgroundColor: '#F59E0B',
+        backgroundColor: theme.colors.solid.warning,
     },
     statusChipDotApproved: {
         width: 7,
         height: 7,
         borderRadius: 3.5,
-        backgroundColor: '#10B981',
+        backgroundColor: theme.colors.solid.success,
     },
     statusChipDotRejected: {
         width: 7,
         height: 7,
         borderRadius: 3.5,
-        backgroundColor: '#EF4444',
+        backgroundColor: theme.colors.solid.danger,
     },
 }));

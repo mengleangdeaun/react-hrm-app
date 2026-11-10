@@ -324,10 +324,10 @@ const stylesheet = StyleSheet.create((theme) => ({
         backgroundColor: theme.colors.status.success,
     },
     clockButtonBreak: {
-        backgroundColor: '#F59E0B',
+        backgroundColor: theme.colors.solid.warning,
     },
     clockButtonText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 15,
         fontWeight: '700',
     },

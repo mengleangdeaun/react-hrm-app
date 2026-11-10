@@ -732,7 +732,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         justifyContent: 'center',
     },
     unreadBadgeText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 8.5,
         fontWeight: '900',
         letterSpacing: 0.5,

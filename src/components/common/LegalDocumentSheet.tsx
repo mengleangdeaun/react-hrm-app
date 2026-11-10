@@ -4,9 +4,7 @@ import {
     StyleSheet,
 } from 'react-native';
 import { Check } from 'lucide-react-native';
-import { useAppTheme } from '../../context/ThemeContext';
 import { useTranslation } from '../../context/LanguageContext';
-import { lightTheme, darkTheme } from '../../styles/theme';
 import { AppButton } from './AppButton';
 import { AppBottomSheet } from './AppBottomSheet';
 import { AppMarkdown } from './AppMarkdown';
@@ -39,7 +37,7 @@ We collect information required for employee management and human resources oper
 ### 3. Data Protection & Security
 • Encryption: All data transmitted between the mobile application and server is encrypted using TLS/HTTPS protocols.
 • Access Controls: Role-based permissions restrict data visibility strictly to authorized personnel and supervisors.
-• Storage Security: Employee credentials and biometric preferences are secured locally in encrypted device storage.
+• Storage Security: Employee credentials are secured locally in encrypted device storage.
 
 ### 4. Data Retention & Employee Rights
 Employee records are maintained in accordance with enterprise HR compliance standards and applicable labor laws. For questions regarding your personal records, please contact your company Human Resources representative.
@@ -63,13 +61,11 @@ export const DEFAULT_PRIVACY_POLICY_KH = `
 ### ៣. ការការពារ និងសុវត្ថិភាពទិន្នន័យ
 • ការអ៊ិនគ្រីប (Encryption)៖ រាល់ទិន្នន័យដែលបញ្ជូនរវាងកម្មវិធីទូរស័ព្ទ និងម៉ាស៊ីនមេ (Server) ត្រូវបានការពារដោយបច្ចេកវិទ្យាអ៊ិនគ្រីបតាមប្រព័ន្ធ TLS/HTTPS។
 • ការគ្រប់គ្រងសិទ្ធិចូលប្រើប្រាស់៖ ការកំណត់សិទ្ធិតាមតួនាទីធានាថា ទិន្នន័យត្រូវបានបង្ហាញជូនយ៉ាងតឹងរ៉ឹងចំពោះតែបុគ្គលិក និងថ្នាក់ដឹកនាំដែលមានសិទ្ធិស្របច្បាប់ប៉ុណ្ណោះ។
-• សុវត្ថិភាពនៃការរក្សាទុក៖ ព័ត៌មានសម្ងាត់គណនីបុគ្គលិក និងការកំណត់ខ្ចៅដៃ (Biometric) ត្រូវបានរក្សាទុកដោយសុវត្ថិភាពនៅក្នុងអង្គចងចាំដែលមានការអ៊ិនគ្រីបលើឧបករណ៍ផ្ទាល់ខ្លួន។
+• សុវត្ថិភាពនៃការរក្សាទុក៖ ព័ត៌មានសម្ងាត់គណនីបុគ្គលិក ត្រូវបានរក្សាទុកដោយសុវត្ថិភាពនៅក្នុងអង្គចងចាំដែលមានការអ៊ិនគ្រីបលើឧបករណ៍ផ្ទាល់ខ្លួន។
 
 ### ៤. ការរក្សាទុកទិន្នន័យ និងសិទ្ធិរបស់បុគ្គលិក
 កំណត់ត្រាទិន្នន័យបុគ្គលិកត្រូវបានរក្សាទុកស្របតាមស្តង់ដារអនុលោមភាពធនធានមនុស្សរបស់ស្ថាប័ន និងច្បាប់ស្តីពីការងារជាធរមាន។ ចំពោះចម្ងល់នានាពាក់ព័ន្ធនឹងកំណត់ត្រាផ្ទាល់ខ្លួន សូមទាក់ទងមកកាន់តំណាងផ្នែកធនធានមនុស្សនៃក្រុមហ៊ុនរបស់អ្នក។
 `;
-
-export const DEFAULT_PRIVACY_POLICY = DEFAULT_PRIVACY_POLICY_EN;
 
 export const DEFAULT_TERMS_OF_SERVICE_EN = `
 ### 1. Acceptance of Terms
@@ -78,7 +74,7 @@ By accessing or using this SCCG Enterprise Mobile Application, you agree to comp
 ### 2. Authorized Use & Account Security
 • Enterprise Access Only: This application is intended exclusively for authorized employees of the organization.
 • Credential Confidentiality: You are responsible for safeguarding your login credentials and QR code access. Sharing account credentials or clocking in on behalf of colleagues (buddy punching) is strictly prohibited and subject to disciplinary review.
-• Device Integrity: You must ensure your mobile device maintains reasonable security measures (passcode/biometrics enabled).
+• Device Integrity: You must ensure your mobile device maintains reasonable security measures (a screen lock enabled).
 
 ### 3. Attendance & Operational Rules
 • Geolocation Integrity: Tampering with GPS location, using location mocking tools, or attempting to spoof branch QR codes is a direct violation of company employment policy.
@@ -113,8 +109,6 @@ export const DEFAULT_TERMS_OF_SERVICE_KH = `
 សិទ្ធិចូលប្រើប្រាស់កម្មវិធីទូរស័ព្ទនេះ អាចនឹងត្រូវព្យួរ ឬដកហូតវិញ នៅពេលមានការបញ្ចប់កិច្ចសន្យាការងារ ឬក្នុងអំឡុងពេលដំណើរការនីតិវិធីវិន័យ។ លក្ខខណ្ឌទាំងនេះអាចត្រូវបានធ្វើបច្ចុប្បន្នភាពជាប្រចាំ ដើម្បីឆ្លើយតបទៅនឹងការវិវត្តនៃគោលនយោបាយប្រតិបត្តិការរបស់ក្រុមហ៊ុន។
 `;
 
-export const DEFAULT_TERMS_OF_SERVICE = DEFAULT_TERMS_OF_SERVICE_EN;
-
 export const LegalDocumentSheet: React.FC<LegalDocumentSheetProps> = ({
     visible,
     onClose,
@@ -124,9 +118,7 @@ export const LegalDocumentSheet: React.FC<LegalDocumentSheetProps> = ({
     onAccept,
     acceptButtonText,
 }) => {
-    const { isDark } = useAppTheme();
     const { t, locale } = useTranslation();
-    const theme = isDark ? darkTheme : lightTheme;
 
     const isKhmer = locale === 'kh';
     const isPrivacy = type === 'privacy';

@@ -72,7 +72,7 @@ export const AppShell: React.FC<AppShellProps> = ({
 
     const footerBottomPadding = Math.max(insets.bottom, Platform.OS === 'ios' ? 16 : 12) + (Platform.OS === 'ios' ? 12 : 16);
 
-    const isDark = UnistylesRuntime.themeName === 'dark' || theme.colors.background === '#121212';
+    const isDark = UnistylesRuntime.themeName === 'dark';
 
     const renderContent = () => {
         if (scrollable) {

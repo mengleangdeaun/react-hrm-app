@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet } from 'react-native';
 import { AppText as Text } from '../AppText';
 import { format } from '../../utils/dateTime';
 

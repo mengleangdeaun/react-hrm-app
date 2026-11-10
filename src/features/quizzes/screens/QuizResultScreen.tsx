@@ -1,13 +1,10 @@
 import React from 'react';
 import {
     View,
-    ScrollView,
     Pressable,
-    StatusBar,
     ActivityIndicator,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { StyleSheet, useUnistyles } from 'react-native-unistyles';
+import { StyleSheet } from 'react-native-unistyles';
 import { useQuery } from '@tanstack/react-query';
 import { format, parseISO, isValid } from 'date-fns';
 import { quizApi } from '../../../api/quiz';
@@ -15,9 +12,7 @@ import { queryKeys } from '../../../api/queryKeys';
 import { useAppTheme } from '../../../context/ThemeContext';
 import { useTranslation } from '../../../context/LanguageContext';
 import { AppText as Text } from '../../../components/AppText';
-import { AppHeader } from '../../../components/common/AppHeader';
 import {
-    ArrowLeft,
     Check,
     X,
 } from 'lucide-react-native';
@@ -39,9 +34,8 @@ export const QuizResultScreen: React.FC<{ route: any; navigation: any }> = ({
     route,
     navigation,
 }) => {
-    const { isDark, primaryColor } = useAppTheme();
+    const { primaryColor } = useAppTheme();
     const { t } = useTranslation();
-    const { theme } = useUnistyles();
     const styles = stylesheet;
 
     const { token, quizData: paramQuizData } = route.params || {};
@@ -564,7 +558,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginTop: theme.spacing.md,
     },
     backBtnText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 14,
         fontWeight: '800',
     },

@@ -57,7 +57,7 @@ export const TopBannerAlert: React.FC<TopBannerAlertProps> = ({
 
 const stylesheet = StyleSheet.create((theme) => ({
     topBanner: {
-        backgroundColor: '#F59E0B',
+        backgroundColor: theme.colors.solid.warning,
         paddingHorizontal: theme.spacing.md,
         paddingVertical: theme.spacing.xs + 2,
         flexDirection: 'row',
@@ -71,7 +71,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         marginRight: theme.spacing.xs,
     },
     topBannerTitle: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 12,
         fontWeight: '700',
         marginLeft: theme.spacing.xs,
@@ -89,7 +89,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: theme.borderRadius.sm,
     },
     topBannerBtnText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 11,
         fontWeight: '800',
         textTransform: 'uppercase',

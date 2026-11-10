@@ -101,7 +101,6 @@ const OnboardingSlideItem = React.memo<{
     description: string;
     isDark: boolean;
 }>(({ item, width, title, description, isDark }) => {
-    const { theme } = useUnistyles();
     const IllustrationComponent = item.illustration;
     const illustrationSize = Math.min(width * 0.72, 260);
     const styles = stylesheet;
@@ -294,7 +293,7 @@ export const OnboardingScreen: React.FC<{ navigation: any; route?: any }> = ({
                 </View>
 
                 <View style={styles.topRight}>
-                    <Pressable
+                    <Pressable hitSlop={3}
                         style={({ pressed }: { pressed: boolean }) => [
                             styles.iconButton,
                             pressed && { opacity: 0.7, transform: [{ scale: 0.92 }] },
@@ -587,6 +586,6 @@ const stylesheet = StyleSheet.create((theme) => ({
         width: '100%',
     },
     primaryButtonText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
 }));

@@ -1,9 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
     View,
-    ScrollView,
     Pressable,
-    StatusBar,
     ActivityIndicator,
     Modal,
     Alert,
@@ -14,17 +12,15 @@ import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { format, parseISO, isValid, formatDateDisplay, formatTimeDisplay } from '../../../utils/dateTime';
+import { formatDateDisplay, formatTimeDisplay } from '../../../utils/dateTime';
 import { useAppTheme } from '../../../context/ThemeContext';
 import { useTranslation } from '../../../context/LanguageContext';
 import { apiClient } from '../../../api/client';
 import { notificationApi } from '../../../api/notification';
 import { queryKeys } from '../../../api/queryKeys';
 import { AppText as Text } from '../../../components/AppText';
-import { AppHeader } from '../../../components/common/AppHeader';
 import { AppMarkdown } from '../../../components/common/AppMarkdown';
 import {
-    ArrowLeft,
     Download,
     Paperclip,
     Calendar,
@@ -69,7 +65,7 @@ export const AnnouncementDetailScreen: React.FC<{ route: any; navigation: any }>
     route,
     navigation,
 }) => {
-    const { isDark, primaryColor } = useAppTheme();
+    const { primaryColor } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
     const { width: screenWidth } = useWindowDimensions();
@@ -158,7 +154,6 @@ export const AnnouncementDetailScreen: React.FC<{ route: any; navigation: any }>
     const rawBody = (notificationItem?.data || announcement?.data)
         ? t(rawUnprocessedBody, rawUnprocessedBody, notificationItem?.data || announcement?.data)
         : rawUnprocessedBody;
-    const bodyContent = cleanHtml(rawBody);
     const featuredImageUrl = announcement?.featured_image_url || announcement?.image_url;
     const viewsCount = announcement?.views_count;
     const isFeatured = announcement?.is_featured;
@@ -570,7 +565,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         ...theme.shadows.md,
     },
     pwaActionBtnText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 13,
         fontWeight: '800',
         textTransform: 'uppercase',

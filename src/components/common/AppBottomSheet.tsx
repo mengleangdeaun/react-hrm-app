@@ -12,7 +12,6 @@ import {
     ScrollView,
     ActivityIndicator,
     Keyboard,
-    EmitterSubscription,
 } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -82,7 +81,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
     const styles = stylesheet;
     const insets = useSafeAreaInsets();
 
-    const defaultBackdropColor = isDark ? 'rgba(0, 0, 0, 0.72)' : 'rgba(0, 0, 0, 0.55)';
+    const defaultBackdropColor = theme.colors.scrim;
     const resolvedBackdropColor = backdropColor || defaultBackdropColor;
 
     const [modalVisible, setModalVisible] = useState(visible);
@@ -396,7 +395,7 @@ export const AppBottomSheet: React.FC<AppBottomSheetProps> = ({
                         style={[
                             styles.footerContainer,
                             {
-                                borderTopColor: isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.06)',
+                                borderTopColor: theme.colors.divider,
                                 paddingBottom: activeBottomMargin,
                             },
                         ]}
@@ -546,7 +545,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderTopWidth: 1,
         borderLeftWidth: StyleSheet.hairlineWidth,
         borderRightWidth: StyleSheet.hairlineWidth,
-        shadowColor: '#000000',
+        shadowColor: theme.colors.shadow,
         shadowOffset: { width: 0, height: -6 },
         shadowOpacity: 0.18,
         shadowRadius: 16,

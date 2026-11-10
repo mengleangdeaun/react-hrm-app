@@ -16,23 +16,19 @@ import { quizApi, QuizQuestion, QuizAnswerPayload } from '../../../api/quiz';
 import { useAppTheme } from '../../../context/ThemeContext';
 import { useTranslation } from '../../../context/LanguageContext';
 import { AppText as Text } from '../../../components/AppText';
-import { AppHeader, HeaderIconButton } from '../../../components/common/AppHeader';
+import { HeaderIconButton } from '../../../components/common/AppHeader';
 import { QuizInstructionsView } from '../../../components/quiz/QuizInstructionsView';
 import { QuizQuestionStrip } from '../../../components/quiz/QuizQuestionStrip';
 import {
     ArrowLeft,
     Clock,
-    Lock,
     Info,
     ChevronLeft,
     ChevronRight,
     Check,
     AlertTriangle,
     CheckCircle2,
-    ShieldAlert,
     HelpCircle,
-    Award,
-    FileText,
 } from 'lucide-react-native';
 
 const formatTimer = (seconds: number) => {
@@ -1073,7 +1069,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         ...theme.shadows.sm,
     },
     primaryActionBtnText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 14,
         fontWeight: '800',
         letterSpacing: 0.2,
@@ -1266,7 +1262,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textPrimary,
     },
     optionTextSelectedDark: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
     footerBar: {
         flexDirection: 'row',
@@ -1318,6 +1314,6 @@ const stylesheet = StyleSheet.create((theme) => ({
     primaryNavBtnText: {
         fontSize: 13,
         fontWeight: '800',
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
 }));

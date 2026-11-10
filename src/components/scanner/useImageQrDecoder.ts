@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Alert, Platform } from 'react-native';
+import { Alert } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { scanFromURLAsync } from 'expo-camera';
 import { manipulateAsync, SaveFormat } from 'expo-image-manipulator';

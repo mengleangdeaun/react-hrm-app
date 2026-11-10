@@ -150,7 +150,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderColor: 'transparent',
     },
     text_primary: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
     text_secondary: {
         color: theme.colors.textPrimary,
@@ -162,7 +162,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.brand,
     },
     text_destructive: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
     text_disabled: {
         color: theme.colors.textDisabled,

@@ -189,14 +189,6 @@ export const setOnboardingCompleted = async (completed: boolean = true): Promise
     }
 };
 
-export const resetOnboarding = async (): Promise<void> => {
-    try {
-        await appStorage.removeItem(ONBOARDING_COMPLETED_KEY);
-    } catch (e) {
-        console.warn('Failed to reset onboarding state', e);
-    }
-};
-
 export const DISMISSED_BANNER_ANNOUNCEMENTS_KEY = 'hrms_dismissed_banner_announcements';
 
 export const getDismissedBannerIds = async (): Promise<string[]> => {
@@ -276,14 +268,6 @@ export const setLegalTermsAccepted = async (
         }
     } catch (e) {
         console.warn('Failed to save legal terms consent state', e);
-    }
-};
-
-export const resetLegalTermsAccepted = async (): Promise<void> => {
-    try {
-        await setLegalTermsAccepted(false);
-    } catch (e) {
-        console.warn('Failed to reset legal terms acceptance', e);
     }
 };
 

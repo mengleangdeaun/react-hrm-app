@@ -2,7 +2,6 @@ import React from 'react';
 import {
     View,
     Pressable,
-    Platform,
 } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import * as Haptics from 'expo-haptics';
@@ -231,7 +230,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         minWidth: 17,
         height: 17,
         borderRadius: 8.5,
-        backgroundColor: '#EF4444',
+        backgroundColor: theme.colors.solid.danger,
         justifyContent: 'center',
         alignItems: 'center',
         paddingHorizontal: 3,
@@ -242,7 +241,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     badgeText: {
         fontSize: 9,
         fontWeight: '800',
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         textAlign: 'center',
         lineHeight: 11,
     },
@@ -250,7 +249,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         width: 8,
         height: 8,
         borderRadius: 4,
-        backgroundColor: '#EF4444',
+        backgroundColor: theme.colors.solid.danger,
     },
     placeholderBox: {
         width: 38,

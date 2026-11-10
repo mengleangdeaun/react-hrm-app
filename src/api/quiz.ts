@@ -35,17 +35,6 @@ export interface QuizQuestion {
     options: QuestionOption[];
 }
 
-export interface QuizExamData {
-    test_ulid: string;
-    status: string;
-    started_at?: string;
-    quiz: {
-        title: string;
-        duration: number;
-        questions: QuizQuestion[];
-    };
-}
-
 export interface QuizAnswerPayload {
     question_id: number;
     selected_options?: (number | string)[];

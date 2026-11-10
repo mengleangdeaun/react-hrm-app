@@ -2,7 +2,7 @@ import React from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { Image } from 'expo-image';
 import { AppText as Text } from '../AppText';
-import { Calendar, Check, X, ArrowRight, User } from 'lucide-react-native';
+import { Calendar, Check, X, ArrowRight } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
 import { useTranslation } from '../../context/LanguageContext';

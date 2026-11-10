@@ -13,26 +13,6 @@ export interface User {
     emergency_contact_phone?: string;
 }
 
-export interface AttendanceRecord {
-    id: number;
-    user_id: number;
-    date: string;
-    clock_in: string | null;
-    clock_out: string | null;
-    status: 'on_time' | 'late' | 'early_out' | 'absent' | 'leave';
-    clock_in_location?: {
-        latitude: number;
-        longitude: number;
-        address?: string;
-    };
-    clock_out_location?: {
-        latitude: number;
-        longitude: number;
-        address?: string;
-    };
-    working_hours?: string;
-}
-
 export interface LeaveRequest {
     id: number;
     leave_type: 'annual' | 'sick' | 'casual' | 'unpaid' | 'maternity';
@@ -69,14 +49,6 @@ export interface SubordinateNotice {
     type: 'warning' | 'appreciation' | 'info';
     message: string;
     date: string;
-}
-
-export interface ActivityLog {
-    id: number;
-    title: string;
-    description: string;
-    date: string;
-    attachment_url?: string;
 }
 
 export interface Quiz {

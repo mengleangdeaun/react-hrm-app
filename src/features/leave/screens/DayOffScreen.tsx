@@ -24,7 +24,6 @@ import {
 } from 'lucide-react-native';
 
 import { AppText as Text } from '../../../components/AppText';
-import { useAppTheme } from '../../../context/ThemeContext';
 import { AppShell } from '../../../components/common/AppShell';
 import { AppCard } from '../../../components/common/AppCard';
 import { AppInput } from '../../../components/common/AppInput';
@@ -41,7 +40,6 @@ import {
 } from '../../../utils/dateTime';
 
 import { EmptyState } from '../../../components/common/EmptyState';
-import { DayOffSkeleton } from '../../../components/common/Skeletons';
 import {
     dayOffApi,
     DayOffInfo,
@@ -55,7 +53,6 @@ const ALL_DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'] as const;
 const FULL_DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'] as const;
 
 export const DayOffScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation, route }) => {
-    const { isDark } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
@@ -1089,7 +1086,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: 10,
     },
     badgePillText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 10,
         fontWeight: '800',
     },
@@ -1220,7 +1217,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         justifyContent: 'center',
     },
     segmentedBtnActive: {
-        shadowColor: '#000',
+        shadowColor: theme.colors.shadow,
         shadowOffset: { width: 0, height: 1 },
         shadowOpacity: 0.1,
         shadowRadius: 2,

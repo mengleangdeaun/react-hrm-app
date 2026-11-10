@@ -133,7 +133,7 @@ export const WelcomeScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
                     </Pressable>
 
                     {/* Theme Mode Switcher */}
-                    <Pressable
+                    <Pressable hitSlop={3}
                         style={({ pressed }: { pressed: boolean }) => [
                             styles.iconButton,
                             pressed && styles.buttonPressed,

@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { apiClient, AUTH_TOKEN_KEY, generateIdempotencyKey } from './client';
+import { apiClient, AUTH_TOKEN_KEY, generateIdempotencyKey, handleUnauthorized, UPLOAD_TIMEOUT_MS } from './client';
 import { storage } from '../utils/storage';
 import { ENV } from '../config/env';
 
@@ -58,7 +58,7 @@ export const activityApi = {
         longitude?: number;
         location_name?: string;
         attachments: { uri: string; name?: string; type?: string }[];
-    }) => {
+    }, idempotencyKey?: string) => {
         const formData = new FormData();
         formData.append('activity_type', data.activity_type);
         if (data.comment) formData.append('comment', data.comment);
@@ -97,21 +97,57 @@ export const activityApi = {
         }
 
         const token = await storage.getItem(AUTH_TOKEN_KEY);
-        const key = generateIdempotencyKey('activity');
-        const response = await fetch(`${ENV.API_URL}/employee-app/activities`, {
-            method: 'POST',
-            headers: {
-                'Accept': 'application/json',
-                'X-Idempotency-Key': key,
-                ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
-            },
-            body: formData,
-        });
+        // Callers pass the key they will also use for an offline replay of this same submission
+        const key = idempotencyKey || generateIdempotencyKey('activity');
+        const authHeader = token ? `Bearer ${token}` : undefined;
 
-        const resData = await response.json();
+        // Multi-photo uploads use fetch (the transport proven on devices for this endpoint), so the
+        // safeguards axios gives the rest of the app are applied by hand: a timeout, 401 handling,
+        // and errors shaped like axios errors so callers can tell "no connection" from "rejected".
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), UPLOAD_TIMEOUT_MS);
+
+        let response: Response;
+        try {
+            response = await fetch(`${ENV.API_URL}/employee-app/activities`, {
+                method: 'POST',
+                headers: {
+                    'Accept': 'application/json',
+                    'X-Idempotency-Key': key,
+                    ...(authHeader ? { 'Authorization': authHeader } : {}),
+                },
+                body: formData,
+                signal: controller.signal,
+            });
+        } catch (e: any) {
+            // No HTTP response: offline, DNS failure, dropped connection or our timeout
+            const networkError: any = new Error(
+                e?.name === 'AbortError' ? 'Upload timeout' : e?.message || 'Network Error'
+            );
+            networkError.code = e?.name === 'AbortError' ? 'ECONNABORTED' : 'ERR_NETWORK';
+            throw networkError;
+        } finally {
+            clearTimeout(timer);
+        }
+
+        // A proxy or crashed server may answer with HTML: never let JSON parsing mask the real status
+        let resData: any = null;
+        try {
+            resData = await response.json();
+        } catch {
+            resData = null;
+        }
+
         if (!response.ok) {
-            const errorMsg = resData.errors ? Object.values(resData.errors).flat().join(', ') : resData.message;
-            throw new Error(errorMsg || 'Failed to submit activity report.');
+            if (response.status === 401) {
+                await handleUnauthorized(authHeader);
+            }
+            const errorMsg = resData?.errors
+                ? Object.values(resData.errors).flat().join(', ')
+                : resData?.message;
+            const httpError: any = new Error(errorMsg || `Failed to submit activity report (HTTP ${response.status}).`);
+            httpError.response = { status: response.status, data: resData };
+            throw httpError;
         }
 
         return resData;

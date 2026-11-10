@@ -1,29 +1,18 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
     View,
     ScrollView,
     Pressable,
-    StatusBar,
-    ActivityIndicator,
     RefreshControl,
     Alert,
-    Modal,
-    TextInput,
-    KeyboardAvoidingView,
-    Platform,
-    StyleSheet as RNStyleSheet,
 } from 'react-native';
-import { Image } from 'expo-image';
 import { FlashList } from '@shopify/flash-list';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import * as Haptics from 'expo-haptics';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppText as Text } from '../../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { noticeApi, Subordinate, SubordinateNotice } from '../../../api/notice';
-import { useAppTheme } from '../../../context/ThemeContext';
 import { NativeDatePickerField } from '../../../components/common/NativeDatePickerField';
-import { AppHeader } from '../../../components/common/AppHeader';
 import { ListSkeleton } from '../../../components/common/Skeletons';
 import { EmptyState } from '../../../components/common/EmptyState';
 import { AppBottomSheet } from '../../../components/common/AppBottomSheet';
@@ -32,17 +21,11 @@ import { AppButton } from '../../../components/common/AppButton';
 import { AppInput } from '../../../components/common/AppInput';
 import { queryKeys } from '../../../api/queryKeys';
 import {
-    ArrowLeft,
     Plus,
     Award,
-    AlertTriangle,
     AlertCircle,
     TrendingUp,
-    User,
     Calendar,
-    X,
-    Check,
-    Search,
     FileText,
 } from 'lucide-react-native';
 import { format, formatDateDisplay } from '../../../utils/dateTime';
@@ -52,7 +35,6 @@ import { HeaderIconButton } from '../../../components/common/AppHeader';
 import { AppShell } from '../../../components/common/AppShell';
 
 export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-    const { isDark } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
@@ -348,7 +330,6 @@ export const SubordinateNoticesScreen: React.FC<{ navigation: any }> = ({ naviga
                     data={isLoading ? [] : notices}
                     renderItem={renderNoticeItem}
                     keyExtractor={keyExtractor}
-                    estimatedItemSize={140}
                     ListHeaderComponent={listHeader}
                     ListEmptyComponent={emptyComponent}
                     showsVerticalScrollIndicator={false}
@@ -532,7 +513,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textSecondary,
     },
     subordinateChipTextSelected: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontWeight: '700',
     },
     categoryBar: {
@@ -558,7 +539,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textSecondary,
     },
     categoryChipTextActive: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
     loadingContainer: {
         paddingVertical: theme.spacing.xxl,
@@ -615,7 +596,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     userAvatarText: {
         fontSize: 15,
         fontWeight: '800',
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
     userTextGroup: {
         marginLeft: theme.spacing.sm,
@@ -726,7 +707,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textSecondary,
     },
     subPickerTextSelected: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontWeight: '700',
     },
     typeSelectorRow: {
@@ -753,7 +734,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textSecondary,
     },
     typeOptionTextSelected: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
     textArea: {
         backgroundColor: theme.colors.surfaceSubtle,
@@ -775,7 +756,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         width: '100%',
     },
     submitBtnText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontWeight: '700',
         fontSize: 15,
     },

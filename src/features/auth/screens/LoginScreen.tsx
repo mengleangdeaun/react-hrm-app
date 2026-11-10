@@ -18,7 +18,6 @@ import {
     Lock,
     Mail,
     QrCode,
-    Fingerprint,
     LogIn,
     ArrowLeft,
     Sun,
@@ -36,7 +35,7 @@ import { AppInput } from '../../../components/common/AppInput';
 import { ENV } from '../../../config/env';
 
 export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-    const { login, loginWithBiometrics, isBiometricAvailable, isLoading } = useAuth();
+    const { login, isLoading } = useAuth();
     const { isDark, toggleTheme } = useAppTheme();
     const { t, locale, setLocale } = useTranslation();
     const { theme } = useUnistyles();
@@ -140,17 +139,6 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         }
     };
 
-    const handleBiometricAuth = async () => {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
-        const success = await loginWithBiometrics();
-        if (!success) {
-            Alert.alert(
-                t('biometric_login', 'Biometric Login'),
-                t('biometric_failed', 'Biometric authentication failed or credentials not saved.')
-            );
-        }
-    };
-
     const handleQrLogin = () => {
         Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
         navigation.navigate('QrLogin');
@@ -165,7 +153,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
             {/* ── Top Utility Header (Fixed at top) ── */}
             <View style={styles.topBar}>
-                <TouchableOpacity
+                <TouchableOpacity hitSlop={3}
                     style={[
                         styles.iconButton,
                         {
@@ -201,7 +189,7 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                         </AppText>
                     </TouchableOpacity>
 
-                    <TouchableOpacity
+                    <TouchableOpacity hitSlop={3}
                         style={[
                             styles.iconButton,
                             {
@@ -400,38 +388,6 @@ export const LoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                                     {t('scan_qr_login', 'Scan QR Code')}
                                 </AppText>
                             </TouchableOpacity>
-
-                            {isBiometricAvailable && (
-                                <TouchableOpacity
-                                    style={[
-                                        styles.quickActionButton,
-                                        {
-                                            backgroundColor: theme.colors.surfaceSubtle,
-                                            borderColor: theme.colors.border,
-                                        },
-                                    ]}
-                                    onPress={handleBiometricAuth}
-                                    activeOpacity={0.75}
-                                    accessibilityRole="button"
-                                    accessibilityLabel={t('biometrics', 'Biometrics')}
-                                >
-                                    <View
-                                        style={[
-                                            styles.quickActionIconWrap,
-                                            {
-                                                backgroundColor: isDark
-                                                    ? 'rgba(16, 185, 129, 0.16)'
-                                                    : 'rgba(16, 185, 129, 0.08)',
-                                            },
-                                        ]}
-                                    >
-                                        <Fingerprint color="#10B981" size={17} />
-                                    </View>
-                                    <AppText style={[styles.quickActionText, { color: theme.colors.textPrimary }]}>
-                                        {t('biometrics', 'Biometrics')}
-                                    </AppText>
-                                </TouchableOpacity>
-                            )}
                         </View>
                     </View>
                 </ScrollView>
