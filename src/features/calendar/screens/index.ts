@@ -1,1 +1,0 @@
-export { ScheduleCalendarScreen } from './ScheduleCalendarScreen';

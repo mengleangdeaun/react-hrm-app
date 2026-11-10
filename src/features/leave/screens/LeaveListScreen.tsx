@@ -756,7 +756,6 @@ export const LeaveListScreen: React.FC<{ navigation: any }> = ({ navigation }) =
                 data={isLoading ? [] : filteredRequests}
                 keyExtractor={keyExtractor}
                 renderItem={renderItem}
-                estimatedItemSize={140}
                 contentContainerStyle={[styles.scrollContent, { paddingBottom: Math.max(16, insets.bottom + 12) }]}
                 showsVerticalScrollIndicator={false}
                 ListHeaderComponent={listHeader}
@@ -879,7 +878,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     tabApprovalsBadgeText: {
         fontSize: 10,
         fontWeight: '800',
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
 
     // Balances Carousel
@@ -965,7 +964,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textSecondary,
     },
     statusChipTextActive: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
     statusChipBadge: {
         backgroundColor: theme.colors.surfaceSubtle,
@@ -984,7 +983,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.textSecondary,
     },
     statusChipBadgeTextActive: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
     statusChipDotPending: {
         width: 7,

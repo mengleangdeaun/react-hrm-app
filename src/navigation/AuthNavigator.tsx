@@ -4,8 +4,8 @@ import { WelcomeScreen } from '../screens/welcome/WelcomeScreen';
 
 // Loaded on first navigation rather than at startup (QR login pulls in the camera module)
 const getOnboardingScreen = () => require('../screens/onboarding/OnboardingScreen').OnboardingScreen;
-const getLoginScreen = () => require('../screens/auth/LoginScreen').LoginScreen;
-const getQrLoginScreen = () => require('../screens/auth/QrLoginScreen').QrLoginScreen;
+const getLoginScreen = () => require('../features/auth/screens/LoginScreen').LoginScreen;
+const getQrLoginScreen = () => require('../features/auth/screens/QrLoginScreen').QrLoginScreen;
 
 export type AuthStackParamList = {
     Welcome: undefined;

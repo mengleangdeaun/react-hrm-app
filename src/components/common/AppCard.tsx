@@ -77,7 +77,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     variant_elevated: {
         backgroundColor: theme.colors.surface,
         borderColor: (theme.colors as any).borderSubtle || theme.colors.border,
-        shadowColor: '#000000',
+        shadowColor: theme.colors.shadow,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.04,
         shadowRadius: 8,

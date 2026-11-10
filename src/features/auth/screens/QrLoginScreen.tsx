@@ -10,7 +10,6 @@ import { useCameraPermissions } from 'expo-camera';
 import * as Haptics from 'expo-haptics';
 import { QrCode } from 'lucide-react-native';
 import { useAuth } from '../../../context/AuthContext';
-import { useAppTheme } from '../../../context/ThemeContext';
 import { useTranslation } from '../../../context/LanguageContext';
 import { AppText } from '../../../components/AppText';
 import { extractEmployeeQrPayload } from '../../../utils/qrPayload';
@@ -23,7 +22,6 @@ export const QrLoginScreen: React.FC<{ navigation: any }> = ({ navigation }) => 
     const isProcessingRef = useRef(false);
 
     const { loginWithQr, isLoading } = useAuth();
-    const { isDark } = useAppTheme();
     const { t } = useTranslation();
 
     useEffect(() => {

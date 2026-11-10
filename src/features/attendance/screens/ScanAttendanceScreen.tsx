@@ -4,7 +4,6 @@ import {
     TouchableOpacity,
     Alert,
     ActivityIndicator,
-    Modal,
     BackHandler,
     Linking,
     AppState,
@@ -23,8 +22,6 @@ import {
     QrCode,
     AlertCircle,
     Clock,
-    ShieldCheck,
-    Calendar,
     X,
 } from 'lucide-react-native';
 import { attendanceApi, AttendanceClockInResponse } from '../../../api/attendance';
@@ -650,7 +647,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
             <SafeAreaView {...({ style: [styles.fullScreenSuccess, { backgroundColor: theme.colors.background }] } as any)}>
                 {/* Clean Top Bar */}
                 <View style={styles.successTopBar}>
-                    <TouchableOpacity
+                    <TouchableOpacity hitSlop={2}
                         style={[styles.successCloseBtn, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.05)' }]}
                         onPress={handleReturnToDashboard}
                         activeOpacity={0.7}
@@ -746,7 +743,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
         return (
             <SafeAreaView {...({ style: [styles.fullScreenSuccess, { backgroundColor: theme.colors.background }] } as any)}>
                 <View style={styles.successTopBar}>
-                    <TouchableOpacity
+                    <TouchableOpacity hitSlop={2}
                         style={[styles.successCloseBtn, { backgroundColor: isDark ? 'rgba(255, 255, 255, 0.08)' : theme.colors.surfaceSubtle }]}
                         onPress={() => navigation.navigate('HomeTab')}
                         activeOpacity={0.7}
@@ -1022,7 +1019,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: 20,
         borderWidth: 1,
         borderColor: 'rgba(16, 185, 129, 0.35)',
-        shadowColor: '#000',
+        shadowColor: theme.colors.shadow,
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.2,
         shadowRadius: 4,
@@ -1042,7 +1039,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         maxWidth: 260,
     },
     attachedReasonText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 11,
         fontWeight: '700',
     },
@@ -1136,7 +1133,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     modalPrimaryBtnText: {
         fontSize: 15,
         fontWeight: '700',
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
     centerContainer: {
         flex: 1,
@@ -1181,7 +1178,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         alignItems: 'center',
     },
     permBtnText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontWeight: '700',
         fontSize: 15,
     },
@@ -1320,7 +1317,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         justifyContent: 'center',
     },
     primarySuccessBtnText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 15,
         fontWeight: '800',
     },

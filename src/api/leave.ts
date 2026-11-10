@@ -1,4 +1,4 @@
-import { apiClient, generateIdempotencyKey } from './client';
+import { apiClient, generateIdempotencyKey, UPLOAD_TIMEOUT_MS } from './client';
 
 export interface LeaveType {
     id: number;
@@ -103,7 +103,7 @@ export const leaveApi = {
         end_time?: string;
         reason: string;
         attachments?: { uri: string; name?: string; type?: string }[];
-    }) => {
+    }, idempotencyKey?: string) => {
         const formData = new FormData();
         formData.append('leave_type_id', String(data.leave_type_id));
         formData.append('duration_type', data.duration_type);
@@ -123,8 +123,11 @@ export const leaveApi = {
             });
         }
 
-        const key = generateIdempotencyKey('leave');
+        // Callers pass the key they will also use for an offline replay of this same submission
+        const key = idempotencyKey || generateIdempotencyKey('leave');
+        const hasFiles = !!data.attachments && data.attachments.length > 0;
         const response = await apiClient.post('/employee-app/leave-requests', formData, {
+            timeout: hasFiles ? UPLOAD_TIMEOUT_MS : 30000,
             headers: {
                 'Content-Type': 'multipart/form-data',
                 'X-Idempotency-Key': key,

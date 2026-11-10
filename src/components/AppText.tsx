@@ -199,7 +199,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         color: theme.colors.brand,
     },
     color_inverse: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
     color_success: {
         color: theme.colors.status.success,

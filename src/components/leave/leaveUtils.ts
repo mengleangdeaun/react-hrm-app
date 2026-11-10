@@ -1,4 +1,4 @@
-import { LeaveBalance, LeaveRequest } from '../../api/leave';
+import { LeaveBalance } from '../../api/leave';
 
 export const getRemainingDays = (item: LeaveBalance | any): number => {
     const val = item.remaining_days ?? item.balance ?? item.remaining ?? 0;

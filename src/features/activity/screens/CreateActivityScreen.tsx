@@ -19,14 +19,15 @@ import { AppText as Text } from '../../../components/AppText';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { useQueryClient, onlineManager } from '@tanstack/react-query';
 import * as ImagePicker from 'expo-image-picker';
-import { Image as ExpoImage } from 'expo-image';
 import * as Location from 'expo-location';
 import * as Haptics from 'expo-haptics';
 import { activityApi, OFFICIAL_ACTIVITY_TYPES, ActivityItem } from '../../../api/activity';
 import { queryKeys } from '../../../api/queryKeys';
 import { syncQueue } from '../../../offline/syncQueue';
 import { saveAttachmentToVault } from '../../../offline/attachmentVault';
-import { isNetworkError } from '../../../api/client';
+import { isNetworkError, generateIdempotencyKey } from '../../../api/client';
+import { getTodayDateString } from '../../../utils/dateTime';
+import { prependToInfiniteList } from '../../../offline/optimisticList';
 import {
     optimizeImageForUpload,
     optimizeImagesBatch,
@@ -34,7 +35,6 @@ import {
     formatFileSize,
 } from '../../../utils/imageOptimizer';
 import { reverseGeocodeLocation } from '../../../utils/reverseGeocode';
-import { useAppTheme } from '../../../context/ThemeContext';
 import { AppShell } from '../../../components/common/AppShell';
 import { HeaderIconButton } from '../../../components/common/AppHeader';
 import {
@@ -70,7 +70,6 @@ const CATEGORY_ICONS: Record<string, any> = {
 export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     const insets = useSafeAreaInsets();
     const { width: screenWidth, height: screenHeight } = useWindowDimensions();
-    const { isDark } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
@@ -333,6 +332,16 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
         setAttachments((prev) => prev.filter((_: any, i: number) => i !== index));
     };
 
+
+    // One idempotency key per distinct submission. It is shared by the online attempt, every retry
+    // tap and the offline replay, so a request that reached the server before timing out can never
+    // create a second record. Editing the form makes it a new submission and resets the key.
+    const submissionKeyRef = useRef<string | null>(null);
+    const isSubmittingRef = useRef(false);
+    useEffect(() => {
+        submissionKeyRef.current = null;
+    }, [selectedCategory, comment, attachments]);
+
     const handleSubmit = async () => {
         if (!selectedCategory) {
             Alert.alert(t('required', 'Required'), t('select_activity_category', 'Please select an activity category.'));
@@ -343,7 +352,11 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
             return;
         }
 
+        // State updates are async: a ref is what actually stops a fast double tap
+        if (isSubmittingRef.current) return;
+        isSubmittingRef.current = true;
         setIsSubmitting(true);
+        const idempotencyKey = (submissionKeyRef.current ??= generateIdempotencyKey('activity'));
         setSubmittingStatus(t('optimizing_photos', 'Verifying photo compression...'));
         let optimizedToCleanup: string[] = [];
 
@@ -380,7 +393,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                         longitude: location?.lng,
                         location_name: safeLocationName,
                         attachments: optimized,
-                    });
+                    }, idempotencyKey);
                 } catch (networkErr: any) {
                     if (isNetworkError(networkErr)) {
                         isOfflineFallback = true;
@@ -420,6 +433,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                         isMultipart: true,
                         attachments: vaultAttachments,
                         description: `Activity Log (${selectedCategory})`,
+                        idempotencyKey,
                     }
                 );
 
@@ -438,10 +452,12 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                     attachment_urls: vaultAttachments.map((v) => v.uri),
                 };
 
-                queryClient.setQueriesData({ queryKey: queryKeys.activity.all }, (old: any) => {
-                    const list = Array.isArray(old) ? old : [];
-                    return [optimisticActivity, ...list];
-                });
+                // Only the lists this record belongs to: the current month, "all" and its own category
+                const currentMonth = getTodayDateString().slice(0, 7);
+                for (const category of ['all', selectedCategory]) {
+                    prependToInfiniteList(queryClient, queryKeys.activity.list(currentMonth, category), optimisticActivity);
+                }
+                submissionKeyRef.current = null;
 
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
 
@@ -459,6 +475,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
             }
 
             // Online Submission Success
+            submissionKeyRef.current = null;
             await queryClient.invalidateQueries({ queryKey: queryKeys.activity.all });
             cleanupTempImages(optimizedToCleanup).catch(() => {});
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -475,6 +492,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
             Alert.alert(t('submission_error', 'Submission Error'), error?.message || t('fail_submit_activity', 'Failed to submit activity report.'));
         } finally {
+            isSubmittingRef.current = false;
             setIsSubmitting(false);
             setSubmittingStatus('');
         }
@@ -798,7 +816,7 @@ export const CreateActivityScreen: React.FC<{ navigation: any }> = ({ navigation
                     >
                         <View style={[styles.previewModalTopBar, { top: Math.max(48, insets.top + 10) }]}>
                             <View />
-                            <TouchableOpacity
+                            <TouchableOpacity hitSlop={2}
                                 style={styles.previewModalCloseBtn}
                                 onPress={closePreviewModal}
                                 activeOpacity={0.8}
@@ -1024,7 +1042,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     thumbnailSizeText: {
         fontSize: 9,
         fontWeight: '700',
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
     removeBtn: {
         position: 'absolute',
@@ -1125,7 +1143,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderColor: 'rgba(255, 255, 255, 0.25)',
     },
     previewModalBottomCloseText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 13,
         fontWeight: '700',
         marginLeft: 6,
@@ -1193,7 +1211,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         opacity: 0.5,
     },
     nextBtnText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontWeight: '700',
         fontSize: 14,
         marginRight: theme.spacing.xs,
@@ -1207,7 +1225,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         alignItems: 'center',
     },
     submitBtnText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontWeight: '700',
         fontSize: 15,
     },
@@ -1278,7 +1296,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         gap: 8,
     },
     submittingStatusText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 13,
         fontWeight: '700',
     },

@@ -426,6 +426,6 @@ const stylesheet = StyleSheet.create((theme) => ({
     approveActionText: {
         fontSize: 13,
         fontWeight: '700',
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
 }));

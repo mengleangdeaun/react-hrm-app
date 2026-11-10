@@ -149,7 +149,6 @@ export const WishesInboxScreen: React.FC<{ navigation: any }> = ({ navigation })
                     data={wishes}
                     renderItem={renderItem}
                     keyExtractor={keyExtractor}
-                    estimatedItemSize={140}
                     ListEmptyComponent={emptyComponent}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.listContent}

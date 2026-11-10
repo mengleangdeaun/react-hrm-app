@@ -69,6 +69,26 @@ export const lightTheme = {
 } as const;
 ```
 
+### 3.2. Fixed fills, foregrounds and overlays
+
+Use these instead of hex literals. They exist because a literal cannot follow the theme, and the
+regular `status.*` colours are tuned for text, not for backgrounds behind white text.
+
+| Token | Use for |
+|---|---|
+| `colors.onSolid` | Text and icons on any filled colour (brand buttons, badges, banners). |
+| `colors.solid.{success,warning,danger,info,neutral}` | Filled backgrounds that carry `onSolid` content. Same in both themes by design. |
+| `colors.statusText.{success,warning,danger,info}` | Text on the matching `status.*Subtle` tint (AA contrast in light and dark). |
+| `colors.neutralSubtle` | Neutral chip / badge background. |
+| `colors.skeleton` | Loading placeholders. |
+| `colors.scrim` | Backdrop behind sheets and modals. |
+| `colors.shadow` | `shadowColor`. |
+
+Rules:
+* No hex or `rgba()` literal in a component when a token expresses the same intent.
+* Never branch on `isDark` to pick a colour; add or use a token that differs per theme.
+* Tappable controls smaller than `sizes.touchTargetMin` (44) must set `hitSlop` to reach it.
+
 ---
 
 ## 4. ⚡ Enterprise Performance Rules for Low-End Android

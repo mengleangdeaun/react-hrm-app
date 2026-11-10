@@ -31,7 +31,6 @@ import {
     PartyPopper,
     Coffee,
     Calendar as CalendarIcon,
-    AlertCircle,
     RotateCcw,
 } from 'lucide-react-native';
 import { useAppTheme } from '../../../context/ThemeContext';
@@ -44,7 +43,7 @@ import { MonthCalendarGrid } from '../../../components/calendar/MonthCalendarGri
 import { useTranslation } from '../../../context/LanguageContext';
 
 export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigation }) => {
-    const { isDark, primaryColor } = useAppTheme();
+    const { primaryColor } = useAppTheme();
     const { t, locale } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
@@ -252,7 +251,7 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
         >
             {/* 1. Month Switcher Bar */}
             <View style={styles.monthHeaderRow}>
-                <TouchableOpacity
+                <TouchableOpacity hitSlop={2}
                     onPress={handlePrevMonth}
                     style={styles.navBtn}
                     activeOpacity={0.7}
@@ -286,7 +285,7 @@ export const ScheduleCalendarScreen: React.FC<{ navigation?: any }> = ({ navigat
                     )}
                 </View>
 
-                <TouchableOpacity
+                <TouchableOpacity hitSlop={2}
                     onPress={handleNextMonth}
                     style={styles.navBtn}
                     activeOpacity={0.7}
@@ -964,7 +963,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         borderRadius: 4,
     },
     miniTodayText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 8,
         fontWeight: '800',
     },

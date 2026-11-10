@@ -1,14 +1,17 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
-import * as LocalAuthentication from 'expo-local-authentication';
 import { User } from '../types';
 import { AUTH_TOKEN_KEY, USER_DATA_KEY, apiClient, authEvents } from '../api/client';
-import { storage, secureStorage, getOnboardingCompleted, setOnboardingCompleted, resetOnboarding } from '../utils/storage';
+import { storage, secureStorage, getOnboardingCompleted, setOnboardingCompleted } from '../utils/storage';
 import { getDeviceId } from '../utils/device';
 import { extractEmployeeQrPayload } from '../utils/qrPayload';
 import { clearOfflineQueryCache } from '../offline/queryPersister';
 import { syncQueue } from '../offline/syncQueue';
 
-export const BIOMETRIC_CREDENTIAL_KEY = 'hrms_employee_biometric_credential';
+/**
+ * Biometric login was removed. Earlier builds kept a copy of the session token under this key;
+ * it is deleted on startup so no orphaned credential stays on upgraded devices.
+ */
+const LEGACY_BIOMETRIC_CREDENTIAL_KEY = 'hrms_employee_biometric_credential';
 
 export interface AuthApiError extends Error {
     code?: 'DEVICE_MISMATCH' | 'DEVICE_TAKEN' | string;
@@ -20,14 +23,10 @@ interface AuthContextType {
     token: string | null;
     isLoading: boolean;
     hasCompletedOnboarding: boolean;
-    isBiometricAvailable: boolean;
     login: (credentials: { email?: string; password?: string; pin?: string }, force?: boolean) => Promise<void>;
     loginWithQr: (qrPayload: string, force?: boolean) => Promise<void>;
-    loginWithTelegram: (telegramData: any, force?: boolean) => Promise<void>;
-    loginWithBiometrics: () => Promise<boolean>;
     completeOnboarding: () => Promise<void>;
-    resetOnboardingState: () => Promise<void>;
-    logout: (clearBiometrics?: boolean, clearOfflineQueue?: boolean) => Promise<void>;
+    logout: (options?: { clearOfflineQueue?: boolean }) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -37,35 +36,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const [token, setToken] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(true);
     const [hasCompletedOnboarding, setHasCompletedOnboarding] = useState<boolean>(false);
-    const [isBiometricAvailable, setIsBiometricAvailable] = useState<boolean>(false);
 
     useEffect(() => {
         checkStoredAuth();
-        checkBiometrics();
+        secureStorage.removeItem(LEGACY_BIOMETRIC_CREDENTIAL_KEY).catch(() => {});
 
         // Listen for 401 Unauthorized from API layer and reset React auth state immediately
         const unsubscribe = authEvents.subscribeUnauthorized(() => {
             setToken(null);
             setUser(null);
-            // The server rejected this token, so the biometric copy of it is dead as well.
-            // Keeping it would let "biometric login" restore a session that immediately 401s again.
-            secureStorage.removeItem(BIOMETRIC_CREDENTIAL_KEY).catch(() => {});
         });
 
         return () => {
             unsubscribe();
         };
     }, []);
-
-    const checkBiometrics = async () => {
-        try {
-            const hasHardware = await LocalAuthentication.hasHardwareAsync();
-            const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-            setIsBiometricAvailable(hasHardware && isEnrolled);
-        } catch (e) {
-            setIsBiometricAvailable(false);
-        }
-    };
 
     const checkStoredAuth = async () => {
         try {
@@ -93,22 +78,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         await setOnboardingCompleted(true);
     };
 
-    const resetOnboardingState = async () => {
-        setHasCompletedOnboarding(false);
-        await resetOnboarding();
-    };
-
     const saveAuthData = async (newToken: string, newUser: User) => {
         await storage.setItem(AUTH_TOKEN_KEY, newToken);
         await storage.setItem(USER_DATA_KEY, JSON.stringify(newUser));
-        try {
-            await secureStorage.setItem(
-                BIOMETRIC_CREDENTIAL_KEY,
-                JSON.stringify({ token: newToken, user: newUser })
-            );
-        } catch (e) {
-            console.warn('Failed to save hardware-backed biometric profile:', e);
-        }
         setToken(newToken);
         setUser(newUser);
 
@@ -212,77 +184,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
-    const loginWithTelegram = async (telegramData: any, force: boolean = false) => {
-        setIsLoading(true);
-        const isForce = force === true;
-        try {
-            const deviceId = await getDeviceId();
-            let responseData: any;
-            try {
-                const response = await apiClient.post('/attendance/employee-login-telegram', {
-                    ...telegramData,
-                    device_id: deviceId,
-                    force: isForce,
-                });
-                responseData = response.data;
-            } catch (err: any) {
-                if (err.response) {
-                    handleApiError(err);
-                }
-                console.warn('Telegram login error:', err.message);
-                throw err;
-            }
-
-            const { newToken, newUser } = parseUserResponse(responseData);
-            await saveAuthData(newToken, newUser);
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    const loginWithBiometrics = async (): Promise<boolean> => {
-        if (!isBiometricAvailable) return false;
-
-        const result = await LocalAuthentication.authenticateAsync({
-            promptMessage: 'Authenticate to access HRMS',
-            fallbackLabel: 'Use PIN or Password',
-        });
-
-        if (result.success) {
-            let storedToken = await storage.getItem(AUTH_TOKEN_KEY);
-            let storedUserJson = await storage.getItem(USER_DATA_KEY);
-
-            // If session was cleared, attempt hardware-backed secure storage recovery
-            if (!storedToken || !storedUserJson) {
-                const bioDataRaw = await secureStorage.getItem(BIOMETRIC_CREDENTIAL_KEY);
-                if (bioDataRaw) {
-                    try {
-                        const parsed = JSON.parse(bioDataRaw);
-                        if (parsed.token && parsed.user) {
-                            const recoveryToken: string = parsed.token;
-                            const recoveryUserJson: string = JSON.stringify(parsed.user);
-                            await storage.setItem(AUTH_TOKEN_KEY, recoveryToken);
-                            await storage.setItem(USER_DATA_KEY, recoveryUserJson);
-                            storedToken = recoveryToken;
-                            storedUserJson = recoveryUserJson;
-                        }
-                    } catch (e) {
-                        console.warn('Failed to parse biometric credential:', e);
-                    }
-                }
-            }
-
-            if (storedToken && storedUserJson) {
-                setToken(storedToken);
-                setUser(JSON.parse(storedUserJson));
-                syncQueue.processQueue().catch((e) => console.warn('[AuthContext] Error draining queue post-biometrics:', e));
-                return true;
-            }
-        }
-        return false;
-    };
-
-    const logout = async (clearBiometrics: boolean = true, clearOfflineQueue: boolean = false) => {
+    const logout = async (options?: { clearOfflineQueue?: boolean }) => {
         setIsLoading(true);
         try {
             // 1. Notify backend to revoke session token (attempt employee-app then attendance prefix)
@@ -298,12 +200,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 storage.removeItem(USER_DATA_KEY),
             ];
 
-            if (clearOfflineQueue) {
+            if (options?.clearOfflineQueue) {
                 cleanupTasks.push(syncQueue.clear());
-            }
-
-            if (clearBiometrics) {
-                cleanupTasks.push(secureStorage.removeItem(BIOMETRIC_CREDENTIAL_KEY));
             }
 
             await Promise.all(cleanupTasks);
@@ -322,15 +220,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         token,
         isLoading,
         hasCompletedOnboarding,
-        isBiometricAvailable,
         login,
         loginWithQr,
-        loginWithTelegram,
-        loginWithBiometrics,
         completeOnboarding,
-        resetOnboardingState,
         logout,
-    }), [user, token, isLoading, hasCompletedOnboarding, isBiometricAvailable]);
+    }), [user, token, isLoading, hasCompletedOnboarding]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

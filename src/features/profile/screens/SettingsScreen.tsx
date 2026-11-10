@@ -1,25 +1,19 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
     View,
-    ScrollView,
     Pressable,
-    StatusBar,
     Switch,
     Alert,
-    Modal,
-    RefreshControl,
     Linking,
     AppState,
     Platform,
     InteractionManager,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import * as Camera from 'expo-camera';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuth } from '../../../context/AuthContext';
 import { useAppTheme, FontSizeScaleId } from '../../../context/ThemeContext';
 import { useTranslation } from '../../../context/LanguageContext';
 import { getDeviceId } from '../../../utils/device';
@@ -30,11 +24,8 @@ import { AppFeedbackSheet } from '../../../components/AppFeedbackSheet';
 import { LegalDocumentSheet } from '../../../components/common/LegalDocumentSheet';
 import { AppBottomSheet } from '../../../components/common/AppBottomSheet';
 import { AppShell } from '../../../components/common/AppShell';
-import { AppHeader } from '../../../components/common/AppHeader';
 import {
-    ArrowLeft,
     Globe,
-    Fingerprint,
     Moon,
     Sun,
     Trash2,
@@ -45,7 +36,6 @@ import {
     MapPin,
     MessageSquare,
     CheckCircle2,
-    X,
     Bell,
     Type,
     FileText,
@@ -60,15 +50,12 @@ const FONT_SIZES = [
 ] as const;
 
 export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-    const insets = useSafeAreaInsets();
     const { isDark, toggleTheme, primaryColor, setFontScale, fontSizeId } = useAppTheme();
     const { locale, setLocale, t } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
     const queryClient = useQueryClient();
 
-    const { isBiometricAvailable } = useAuth();
-    const [biometricsEnabled, setBiometricsEnabled] = useState(true);
     const [deviceId, setDeviceId] = useState<string>('Loading...');
 
     // Permissions State
@@ -492,29 +479,6 @@ export const SettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =>
                             <Text style={styles.boundBadgeText}>BOUND</Text>
                         </View>
                     </View>
-
-                    {/* Biometric Lock */}
-                    {isBiometricAvailable && (
-                        <>
-                            <View style={styles.divider} />
-                            <View style={styles.row}>
-                                <View style={styles.rowInfo}>
-                                    <View style={styles.iconBox}>
-                                        <Fingerprint color={theme.colors.textSecondary} size={18} />
-                                    </View>
-                                    <View style={styles.textFlex}>
-                                        <Text style={styles.rowTitle}>{t('biometric_lock', 'Biometric Lock')}</Text>
-                                        <Text style={styles.rowSub}>{t('access_account', 'Authenticate with Face ID / Touch ID')}</Text>
-                                    </View>
-                                </View>
-                                <Switch
-                                    value={biometricsEnabled}
-                                    onValueChange={setBiometricsEnabled}
-                                    trackColor={{ false: theme.colors.border, true: primaryColor }}
-                                />
-                            </View>
-                        </>
-                    )}
 
                     <View style={styles.divider} />
 

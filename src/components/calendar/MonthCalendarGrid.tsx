@@ -307,7 +307,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         fontSize: 13,
     },
     dayTextSelected: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontWeight: '800',
     },
     dayTextDisabled: {

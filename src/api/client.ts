@@ -64,31 +64,56 @@ function isAuthEndpoint(url?: string): boolean {
     return url.includes('login') || url.includes('logout');
 }
 
+/**
+ * Sign the user out because the server rejected their token.
+ * Late 401s from a previous session are ignored: only the token that is still current may do this.
+ * Exported for the few requests that cannot go through `apiClient` (see activity upload).
+ */
+export async function handleUnauthorized(sentAuthHeader?: string | null): Promise<void> {
+    try {
+        const currentToken = await storage.getItem(AUTH_TOKEN_KEY);
+        const isCurrentSession = !!currentToken && (!sentAuthHeader || sentAuthHeader === `Bearer ${currentToken}`);
+        if (isCurrentSession) {
+            await storage.removeItem(AUTH_TOKEN_KEY);
+            await storage.removeItem(USER_DATA_KEY);
+            authEvents.emitUnauthorized();
+        }
+    } catch (e) {
+        console.error('Failed to clear credentials on 401', e);
+    }
+}
+
 // Response Interceptor: Handle 401 Unauthorized globally
 apiClient.interceptors.response.use(
     (response) => response,
     async (error) => {
         if (error.response?.status === 401 && !isAuthEndpoint(error.config?.url)) {
-            try {
-                // Ignore late 401s from a previous session: only the token that is still current may log the user out.
-                const sentAuth = error.config?.headers?.Authorization;
-                const currentToken = await storage.getItem(AUTH_TOKEN_KEY);
-                const isCurrentSession = !!currentToken && (!sentAuth || sentAuth === `Bearer ${currentToken}`);
-                if (isCurrentSession) {
-                    await storage.removeItem(AUTH_TOKEN_KEY);
-                    await storage.removeItem(USER_DATA_KEY);
-                    authEvents.emitUnauthorized();
-                }
-            } catch (e) {
-                console.error('Failed to clear credentials on 401', e);
-            }
+            await handleUnauthorized(error.config?.headers?.Authorization);
         }
         return Promise.reject(error);
     }
 );
 
+/**
+ * Best human-readable message for a failed request: Laravel validation errors first (they say
+ * which field is wrong), then the server message, then the caller's fallback.
+ */
+export function getApiErrorMessage(error: any, fallback: string): string {
+    const data = error?.response?.data;
+    if (data?.errors && typeof data.errors === 'object') {
+        const messages = Object.values(data.errors).flat().filter((m) => typeof m === 'string');
+        if (messages.length > 0) return messages.join('\n');
+    }
+    return data?.message || error?.message || fallback;
+}
+
+/** Uploads on 2G/3G need far longer than the default 15s API timeout. */
+export const UPLOAD_TIMEOUT_MS = 120000;
+
 export function isNetworkError(error: any): boolean {
     if (!error) return false;
+    // The server answered: whatever went wrong, it is not a connectivity problem
+    if (error.response) return false;
     if (error.code === 'ECONNABORTED' || error.code === 'ERR_NETWORK') return true;
     if (error.message === 'Network Error' || error.message?.toLowerCase().includes('timeout') || error.message?.toLowerCase().includes('network')) return true;
     if (!error.response && error.request) return true;

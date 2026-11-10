@@ -57,7 +57,7 @@ export const Skeleton: React.FC<SkeletonProps> & {
         return releaseSharedPulse;
     }, []);
 
-    const backgroundColor = isDark ? darkTheme.colors.surfaceSecondary : '#E2E8F0';
+    const backgroundColor = theme.colors.skeleton;
     const computedRadius = borderRadius ?? theme.borderRadius.md;
 
     return (

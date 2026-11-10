@@ -1,10 +1,8 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import {
     View,
-    TextInput,
     TouchableOpacity,
     Alert,
-    ActivityIndicator,
     ScrollView,
     Platform,
 } from 'react-native';
@@ -19,8 +17,8 @@ import { leaveApi, LeaveBalance, LeaveRequest } from '../../../api/leave';
 import { queryKeys } from '../../../api/queryKeys';
 import { syncQueue } from '../../../offline/syncQueue';
 import { saveAttachmentToVault } from '../../../offline/attachmentVault';
-import { isNetworkError } from '../../../api/client';
-import { useAppTheme } from '../../../context/ThemeContext';
+import { isNetworkError, generateIdempotencyKey, getApiErrorMessage } from '../../../api/client';
+import { prependToInfiniteList } from '../../../offline/optimisticList';
 import { AppShell } from '../../../components/common/AppShell';
 import { AppButton } from '../../../components/common/AppButton';
 import { AppInput } from '../../../components/common/AppInput';
@@ -54,7 +52,6 @@ export interface AttachmentItem {
 }
 
 export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
-    const { isDark } = useAppTheme();
     const { t } = useTranslation();
     const { theme } = useUnistyles();
     const styles = stylesheet;
@@ -294,6 +291,16 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
     };
 
     // Submission Handler
+
+    // One idempotency key per distinct submission. It is shared by the online attempt, every retry
+    // tap and the offline replay, so a request that reached the server before timing out can never
+    // create a second record. Editing the form makes it a new submission and resets the key.
+    const submissionKeyRef = useRef<string | null>(null);
+    const isSubmittingRef = useRef(false);
+    useEffect(() => {
+        submissionKeyRef.current = null;
+    }, [selectedLeaveTypeId, durationType, startDate, endDate, startTime, endTime, reason, attachment]);
+
     const doSubmit = async () => {
         if (!selectedLeaveTypeId) {
             Alert.alert(t('category_required', 'Category Required'), t('select_leave_category_alert', 'Please select a leave category.'));
@@ -315,7 +322,11 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
             return;
         }
 
+        // State updates are async: a ref is what actually stops a fast double tap
+        if (isSubmittingRef.current) return;
+        isSubmittingRef.current = true;
         setIsSubmitting(true);
+        const idempotencyKey = (submissionKeyRef.current ??= generateIdempotencyKey('leave'));
         try {
             // Fix: Include custom_time in single-day end_date normalization
             const isSingleDay =
@@ -351,7 +362,7 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
                         end_time: durationType === 'custom_time' ? endTime : undefined,
                         reason: reason.trim(),
                         attachments: attachmentsArr,
-                    });
+                    }, idempotencyKey);
                 } catch (networkErr: any) {
                     if (isNetworkError(networkErr)) {
                         isOfflineFallback = true;
@@ -398,6 +409,7 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
                               ]
                             : [],
                         description: `Leave Request (${(selectedBalance as any)?.leave_type?.name || 'Leave'})`,
+                        idempotencyKey,
                     }
                 );
 
@@ -419,10 +431,8 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
                     attachments: attachment?.uri ? [attachment.uri] : [],
                 };
 
-                queryClient.setQueryData(queryKeys.leave.requests('my_requests'), (old: any) => {
-                    const list = Array.isArray(old) ? old : [];
-                    return [optimisticLeave, ...list];
-                });
+                prependToInfiniteList(queryClient, queryKeys.leave.requests('my_requests'), optimisticLeave);
+                submissionKeyRef.current = null;
 
                 // Optimistically adjust balance cache
                 queryClient.setQueryData(queryKeys.leave.balances, (old: any) => {
@@ -454,6 +464,7 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
             }
 
             // Online Submission Success
+            submissionKeyRef.current = null;
             await Promise.all([
                 queryClient.invalidateQueries({ queryKey: queryKeys.leave.balances }),
                 queryClient.invalidateQueries({ queryKey: queryKeys.leave.all }),
@@ -479,9 +490,10 @@ export const CreateLeaveScreen: React.FC<{ navigation: any }> = ({ navigation })
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
             Alert.alert(
                 t('submission_error', 'Submission Error'),
-                err?.response?.data?.message || err?.message || t('fail_submit_leave', 'Failed to submit leave request.')
+                getApiErrorMessage(err, t('fail_submit_leave', 'Failed to submit leave request.'))
             );
         } finally {
+            isSubmittingRef.current = false;
             setIsSubmitting(false);
         }
     };
@@ -1003,7 +1015,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     },
     durationPillTextActive: {
         fontWeight: '700',
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
     cardSection: {
         backgroundColor: theme.colors.surface,
@@ -1174,7 +1186,7 @@ const stylesheet = StyleSheet.create((theme) => ({
         backgroundColor: theme.colors.brand,
     },
     attachedFileBadgeText: {
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
         fontSize: 10,
         fontWeight: '800',
         letterSpacing: 0.5,

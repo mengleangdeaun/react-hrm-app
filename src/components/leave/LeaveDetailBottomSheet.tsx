@@ -2,8 +2,6 @@ import React, { FC } from 'react';
 import { View, Pressable, Linking } from 'react-native';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import {
-    Calendar,
-    Clock,
     AlertCircle,
     Paperclip,
     ExternalLink,
@@ -448,7 +446,7 @@ const stylesheet = StyleSheet.create((theme) => ({
     detailApproveBtnText: {
         fontSize: 14,
         fontWeight: '700',
-        color: '#FFFFFF',
+        color: theme.colors.onSolid,
     },
     detailCancelBtn: {
         flexDirection: 'row',
