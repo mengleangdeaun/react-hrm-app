@@ -14,18 +14,24 @@
         "NSCameraUsageDescription": "Allow SCCG App to use your camera to scan attendance QR codes and capture activity photos.",
         "NSPhotoLibraryUsageDescription": "Allow SCCG App to access your photo library to attach or save activity photos.",
         "NSPhotoLibraryAddUsageDescription": "Allow SCCG App to save activity photos directly to your photo library.",
-        "NSLocationWhenInUseUsageDescription": "Allow SCCG App to verify your location for geofenced attendance check-ins and activity logs."
+        "NSLocationWhenInUseUsageDescription": "Allow SCCG App to verify your location for geofenced attendance check-ins and activity logs.",
+        "NSFaceIDUsageDescription": "Allow SCCG App to use Face ID so you can sign in quickly and securely."
+      },
+      "buildNumber": "1",
+      "requireFullScreen": true,
+      "config": {
+        "usesNonExemptEncryption": false
       }
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
+        "backgroundColor": "#FFFFFF",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "predictiveBackGestureEnabled": false,
       "package": "com.sccg.app",
-      "versionCode": 1.2,
+      "versionCode": 2,
       "allowBackup": false,
       "softwareKeyboardLayoutMode": "resize",
       "blockedPermissions": [
@@ -47,7 +53,18 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": "Allow SCCG App to use Face ID to protect your saved sign-in."
+        }
+      ],
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Allow SCCG App to use Face ID so you can sign in quickly and securely."
+        }
+      ],
       "expo-font",
       [
         "expo-camera",
@@ -80,7 +97,11 @@
         {
           "backgroundColor": "#FFFFFF",
           "image": "./assets/splash-icon.png",
-          "imageWidth": 160
+          "imageWidth": 160,
+          "dark": {
+            "backgroundColor": "#121212",
+            "image": "./assets/splash-icon.png"
+          }
         }
       ]
     ],

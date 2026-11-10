@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { storage } from '../utils/storage';
 import enTranslations from '../i18n/locales/en.json';
 import khTranslations from '../i18n/locales/kh.json';
@@ -63,16 +63,16 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         }
     };
 
-    const setLocale = async (newLocale: Locale) => {
+    const setLocale = useCallback(async (newLocale: Locale) => {
         setLocaleState(newLocale);
         try {
             await storage.setItem(LOCALE_KEY, newLocale);
         } catch (e) {
             console.warn('Failed to persist locale preference:', e);
         }
-    };
+    }, []);
 
-    const t = (key: string, fallback?: string, params?: any): string => {
+    const t = useCallback((key: string, fallback?: string, params?: any): string => {
         if (!key) return fallback || '';
 
         // If key is a known raw template string, map it to the localization key
@@ -80,6 +80,10 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
         const dict = translations[locale] || translations.en;
         let text = dict[lookupKey] || translations.en[lookupKey] || fallback || key;
+
+        // Fast path: `t` runs hundreds of times per screen render and almost every string is static.
+        // Skip the param flattening, object allocations and regex passes unless there is a placeholder.
+        if (text.indexOf('{{') === -1) return text;
 
         // Parse & flatten params
         let parsedParams = params;
@@ -123,13 +127,13 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         text = text.replace(/{{[^}]+}}/g, '');
 
         return text;
-    };
+    }, [locale]);
 
-    return (
-        <LanguageContext.Provider value={{ locale, setLocale, t }}>
-            {children}
-        </LanguageContext.Provider>
-    );
+    // Stable identity: every <AppText> subscribes to this context, so a fresh object per render
+    // would re-render all text in the app.
+    const value = useMemo(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
+
+    return <LanguageContext.Provider value={value}>{children}</LanguageContext.Provider>;
 };
 
 export const useTranslation = () => {

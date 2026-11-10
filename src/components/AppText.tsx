@@ -47,6 +47,13 @@ function fastCheckKhmer(text?: any): boolean {
     return hasKhmerText(text);
 }
 
+/**
+ * Cap for the OS accessibility font scale. The system setting is still honoured (up to +30%), but
+ * the "Largest" Android/iOS settings (up to 2x-3x) no longer clip text inside fixed-height
+ * buttons, tabs and cards. Pass `maxFontSizeMultiplier` explicitly to override per element.
+ */
+const MAX_SYSTEM_FONT_SCALE = 1.3;
+
 // Static memoized cache for standard base style allocations (eliminates Hermes GC sweeps)
 const baseStyleCache = new Map<string, any>();
 
@@ -58,6 +65,7 @@ const AppTextComponent: React.FC<AppTextProps> = ({
     isKhmer: explicitIsKhmer,
     style,
     children,
+    maxFontSizeMultiplier = MAX_SYSTEM_FONT_SCALE,
     ...props
 }) => {
     // Only subscribe to font scale, NOT theme changes (eliminates ~150 JS re-renders per screen on theme toggle)
@@ -119,7 +127,7 @@ const AppTextComponent: React.FC<AppTextProps> = ({
         }
 
         return (
-            <RNText style={[cachedBase, colorKey]} {...props}>
+            <RNText style={[cachedBase, colorKey]} maxFontSizeMultiplier={maxFontSizeMultiplier} {...props}>
                 {children}
             </RNText>
         );
@@ -163,9 +171,13 @@ const AppTextComponent: React.FC<AppTextProps> = ({
         ...(Platform.OS === 'android' ? { includeFontPadding: false } : {}),
     };
 
+    // Order matters. `style` keeps its theme-reactive colours/layout, then the computed metrics go
+    // LAST: they already incorporate the caller's fontSize/lineHeight, scaled by the in-app text
+    // size setting. With `style` last, its raw fontSize silently undid that scaling.
     return (
         <RNText
-            style={[computedBaseStyle, colorKey, style]}
+            style={[colorKey, style, computedBaseStyle]}
+            maxFontSizeMultiplier={maxFontSizeMultiplier}
             {...props}
         >
             {children}

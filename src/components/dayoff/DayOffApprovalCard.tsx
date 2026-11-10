@@ -1,5 +1,6 @@
 import React from 'react';
-import { View, StyleSheet, Pressable, Image } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
+import { Image } from 'expo-image';
 import { AppText as Text } from '../AppText';
 import { Calendar, Check, X, ArrowRight, User } from 'lucide-react-native';
 import { useAppTheme } from '../../context/ThemeContext';
@@ -36,7 +37,7 @@ export const DayOffApprovalCard: React.FC<DayOffApprovalCardProps> = ({
             <View style={styles.headerRow}>
                 <View style={styles.employeeInfo}>
                     {avatarUrl ? (
-                        <Image source={{ uri: avatarUrl }} style={styles.avatar} />
+                        <Image source={{ uri: avatarUrl }} style={styles.avatar} contentFit="cover" cachePolicy="memory-disk" recyclingKey={avatarUrl} />
                     ) : (
                         <View style={[styles.avatarFallback, { backgroundColor: theme.colors.primarySubtle }]}>
                             <Text style={[styles.avatarText, { color: theme.colors.primary }]}>

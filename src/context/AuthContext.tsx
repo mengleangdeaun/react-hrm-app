@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import * as LocalAuthentication from 'expo-local-authentication';
 import { User } from '../types';
 import { AUTH_TOKEN_KEY, USER_DATA_KEY, apiClient, authEvents } from '../api/client';
@@ -47,6 +47,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const unsubscribe = authEvents.subscribeUnauthorized(() => {
             setToken(null);
             setUser(null);
+            // The server rejected this token, so the biometric copy of it is dead as well.
+            // Keeping it would let "biometric login" restore a session that immediately 401s again.
+            secureStorage.removeItem(BIOMETRIC_CREDENTIAL_KEY).catch(() => {});
         });
 
         return () => {
@@ -114,7 +117,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
 
     const parseUserResponse = (rawData: any, fallbackEmail?: string): { newToken: string; newUser: User } => {
-        const newToken = rawData.auth_token || rawData.token;
+        const newToken = rawData?.auth_token || rawData?.token;
+        if (!newToken || typeof newToken !== 'string') {
+            // Never persist "undefined" as a session: every later request would 401 and bounce the user out
+            throw new Error('Login succeeded but the server did not return a session token. Please contact your administrator.');
+        }
         const rawEmp = rawData.employee || rawData.user || {};
 
         const newUser: User = {
@@ -308,26 +315,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
     };
 
-    return (
-        <AuthContext.Provider
-            value={{
-                user,
-                token,
-                isLoading,
-                hasCompletedOnboarding,
-                isBiometricAvailable,
-                login,
-                loginWithQr,
-                loginWithTelegram,
-                loginWithBiometrics,
-                completeOnboarding,
-                resetOnboardingState,
-                logout,
-            }}
-        >
-            {children}
-        </AuthContext.Provider>
-    );
+    // The callbacks only touch state setters and module singletons, so the value is keyed on the
+    // state consumers actually read; consumers no longer get a fresh object on every provider render.
+    const value = useMemo<AuthContextType>(() => ({
+        user,
+        token,
+        isLoading,
+        hasCompletedOnboarding,
+        isBiometricAvailable,
+        login,
+        loginWithQr,
+        loginWithTelegram,
+        loginWithBiometrics,
+        completeOnboarding,
+        resetOnboardingState,
+        logout,
+    }), [user, token, isLoading, hasCompletedOnboarding, isBiometricAvailable]);
+
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export const useAuth = () => {

@@ -10,7 +10,8 @@ import { ThemeProvider, useAppTheme } from './src/context/ThemeContext';
 import { LanguageProvider } from './src/context/LanguageContext';
 import { RootNavigator } from './src/navigation/RootNavigator';
 import { setupNetworkAndFocusManagers } from './src/offline/onlineManager';
-import { offlineQueryClient, asyncStoragePersister } from './src/offline/queryPersister';
+import { offlineQueryClient, persistOptions } from './src/offline/queryPersister';
+import { AppErrorBoundary } from './src/components/common/AppErrorBoundary';
 
 // Keep native splash screen visible while loading resources
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -29,7 +30,7 @@ function AppInner({ onReady }: { onReady?: () => void }) {
 }
 
 export default function App() {
-    const [fontsLoaded] = useFonts({
+    const [fontsLoaded, fontError] = useFonts({
         'Inter-Regular': require('./assets/fonts/Inter_18pt-Regular.ttf'),
         'Inter-Medium': require('./assets/fonts/Inter_18pt-Medium.ttf'),
         'Inter-SemiBold': require('./assets/fonts/Inter_18pt-SemiBold.ttf'),
@@ -40,30 +41,31 @@ export default function App() {
         'InterKhmerLooped-Bold': require('./assets/fonts/InterKhmerLooped-Bold.ttf'),
     });
 
-    const handleReady = useCallback(async () => {
-        if (fontsLoaded) {
-            await SplashScreen.hideAsync().catch(() => {});
-        }
-    }, [fontsLoaded]);
+    // A font that fails to load must not strand the user on the splash screen forever:
+    // continue with the system font instead.
+    const fontsReady = fontsLoaded || !!fontError;
 
-    if (!fontsLoaded) {
+    const handleReady = useCallback(() => {
+        SplashScreen.hideAsync().catch(() => {});
+    }, []);
+
+    if (!fontsReady) {
         return null;
     }
 
     return (
         <SafeAreaProvider>
-            <PersistQueryClientProvider
-                client={offlineQueryClient}
-                persistOptions={{ persister: asyncStoragePersister }}
-            >
-                <ThemeProvider>
-                    <LanguageProvider>
-                        <AuthProvider>
-                            <AppInner onReady={handleReady} />
-                        </AuthProvider>
-                    </LanguageProvider>
-                </ThemeProvider>
-            </PersistQueryClientProvider>
+            <AppErrorBoundary>
+                <PersistQueryClientProvider client={offlineQueryClient} persistOptions={persistOptions}>
+                    <ThemeProvider>
+                        <LanguageProvider>
+                            <AuthProvider>
+                                <AppInner onReady={handleReady} />
+                            </AuthProvider>
+                        </LanguageProvider>
+                    </ThemeProvider>
+                </PersistQueryClientProvider>
+            </AppErrorBoundary>
         </SafeAreaProvider>
     );
 }
