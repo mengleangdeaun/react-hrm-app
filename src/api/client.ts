@@ -55,18 +55,33 @@ export function generateIdempotencyKey(prefix: string = 'req'): string {
     return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
 
+/**
+ * Endpoints where a 401 means "wrong credentials", not "session expired".
+ * These must never tear down an existing session.
+ */
+function isAuthEndpoint(url?: string): boolean {
+    if (!url) return false;
+    return url.includes('login') || url.includes('logout');
+}
+
 // Response Interceptor: Handle 401 Unauthorized globally
 apiClient.interceptors.response.use(
     (response) => response,
     async (error) => {
-        if (error.response?.status === 401) {
+        if (error.response?.status === 401 && !isAuthEndpoint(error.config?.url)) {
             try {
-                await storage.removeItem(AUTH_TOKEN_KEY);
-                await storage.removeItem(USER_DATA_KEY);
+                // Ignore late 401s from a previous session: only the token that is still current may log the user out.
+                const sentAuth = error.config?.headers?.Authorization;
+                const currentToken = await storage.getItem(AUTH_TOKEN_KEY);
+                const isCurrentSession = !!currentToken && (!sentAuth || sentAuth === `Bearer ${currentToken}`);
+                if (isCurrentSession) {
+                    await storage.removeItem(AUTH_TOKEN_KEY);
+                    await storage.removeItem(USER_DATA_KEY);
+                    authEvents.emitUnauthorized();
+                }
             } catch (e) {
                 console.error('Failed to clear credentials on 401', e);
             }
-            authEvents.emitUnauthorized();
         }
         return Promise.reject(error);
     }

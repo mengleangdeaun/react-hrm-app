@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useFocusEffect } from '@react-navigation/native';
 import * as Haptics from 'expo-haptics';
 import {
@@ -24,6 +24,7 @@ export function useDashboardData() {
     const { user } = useAuth();
     const { theme } = useUnistyles();
     const { t, locale } = useTranslation();
+    const queryClient = useQueryClient();
 
     const [dismissedBannerIds, setDismissedBannerIds] = useState<string[]>([]);
     const [avatarLoadError, setAvatarLoadError] = useState(false);
@@ -60,11 +61,14 @@ export function useDashboardData() {
         gcTime: 1000 * 60 * 60 * 24 * 7, // 7 days offline retention
     });
 
-    // Screen Focus Auto-Refresh: Guarantees immediate update after scanning
+    // Screen Focus Refresh.
+    // A punch/leave/etc. invalidates this query, so a plain "refetch if stale" already guarantees
+    // an immediate update after scanning. The previous unconditional refetch() hit the (heaviest)
+    // bootstrap endpoint on every single return to the dashboard, ignoring the 5-minute staleTime.
     useFocusEffect(
         useCallback(() => {
-            refetch();
-        }, [refetch])
+            queryClient.refetchQueries({ queryKey: queryKeys.dashboard.bootstrap, type: 'active', stale: true });
+        }, [queryClient])
     );
 
     const onRefresh = useCallback(() => {

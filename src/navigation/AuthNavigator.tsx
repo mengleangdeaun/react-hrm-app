@@ -1,9 +1,11 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { WelcomeScreen } from '../screens/welcome/WelcomeScreen';
-import { OnboardingScreen } from '../screens/onboarding/OnboardingScreen';
-import { LoginScreen } from '../screens/auth/LoginScreen';
-import { QrLoginScreen } from '../screens/auth/QrLoginScreen';
+
+// Loaded on first navigation rather than at startup (QR login pulls in the camera module)
+const getOnboardingScreen = () => require('../screens/onboarding/OnboardingScreen').OnboardingScreen;
+const getLoginScreen = () => require('../screens/auth/LoginScreen').LoginScreen;
+const getQrLoginScreen = () => require('../screens/auth/QrLoginScreen').QrLoginScreen;
 
 export type AuthStackParamList = {
     Welcome: undefined;
@@ -24,9 +26,9 @@ export function AuthNavigator({ initialRouteName = 'Welcome' }: { initialRouteNa
             }}
         >
             <Stack.Screen name="Welcome" component={WelcomeScreen} />
-            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="QrLogin" component={QrLoginScreen} />
+            <Stack.Screen name="Onboarding" getComponent={getOnboardingScreen} />
+            <Stack.Screen name="Login" getComponent={getLoginScreen} />
+            <Stack.Screen name="QrLogin" getComponent={getQrLoginScreen} />
         </Stack.Navigator>
     );
 }

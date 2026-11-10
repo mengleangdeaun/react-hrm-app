@@ -26,91 +26,115 @@ import { apiClient } from '../api/client';
 import { queryKeys } from '../api/queryKeys';
 
 // Screens
+// Only the first screen of each tab is imported eagerly. Everything else is resolved through
+// `getComponent`, so its module (and its imports) is evaluated the first time the user opens it
+// instead of during app start. On 2-3 GB Android devices this removes most of the JS work
+// between the splash screen and the first interactive dashboard frame.
 import { DashboardScreen } from '../screens/dashboard/DashboardScreen';
-import { ScanAttendanceScreen } from '../screens/attendance/ScanAttendanceScreen';
-import { HistoryScreen } from '../screens/attendance/HistoryScreen';
-import { ScheduleCalendarScreen } from '../screens/calendar/ScheduleCalendarScreen';
-import { ProfileScreen } from '../screens/profile/ProfileScreen';
-import { SettingsScreen } from '../screens/profile/SettingsScreen';
-import { LeaveListScreen } from '../screens/leave/LeaveListScreen';
-import { CreateLeaveScreen } from '../screens/leave/CreateLeaveScreen';
-import { DayOffScreen } from '../screens/leave/DayOffScreen';
-import { ActivityListScreen } from '../screens/activity/ActivityListScreen';
-import { CreateActivityScreen } from '../screens/activity/CreateActivityScreen';
-import { SubordinateNoticesScreen } from '../screens/notices/SubordinateNoticesScreen';
-import { FeedbackScreen } from '../screens/notices/FeedbackScreen';
-import { NotificationListScreen } from '../screens/notifications/NotificationListScreen';
-import { AnnouncementDetailScreen } from '../screens/notifications/AnnouncementDetailScreen';
-import { CelebrationWishScreen } from '../screens/celebrations/CelebrationWishScreen';
-import { WishesInboxScreen } from '../screens/celebrations/WishesInboxScreen';
-import { QuizListScreen } from '../screens/quizzes/QuizListScreen';
-import { TakeQuizScreen } from '../screens/quizzes/TakeQuizScreen';
-import { QuizResultScreen } from '../screens/quizzes/QuizResultScreen';
-import { OnboardingScreen } from '../screens/onboarding/OnboardingScreen';
+
+const lazyScreens = {
+    ScanAttendance: () => require('../screens/attendance/ScanAttendanceScreen').ScanAttendanceScreen,
+    History: () => require('../screens/attendance/HistoryScreen').HistoryScreen,
+    ScheduleCalendar: () => require('../screens/calendar/ScheduleCalendarScreen').ScheduleCalendarScreen,
+    Profile: () => require('../screens/profile/ProfileScreen').ProfileScreen,
+    Settings: () => require('../screens/profile/SettingsScreen').SettingsScreen,
+    LeaveList: () => require('../screens/leave/LeaveListScreen').LeaveListScreen,
+    CreateLeave: () => require('../screens/leave/CreateLeaveScreen').CreateLeaveScreen,
+    DayOff: () => require('../screens/leave/DayOffScreen').DayOffScreen,
+    ActivityList: () => require('../screens/activity/ActivityListScreen').ActivityListScreen,
+    CreateActivity: () => require('../screens/activity/CreateActivityScreen').CreateActivityScreen,
+    SubordinateNotices: () => require('../screens/notices/SubordinateNoticesScreen').SubordinateNoticesScreen,
+    Feedback: () => require('../screens/notices/FeedbackScreen').FeedbackScreen,
+    NotificationList: () => require('../screens/notifications/NotificationListScreen').NotificationListScreen,
+    AnnouncementDetail: () => require('../screens/notifications/AnnouncementDetailScreen').AnnouncementDetailScreen,
+    CelebrationWish: () => require('../screens/celebrations/CelebrationWishScreen').CelebrationWishScreen,
+    WishesInbox: () => require('../screens/celebrations/WishesInboxScreen').WishesInboxScreen,
+    QuizList: () => require('../screens/quizzes/QuizListScreen').QuizListScreen,
+    TakeQuiz: () => require('../screens/quizzes/TakeQuizScreen').TakeQuizScreen,
+    QuizResult: () => require('../screens/quizzes/QuizResultScreen').QuizResultScreen,
+    Onboarding: () => require('../screens/onboarding/OnboardingScreen').OnboardingScreen,
+} as const;
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
 
-function DashboardStack() {
+/**
+ * `freezeOnBlur` stops React from re-rendering screens that are covered by another screen or sit
+ * in a background tab (query refetches, 30s clock ticks, theme changes), which is where most
+ * wasted work happened on slow CPUs. State is preserved; rendering resumes on focus.
+ */
+function useStackScreenOptions() {
     const { theme } = useUnistyles();
+    return React.useMemo(
+        () => ({
+            headerShown: false,
+            freezeOnBlur: true,
+            contentStyle: { backgroundColor: theme.colors.background },
+        }),
+        [theme.colors.background]
+    );
+}
+
+function DashboardStack() {
+    const screenOptions = useStackScreenOptions();
     return (
-        <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.colors.background } }}>
+        <Stack.Navigator screenOptions={screenOptions}>
             <Stack.Screen name="DashboardMain" component={DashboardScreen} />
-            <Stack.Screen name="History" component={HistoryScreen} />
-            <Stack.Screen name="LeaveList" component={LeaveListScreen} />
-            <Stack.Screen name="CreateLeave" component={CreateLeaveScreen} />
-            <Stack.Screen name="DayOff" component={DayOffScreen} />
-            <Stack.Screen name="ActivityList" component={ActivityListScreen} />
-            <Stack.Screen name="CreateActivity" component={CreateActivityScreen} />
-            <Stack.Screen name="SubordinateNotices" component={SubordinateNoticesScreen} />
-            <Stack.Screen name="Feedback" component={FeedbackScreen} />
-            <Stack.Screen name="Notifications" component={NotificationListScreen} />
-            <Stack.Screen name="AnnouncementDetail" component={AnnouncementDetailScreen} />
-            <Stack.Screen name="CelebrationWish" component={CelebrationWishScreen} />
-            <Stack.Screen name="WishesInbox" component={WishesInboxScreen} />
-            <Stack.Screen name="QuizList" component={QuizListScreen} />
-            <Stack.Screen name="TakeQuiz" component={TakeQuizScreen} />
-            <Stack.Screen name="QuizResult" component={QuizResultScreen} />
+            <Stack.Screen name="History" getComponent={lazyScreens.History} />
+            <Stack.Screen name="LeaveList" getComponent={lazyScreens.LeaveList} />
+            <Stack.Screen name="CreateLeave" getComponent={lazyScreens.CreateLeave} />
+            <Stack.Screen name="DayOff" getComponent={lazyScreens.DayOff} />
+            <Stack.Screen name="ActivityList" getComponent={lazyScreens.ActivityList} />
+            <Stack.Screen name="CreateActivity" getComponent={lazyScreens.CreateActivity} />
+            <Stack.Screen name="SubordinateNotices" getComponent={lazyScreens.SubordinateNotices} />
+            <Stack.Screen name="Feedback" getComponent={lazyScreens.Feedback} />
+            <Stack.Screen name="Notifications" getComponent={lazyScreens.NotificationList} />
+            <Stack.Screen name="AnnouncementDetail" getComponent={lazyScreens.AnnouncementDetail} />
+            <Stack.Screen name="CelebrationWish" getComponent={lazyScreens.CelebrationWish} />
+            <Stack.Screen name="WishesInbox" getComponent={lazyScreens.WishesInbox} />
+            <Stack.Screen name="QuizList" getComponent={lazyScreens.QuizList} />
+            <Stack.Screen name="TakeQuiz" getComponent={lazyScreens.TakeQuiz} />
+            <Stack.Screen name="QuizResult" getComponent={lazyScreens.QuizResult} />
         </Stack.Navigator>
     );
 }
 
 function CalendarStack() {
-    const { theme } = useUnistyles();
+    const screenOptions = useStackScreenOptions();
     return (
-        <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.colors.background } }}>
-            <Stack.Screen name="ScheduleCalendarMain" component={ScheduleCalendarScreen} />
-            <Stack.Screen name="CreateLeave" component={CreateLeaveScreen} />
-            <Stack.Screen name="LeaveList" component={LeaveListScreen} />
+        <Stack.Navigator screenOptions={screenOptions}>
+            <Stack.Screen name="ScheduleCalendarMain" getComponent={lazyScreens.ScheduleCalendar} />
+            <Stack.Screen name="CreateLeave" getComponent={lazyScreens.CreateLeave} />
+            <Stack.Screen name="LeaveList" getComponent={lazyScreens.LeaveList} />
         </Stack.Navigator>
     );
 }
 
 function NotificationStack() {
-    const { theme } = useUnistyles();
+    const screenOptions = useStackScreenOptions();
     return (
-        <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.colors.background } }}>
-            <Stack.Screen name="NotificationList" component={NotificationListScreen} />
-            <Stack.Screen name="AnnouncementDetail" component={AnnouncementDetailScreen} />
-            <Stack.Screen name="LeaveList" component={LeaveListScreen} />
-            <Stack.Screen name="CreateLeave" component={CreateLeaveScreen} />
-            <Stack.Screen name="WishesInbox" component={WishesInboxScreen} />
-            <Stack.Screen name="CelebrationWish" component={CelebrationWishScreen} />
-            <Stack.Screen name="QuizList" component={QuizListScreen} />
-            <Stack.Screen name="TakeQuiz" component={TakeQuizScreen} />
-            <Stack.Screen name="QuizResult" component={QuizResultScreen} />
+        <Stack.Navigator screenOptions={screenOptions}>
+            <Stack.Screen name="NotificationList" getComponent={lazyScreens.NotificationList} />
+            <Stack.Screen name="AnnouncementDetail" getComponent={lazyScreens.AnnouncementDetail} />
+            <Stack.Screen name="LeaveList" getComponent={lazyScreens.LeaveList} />
+            <Stack.Screen name="CreateLeave" getComponent={lazyScreens.CreateLeave} />
+            <Stack.Screen name="WishesInbox" getComponent={lazyScreens.WishesInbox} />
+            <Stack.Screen name="CelebrationWish" getComponent={lazyScreens.CelebrationWish} />
+            <Stack.Screen name="QuizList" getComponent={lazyScreens.QuizList} />
+            <Stack.Screen name="TakeQuiz" getComponent={lazyScreens.TakeQuiz} />
+            <Stack.Screen name="QuizResult" getComponent={lazyScreens.QuizResult} />
         </Stack.Navigator>
     );
 }
 
 function ProfileStack() {
-    const { theme } = useUnistyles();
+    const screenOptions = useStackScreenOptions();
     return (
-        <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.colors.background } }}>
-            <Stack.Screen name="ProfileMain" component={ProfileScreen} />
-            <Stack.Screen name="Settings" component={SettingsScreen} />
-            <Stack.Screen name="OnboardingTour" component={OnboardingScreen} />
-            <Stack.Screen name="AppTour" component={OnboardingScreen} />
+        <Stack.Navigator screenOptions={screenOptions}>
+            <Stack.Screen name="ProfileMain" getComponent={lazyScreens.Profile} />
+            <Stack.Screen name="Settings" getComponent={lazyScreens.Settings} />
+            <Stack.Screen name="OnboardingTour" getComponent={lazyScreens.Onboarding} />
+            <Stack.Screen name="AppTour" getComponent={lazyScreens.Onboarding} />
         </Stack.Navigator>
     );
 }
@@ -261,6 +285,7 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                         <Pressable
                             key={route.key}
                             accessibilityRole="button"
+                            accessibilityLabel={dynamicHeroLabel}
                             accessibilityState={isFocused ? { selected: true } : {}}
                             onPress={onPress}
                             onLongPress={onLongPress}
@@ -299,7 +324,8 @@ function CustomTabBar({ state, descriptors, navigation }: any) {
                 return (
                     <Pressable
                         key={route.key}
-                        accessibilityRole="button"
+                        accessibilityRole="tab"
+                        accessibilityLabel={showBadge ? `${tabLabel}, ${unreadCount}` : tabLabel}
                         accessibilityState={isFocused ? { selected: true } : {}}
                         onPress={onPress}
                         onLongPress={onLongPress}
@@ -353,6 +379,7 @@ export function MainTabNavigator() {
             tabBar={renderTabBar}
             screenOptions={{
                 headerShown: false,
+                freezeOnBlur: true,
                 sceneStyle: { backgroundColor: theme.colors.background },
             }}
         >
@@ -360,9 +387,11 @@ export function MainTabNavigator() {
             <Tab.Screen name="CalendarTab" component={CalendarStack} />
             <Tab.Screen
                 name="ScanTab"
-                component={ScanAttendanceScreen}
+                getComponent={lazyScreens.ScanAttendance}
                 options={{
                     tabBarStyle: { display: 'none' },
+                    // Never frozen: the screen must always get its blur render so the camera is released
+                    freezeOnBlur: false,
                 }}
             />
             <Tab.Screen name="NotiTab" component={NotificationStack} />

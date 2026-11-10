@@ -104,21 +104,37 @@ export const appStorage = {
 const SENSITIVE_KEYS = new Set(['hrms_employee_auth_token', 'hrms_employee_user_data']);
 
 /**
+ * In-memory mirror of sensitive values.
+ * Keystore/Keychain decryption costs 10-80ms per read on low-end Android, and the auth token is
+ * read by the API client on every single request. After the first read the value is served from
+ * memory; writes and removals keep the mirror in sync.
+ */
+const sensitiveCache = new Map<string, string | null>();
+
+/**
  * Unified storage router with automatic encryption for sensitive credentials and user models
  */
 export const storage = {
     async getItem(key: string): Promise<string | null> {
         if (SENSITIVE_KEYS.has(key)) {
+            if (sensitiveCache.has(key)) {
+                return sensitiveCache.get(key) ?? null;
+            }
             const secureVal = await secureStorage.getItem(key);
-            if (secureVal !== null) return secureVal;
+            if (secureVal !== null) {
+                sensitiveCache.set(key, secureVal);
+                return secureVal;
+            }
             // Migration fallback: check appStorage for legacy unencrypted session
             const legacyVal = await appStorage.getItem(key);
             if (legacyVal !== null) {
                 // Automatically promote to secureStorage and clean up unencrypted copy
                 await secureStorage.setItem(key, legacyVal);
                 await appStorage.removeItem(key);
+                sensitiveCache.set(key, legacyVal);
                 return legacyVal;
             }
+            sensitiveCache.set(key, null);
             return null;
         }
         // First check appStorage; if migrating, fallback to secureStorage
@@ -129,6 +145,7 @@ export const storage = {
 
     async setItem(key: string, value: string): Promise<void> {
         if (SENSITIVE_KEYS.has(key)) {
+            sensitiveCache.set(key, value);
             // Guarantee unencrypted legacy copy is erased when new sensitive item is set
             await appStorage.removeItem(key);
             return secureStorage.setItem(key, value);
@@ -138,6 +155,7 @@ export const storage = {
 
     async removeItem(key: string): Promise<void> {
         if (SENSITIVE_KEYS.has(key)) {
+            sensitiveCache.set(key, null);
             await Promise.all([
                 secureStorage.removeItem(key),
                 appStorage.removeItem(key),

@@ -57,6 +57,11 @@ export interface GpsLocation {
     timestamp: number;
 }
 
+/** A GPS fix younger than this is used as-is. */
+const LOCATION_FRESH_MS = 60 * 1000;
+/** A fix older than this is never sent with a punch. */
+const LOCATION_MAX_AGE_MS = 3 * 60 * 1000;
+
 export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = ({ navigation, route }) => {
     const { isDark } = useAppTheme();
     const { t } = useTranslation();
@@ -168,7 +173,7 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
     }, [route?.params?.reason]);
 
     // Camera & Location Permissions
-    const [cameraPermission, requestCameraPermission] = useCameraPermissions();
+    const [cameraPermission, requestCameraPermission, getCameraPermission] = useCameraPermissions();
     const [locationPermission, setLocationPermission] = useState<boolean | null>(null);
 
     // Live GPS State
@@ -287,14 +292,28 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
 
     // Auto-refresh permissions when returning from device settings
     useEffect(() => {
+        // This screen stays mounted inside the tab navigator. Only touch the camera permission and
+        // GPS radio while it is actually on screen, otherwise every app resume costs battery (and
+        // can pop a permission prompt) for a screen the user is not looking at.
+        if (!isFocused) return;
+
         const subscription = AppState.addEventListener('change', (nextAppState: any) => {
             if (nextAppState === 'active') {
-                requestCameraPermission();
+                getCameraPermission();
                 locationPromiseRef.current = startLocationAcquisition();
             }
         });
         return () => subscription.remove();
-    }, [requestCameraPermission, startLocationAcquisition]);
+    }, [isFocused, getCameraPermission, startLocationAcquisition]);
+
+    // Returning to the tab: make sure the fix is fresh before the user scans
+    useEffect(() => {
+        if (!isFocused) return;
+        const cached = currentLocationRef.current;
+        if (cached && Date.now() - cached.timestamp > LOCATION_FRESH_MS) {
+            locationPromiseRef.current = startLocationAcquisition();
+        }
+    }, [isFocused, startLocationAcquisition]);
 
     const resetScanState = () => {
         isProcessingRef.current = false;
@@ -310,21 +329,28 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
      * Resolve verified location with safety timeout before executing punch
      */
     const getVerifiedLocation = async (timeoutMs: number = 7000): Promise<GpsLocation | null> => {
-        // Fast path: Location already cached and available
-        if (currentLocationRef.current) {
+        const ageOf = (loc: GpsLocation | null) => (loc?.timestamp ? Date.now() - loc.timestamp : Infinity);
+
+        // Fast path: a fix taken within the last minute is good enough for the geofence check
+        if (currentLocationRef.current && ageOf(currentLocationRef.current) <= LOCATION_FRESH_MS) {
             return currentLocationRef.current;
         }
 
-        // Await in-flight background promise or start a fresh one
-        const activePromise = locationPromiseRef.current || startLocationAcquisition();
+        // The cached fix is old (the screen stays mounted in the tab bar for hours): take a new one.
+        // A stale position would let a punch be accepted or rejected for where the employee *was*.
+        locationPromiseRef.current = startLocationAcquisition();
 
         // Safety timeout to prevent indefinite hanging on slow GPS
         const timeoutPromise = new Promise<null>((resolve) =>
             setTimeout(() => resolve(null), timeoutMs)
         );
 
-        const resolved = await Promise.race([activePromise, timeoutPromise]);
-        return resolved || currentLocationRef.current;
+        const resolved = await Promise.race([locationPromiseRef.current, timeoutPromise]);
+        if (resolved && ageOf(resolved) <= LOCATION_MAX_AGE_MS) return resolved;
+
+        // Last resort: a recent-enough cached fix when GPS is slow indoors
+        const cached = currentLocationRef.current;
+        return cached && ageOf(cached) <= LOCATION_MAX_AGE_MS ? cached : null;
     };
 
     /**
@@ -337,16 +363,12 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
         setIsSubmitting(true);
 
         try {
-            let loc = await getVerifiedLocation(7000);
+            const loc = await getVerifiedLocation(8000);
 
             if (!loc?.coords) {
-                if (currentLocationRef.current?.coords) {
-                    loc = currentLocationRef.current;
-                } else {
-                    throw new Error(
-                        t('unable_gps_coords', 'Unable to retrieve GPS coordinates. Please ensure Location services are enabled and try again.')
-                    );
-                }
+                throw new Error(
+                    t('unable_gps_coords', 'Unable to retrieve GPS coordinates. Please ensure Location services are enabled and try again.')
+                );
             }
 
             const deviceId = await getDeviceId();
@@ -386,7 +408,9 @@ export const ScanAttendanceScreen: React.FC<{ navigation: any; route?: any }> = 
                     '/employee-app/attendance/clock-in',
                     'POST',
                     punchPayload,
-                    { description: `Attendance Punch (${shiftPhase})` }
+                    // Same key as the online attempt: if that request reached the server before
+                    // timing out, the replay is recognised as a duplicate instead of a second punch.
+                    { description: `Attendance Punch (${shiftPhase})`, idempotencyKey }
                 );
 
                 // Instantly advance shiftPhase in React Query cache so Dashboard and Guard reflect immediately

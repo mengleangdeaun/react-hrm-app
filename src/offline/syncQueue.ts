@@ -1,6 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useEffect, useState, useCallback } from 'react';
-import { apiClient } from '../api/client';
+import { AppState } from 'react-native';
+import { apiClient, AUTH_TOKEN_KEY } from '../api/client';
+import { storage } from '../utils/storage';
 import { onlineManager } from '@tanstack/react-query';
 import { offlineQueryClient } from './queryPersister';
 import { queryKeys } from '../api/queryKeys';
@@ -36,7 +38,14 @@ export interface DeadLetterOperation extends SyncOperation {
 
 export const SYNC_QUEUE_STORAGE_KEY = 'HRMS_OFFLINE_SYNC_QUEUE';
 export const DEAD_LETTER_STORAGE_KEY = 'HRMS_OFFLINE_DEAD_LETTERS';
-const MAX_RETRIES = 5;
+/**
+ * Only *server* failures (5xx / 429) count towards this limit. Connectivity failures never do:
+ * an employee on a flaky connection must not have an attendance punch discarded just because the
+ * device reported "online" a few times before the network was actually usable.
+ */
+const MAX_RETRIES = 10;
+const RETRY_BASE_DELAY_MS = 5000;
+const RETRY_MAX_DELAY_MS = 5 * 60 * 1000;
 
 type QueueListener = (items: SyncOperation[]) => void;
 type SyncingListener = (isSyncing: boolean) => void;
@@ -69,6 +78,17 @@ function notifySyncingListeners(isSyncing: boolean) {
  */
 class SyncQueueManager {
     private inFlight: boolean = false;
+    private rerunRequested: boolean = false;
+    private retryTimer: ReturnType<typeof setTimeout> | null = null;
+    private consecutiveFailures: number = 0;
+    /** Serializes every read-modify-write of the persisted queue so concurrent callers cannot clobber each other. */
+    private storageLock: Promise<unknown> = Promise.resolve();
+
+    private withStorageLock<T>(task: () => Promise<T>): Promise<T> {
+        const run = this.storageLock.then(task, task);
+        this.storageLock = run.catch(() => undefined);
+        return run;
+    }
 
     /**
      * Retrieve all pending sync operations from persistent storage
@@ -85,15 +105,16 @@ class SyncQueueManager {
     }
 
     /**
-     * Overwrite queue in persistent storage and notify subscribers
+     * Atomically apply a change to the persisted queue and notify subscribers.
+     * Throws if the write fails so callers never report "saved offline" for data that was not stored.
      */
-    private async saveQueue(queue: SyncOperation[]): Promise<void> {
-        try {
-            await AsyncStorage.setItem(SYNC_QUEUE_STORAGE_KEY, JSON.stringify(queue));
-            notifyQueueListeners(queue);
-        } catch (e) {
-            console.warn('[SyncQueue] Failed to save queue to storage', e);
-        }
+    private mutateQueue(mutator: (queue: SyncOperation[]) => SyncOperation[]): Promise<SyncOperation[]> {
+        return this.withStorageLock(async () => {
+            const next = mutator(await this.getQueue());
+            await AsyncStorage.setItem(SYNC_QUEUE_STORAGE_KEY, JSON.stringify(next));
+            notifyQueueListeners(next);
+            return next;
+        });
     }
 
     /**
@@ -142,13 +163,18 @@ class SyncQueueManager {
             isMultipart?: boolean;
             attachments?: SyncAttachment[];
             description?: string;
+            /**
+             * Reuse the key of an online attempt that timed out, so the server can de-duplicate
+             * if that first request did in fact arrive.
+             */
+            idempotencyKey?: string;
         }
     ): Promise<SyncOperation> {
-        const queue = await this.getQueue();
-        const idempotencyKey = `sync_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+        const idempotencyKey =
+            options?.idempotencyKey || `sync_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 
         const operation: SyncOperation = {
-            id: idempotencyKey,
+            id: `op_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
             type,
             endpoint,
             method,
@@ -161,12 +187,11 @@ class SyncQueueManager {
             description: options?.description,
         };
 
-        queue.push(operation);
-        await this.saveQueue(queue);
+        await this.mutateQueue((queue) => [...queue, operation]);
 
         // Attempt drain immediately if online
         if (onlineManager.isOnline()) {
-            this.processQueue();
+            this.processQueue().catch(() => {});
         }
 
         return operation;
@@ -177,8 +202,10 @@ class SyncQueueManager {
      */
     async clear(): Promise<void> {
         try {
-            await AsyncStorage.removeItem(SYNC_QUEUE_STORAGE_KEY);
-            notifyQueueListeners([]);
+            await this.withStorageLock(async () => {
+                await AsyncStorage.removeItem(SYNC_QUEUE_STORAGE_KEY);
+                notifyQueueListeners([]);
+            });
         } catch (e) {
             console.warn('[SyncQueue] Failed to clear queue', e);
         }
@@ -210,65 +237,108 @@ class SyncQueueManager {
     }
 
     /**
-     * Drain the sync queue sequentially with controlled backoff
+     * Build the HTTP request body for an operation (JSON or multipart).
+     */
+    private buildRequestData(op: SyncOperation): any {
+        if (!(op.isMultipart || (op.attachments && op.attachments.length > 0))) {
+            return op.payload;
+        }
+
+        const formData = new FormData();
+
+        // Append scalar payload fields
+        if (op.payload && typeof op.payload === 'object') {
+            Object.entries(op.payload).forEach(([key, val]) => {
+                if (val !== undefined && val !== null) {
+                    formData.append(key, typeof val === 'object' ? JSON.stringify(val) : String(val));
+                }
+            });
+        }
+
+        // Append file attachments from durable vault
+        for (const att of op.attachments || []) {
+            formData.append(att.field || 'attachments[]', {
+                uri: att.uri,
+                name: att.name,
+                type: att.type || 'image/jpeg',
+            } as any);
+        }
+
+        return formData;
+    }
+
+    private cleanupAttachments(op: SyncOperation) {
+        if (op.attachments && op.attachments.length > 0) {
+            deleteVaultAttachments(op.attachments.map((a) => a.uri)).catch(() => {});
+        }
+    }
+
+    /** Re-attempt a halted drain later, backing off while the server or network stays unhealthy. */
+    private scheduleRetry() {
+        if (this.retryTimer) return;
+        const delay = Math.min(RETRY_BASE_DELAY_MS * Math.pow(2, this.consecutiveFailures), RETRY_MAX_DELAY_MS);
+        this.consecutiveFailures += 1;
+        this.retryTimer = setTimeout(() => {
+            this.retryTimer = null;
+            this.processQueue().catch(() => {});
+        }, delay);
+    }
+
+    private cancelRetry() {
+        if (this.retryTimer) {
+            clearTimeout(this.retryTimer);
+            this.retryTimer = null;
+        }
+    }
+
+    /**
+     * Drain the sync queue sequentially, in the order the user performed the actions.
+     *
+     * Each operation is removed from (or updated in) storage individually, so operations that are
+     * enqueued while a drain is running are never overwritten by a stale snapshot.
+     *
+     * - success            -> remove, invalidate caches
+     * - 401                -> stop; keep everything until the user signs in again
+     * - other 4xx          -> dead-letter (the server will never accept it), continue
+     * - network / timeout  -> stop; keep everything, retry later (does NOT consume a retry)
+     * - 5xx / 429          -> stop; consume a retry, dead-letter only after MAX_RETRIES
      */
     async processQueue(): Promise<void> {
-        if (this.inFlight || !onlineManager.isOnline()) return;
+        if (this.inFlight) {
+            this.rerunRequested = true;
+            return;
+        }
+        if (!onlineManager.isOnline()) return;
+        // Signed out: every request would 401. The queue is drained right after the next login.
+        if (!(await storage.getItem(AUTH_TOKEN_KEY))) return;
+        if (this.inFlight) return;
 
         this.inFlight = true;
+        this.rerunRequested = false;
+        this.cancelRetry();
         notifySyncingListeners(true);
 
+        let halted = false;
+
         try {
-            const queue = await this.getQueue();
-            if (queue.length === 0) return;
+            const attempted = new Set<string>();
 
-            const remaining: SyncOperation[] = [];
+            while (!halted) {
+                const queue = await this.getQueue();
+                const op = queue.find((item) => !attempted.has(item.id));
+                if (!op) break;
+                attempted.add(op.id);
 
-            for (let i = 0; i < queue.length; i++) {
-                const op = queue[i];
+                const removeOp = () => this.mutateQueue((q) => q.filter((item) => item.id !== op.id));
 
                 try {
-                    let requestData: any = op.payload;
-                    const requestHeaders: Record<string, string> = {
-                        'X-Idempotency-Key': op.idempotencyKey,
-                    };
-
-                    // Handle multipart FormData payloads (e.g. photos, documents)
-                    if (op.isMultipart || (op.attachments && op.attachments.length > 0)) {
-                        const formData = new FormData();
-
-                        // Append scalar payload fields
-                        if (op.payload && typeof op.payload === 'object') {
-                            Object.entries(op.payload).forEach(([key, val]) => {
-                                if (val !== undefined && val !== null) {
-                                    if (typeof val === 'object') {
-                                        formData.append(key, JSON.stringify(val));
-                                    } else {
-                                        formData.append(key, String(val));
-                                    }
-                                }
-                            });
-                        }
-
-                        // Append file attachments from durable vault
-                        if (op.attachments && op.attachments.length > 0) {
-                            for (const att of op.attachments) {
-                                formData.append(att.field || 'attachments[]', {
-                                    uri: att.uri,
-                                    name: att.name,
-                                    type: att.type || 'image/jpeg',
-                                } as any);
-                            }
-                        }
-
-                        requestData = formData;
-                    }
-
                     await apiClient.request({
                         url: op.endpoint,
                         method: op.method,
-                        data: requestData,
-                        headers: requestHeaders,
+                        data: this.buildRequestData(op),
+                        headers: { 'X-Idempotency-Key': op.idempotencyKey },
+                        // Uploads over 2G/3G need far longer than the default API timeout
+                        timeout: op.attachments && op.attachments.length > 0 ? 120000 : 30000,
                         transformRequest: op.isMultipart
                             ? [
                                   (data, headers) => {
@@ -282,60 +352,71 @@ class SyncQueueManager {
                     });
 
                     // Successfully delivered to backend! Clean up attachments and invalidate cache
-                    if (op.attachments && op.attachments.length > 0) {
-                        deleteVaultAttachments(op.attachments.map((a) => a.uri)).catch(() => {});
-                    }
-
+                    await removeOp();
+                    this.cleanupAttachments(op);
                     this.triggerCacheInvalidations(op);
+                    this.consecutiveFailures = 0;
                 } catch (err: any) {
-                    const status = err?.response?.status;
+                    const status: number | undefined = err?.response?.status;
 
-                    // CRITICAL GUARD: If 401 Unauthorized, token expired while offline.
-                    // DO NOT discard punches/records! Keep this op and all remaining ops,
-                    // pause the processor, and let the auth system prompt for re-auth.
+                    // Token expired while offline. Keep this op and everything after it; the auth
+                    // layer signs the user out and the queue drains after the next successful login.
                     if (status === 401) {
-                        console.warn(`[SyncQueue] Halting sync queue drain: token expired (401). Preserving operation ${op.id}`);
-                        remaining.push(op, ...queue.slice(i + 1));
+                        console.warn(`[SyncQueue] Halting drain: session expired (401). Preserving operation ${op.id}`);
+                        halted = true;
                         break;
                     }
 
-                    // If non-recoverable 4xx client-error (400, 422, etc., except 429 rate-limit):
-                    // Save to dead-letter log for audit and discard from active queue to prevent poison pill
-                    if (status && status >= 400 && status < 500 && status !== 429) {
+                    // No HTTP response at all: connectivity problem. Never counts as a retry.
+                    if (!status) {
+                        halted = true;
+                        this.scheduleRetry();
+                        break;
+                    }
+
+                    // Non-recoverable client error (400, 422, ...): dead-letter to avoid a poison pill
+                    if (status >= 400 && status < 500 && status !== 429) {
                         const errMsg = err.response?.data?.message || err.message || `HTTP ${status}`;
-                        console.warn(`[SyncQueue] Recording dead letter for operation ${op.id} due to 4xx (${status}):`, errMsg);
+                        console.warn(`[SyncQueue] Dead-lettering operation ${op.id} (${status}):`, errMsg);
                         await this.recordDeadLetter(op, errMsg, status);
-                        if (op.attachments && op.attachments.length > 0) {
-                            deleteVaultAttachments(op.attachments.map((a) => a.uri)).catch(() => {});
-                        }
+                        await removeOp();
+                        this.cleanupAttachments(op);
                         continue;
                     }
 
-                    // Network error, timeout, 429 rate limit, or 5xx server error -> retry with exponential backoff
+                    // 5xx / 429: the server is unhealthy or throttling us. Stop hammering it.
                     const nextRetry = op.retryCount + 1;
-                    if (nextRetry <= MAX_RETRIES) {
-                        remaining.push({
-                            ...op,
-                            retryCount: nextRetry,
-                            lastAttempt: new Date().toISOString(),
-                        });
-                        // Controlled exponential backoff delay (max 4s)
-                        const backoffMs = Math.min(800 * Math.pow(2, op.retryCount), 4000);
-                        await new Promise((resolve) => setTimeout(resolve, backoffMs));
-                    } else {
-                        console.warn(`[SyncQueue] Dropping operation ${op.id} after ${MAX_RETRIES} failed attempts into dead letters`);
-                        await this.recordDeadLetter(op, `Exceeded ${MAX_RETRIES} retries: ${err?.message || 'Network/Server Error'}`, status);
-                        if (op.attachments && op.attachments.length > 0) {
-                            deleteVaultAttachments(op.attachments.map((a) => a.uri)).catch(() => {});
-                        }
+                    if (nextRetry > MAX_RETRIES) {
+                        console.warn(`[SyncQueue] Dead-lettering operation ${op.id} after ${MAX_RETRIES} server failures`);
+                        await this.recordDeadLetter(op, `Exceeded ${MAX_RETRIES} retries: ${err?.message || 'Server Error'}`, status);
+                        await removeOp();
+                        this.cleanupAttachments(op);
+                        continue;
                     }
+
+                    await this.mutateQueue((q) =>
+                        q.map((item) =>
+                            item.id === op.id
+                                ? { ...item, retryCount: nextRetry, lastAttempt: new Date().toISOString() }
+                                : item
+                        )
+                    );
+                    halted = true;
+                    this.scheduleRetry();
                 }
             }
-
-            await this.saveQueue(remaining);
+        } catch (e) {
+            console.warn('[SyncQueue] Drain aborted:', e);
+            this.scheduleRetry();
         } finally {
             this.inFlight = false;
             notifySyncingListeners(false);
+        }
+
+        // Something was enqueued (or a trigger fired) while we were draining
+        if (this.rerunRequested && !halted) {
+            this.rerunRequested = false;
+            this.processQueue().catch(() => {});
         }
     }
 }
@@ -345,7 +426,14 @@ export const syncQueue = new SyncQueueManager();
 // Automatically trigger queue sync when network is restored
 onlineManager.subscribe((isOnline) => {
     if (isOnline) {
-        syncQueue.processQueue();
+        syncQueue.processQueue().catch(() => {});
+    }
+});
+
+// ...and whenever the app returns to the foreground, so pending punches never wait for a network flap
+AppState.addEventListener('change', (status: string) => {
+    if (status === 'active') {
+        syncQueue.processQueue().catch(() => {});
     }
 });
 

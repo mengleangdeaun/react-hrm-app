@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { Animated, View, StyleSheet } from 'react-native';
 import { useAppTheme } from '../../context/ThemeContext';
 import { lightTheme, darkTheme } from '../../styles/theme';
@@ -10,6 +10,39 @@ interface SkeletonProps {
     style?: any;
 }
 
+/**
+ * One shared pulse drives every skeleton on screen.
+ *
+ * A loading screen renders 20-40 placeholders; giving each its own looping animation meant 20-40
+ * concurrent native animations (and placeholders pulsing out of phase). The loop runs only while
+ * at least one skeleton is mounted.
+ */
+const sharedPulse = new Animated.Value(0.35);
+let sharedPulseLoop: ReturnType<typeof Animated.loop> | null = null;
+let mountedSkeletons = 0;
+
+function retainSharedPulse() {
+    mountedSkeletons += 1;
+    if (mountedSkeletons === 1) {
+        sharedPulseLoop = Animated.loop(
+            Animated.sequence([
+                Animated.timing(sharedPulse, { toValue: 0.8, duration: 750, useNativeDriver: true }),
+                Animated.timing(sharedPulse, { toValue: 0.35, duration: 750, useNativeDriver: true }),
+            ])
+        );
+        sharedPulseLoop.start();
+    }
+}
+
+function releaseSharedPulse() {
+    mountedSkeletons = Math.max(0, mountedSkeletons - 1);
+    if (mountedSkeletons === 0 && sharedPulseLoop) {
+        sharedPulseLoop.stop();
+        sharedPulseLoop = null;
+        sharedPulse.setValue(0.35);
+    }
+}
+
 export const Skeleton: React.FC<SkeletonProps> & {
     Box: React.FC<SkeletonProps>;
     Circle: React.FC<{ size?: number; style?: any }>;
@@ -17,28 +50,14 @@ export const Skeleton: React.FC<SkeletonProps> & {
 } = ({ width = '100%', height = 20, borderRadius, style }) => {
     const { isDark } = useAppTheme();
     const theme = isDark ? darkTheme : lightTheme;
-    const pulseAnim = useRef(new Animated.Value(0.35)).current;
+    const pulseAnim = sharedPulse;
 
     useEffect(() => {
-        const animation = Animated.loop(
-            Animated.sequence([
-                Animated.timing(pulseAnim, {
-                    toValue: 0.8,
-                    duration: 750,
-                    useNativeDriver: true,
-                }),
-                Animated.timing(pulseAnim, {
-                    toValue: 0.35,
-                    duration: 750,
-                    useNativeDriver: true,
-                }),
-            ])
-        );
-        animation.start();
-        return () => animation.stop();
-    }, [pulseAnim]);
+        retainSharedPulse();
+        return releaseSharedPulse;
+    }, []);
 
-    const backgroundColor = isDark ? '#2e2e2eff' : '#E2E8F0';
+    const backgroundColor = isDark ? darkTheme.colors.surfaceSecondary : '#E2E8F0';
     const computedRadius = borderRadius ?? theme.borderRadius.md;
 
     return (

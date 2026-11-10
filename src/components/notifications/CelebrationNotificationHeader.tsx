@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { View, Pressable, Image } from 'react-native';
+import { View, Pressable } from 'react-native';
+import { Image } from 'expo-image';
 import { StyleSheet, useUnistyles } from 'react-native-unistyles';
 import { Cake, PartyPopper, ChevronRight } from 'lucide-react-native';
 import { AppText as Text } from '../AppText';
@@ -69,7 +70,7 @@ export const CelebrationNotificationHeader: React.FC<CelebrationNotificationHead
                             {/* Avatar with corner milestone badge */}
                             <View style={styles.avatarWrapper}>
                                 {avatarUrl ? (
-                                    <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+                                    <Image source={{ uri: avatarUrl }} style={styles.avatarImage} contentFit="cover" cachePolicy="memory-disk" recyclingKey={avatarUrl} />
                                 ) : (
                                     <View
                                         style={[

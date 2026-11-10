@@ -132,7 +132,8 @@ export const AppShell: React.FC<AppShellProps> = ({
 
     return (
         <View style={[styles.safeArea, { paddingTop: topInset }, style]}>
-            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor={theme.colors.background} />
+            {/* No backgroundColor: Android is edge-to-edge, the status bar is transparent and the prop is ignored */}
+            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
 
             <OfflineBanner />
 
